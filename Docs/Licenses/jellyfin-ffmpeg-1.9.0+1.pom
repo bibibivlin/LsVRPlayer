@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>org.jellyfin.media3</groupId>
+  <artifactId>media3-ffmpeg-decoder</artifactId>
+  <version>1.9.0+1</version>
+  <packaging>aar</packaging>
+  <name>Jellyfin AndroidX Media3 libraries - media3-ffmpeg-decoder</name>
+  <description>AndroidX Media3 FFmpeg decoder used in the Jellyfin project</description>
+  <url>https://github.com/jellyfin/jellyfin-androidx-media</url>
+  <licenses>
+    <license>
+      <name>GNU General Public License v3.0</name>
+      <url>https://www.gnu.org/licenses/gpl-3.0.txt</url>
+    </license>
+  </licenses>
+  <developers>
+    <developer>
+      <id>Maxr1998</id>
+      <name>Max Rumpf</name>
+      <url>https://github.com/Maxr1998</url>
+      <organization>Jellyfin</organization>
+      <organizationUrl>https://jellyfin.org</organizationUrl>
+    </developer>
+    <developer>
+      <id>nielsvanvelzen</id>
+      <name>Niels van Velzen</name>
+      <url>https://github.com/nielsvanvelzen</url>
+      <organization>Jellyfin</organization>
+      <organizationUrl>https://jellyfin.org</organizationUrl>
+    </developer>
+  </developers>
+  <scm>
+    <connection>scm:git:git://github.com/jellyfin/jellyfin-androidx-media.git</connection>
+    <developerConnection>scm:git:ssh://github.com:jellyfin/jellyfin-androidx-media.git</developerConnection>
+    <url>https://github.com/jellyfin/jellyfin-androidx-media/tree/master</url>
+  </scm>
+  <dependencies>
+    <dependency>
+      <groupId>androidx.media3</groupId>
+      <artifactId>media3-decoder</artifactId>
+      <version>1.9.0</version>
+      <scope>compile</scope>
+      <type>aar</type>
+    </dependency>
+    <dependency>
+      <groupId>androidx.media3</groupId>
+      <artifactId>media3-exoplayer</artifactId>
+      <version>1.9.0</version>
+      <scope>compile</scope>
+      <type>aar</type>
+    </dependency>
+  </dependencies>
+</project>

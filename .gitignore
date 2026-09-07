@@ -112,3 +112,51 @@ InitTestScene*.unity*
 
 # Auto-generated cache in Assets folder
 /[Aa]ssets/[Ss]ceneDependencyCache*
+
+# VRPlayer fixtures and local tool dependencies (regenerate with Tools/)
+/TestMedia/
+/Tools/.runtime/
+/Tools/.downloads/
+/Tools/.venv/
+
+# Device-specific raw reports and screenshots; commit curated Docs/*.md instead
+/Docs/Validation/
+/Docs/Captures/
+/TestResults/
+/TestResults.xml
+/CodeCoverage/
+
+# Local agent/editor configuration; shared .vscode settings remain versioned
+/.codex/
+/.idea/
+*.code-workspace
+
+# Python caches and environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local secrets and Android signing material
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.key
+*.pem
+/Native/Android/key.properties
+/Native/Android/keystore.properties
+
+# OS metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Do not ignore all Assets/Plugins binaries: the versioned AAR/SO and their
+# .meta files are runtime dependencies. Native/Android/build/ is ignored by
+# Native/Android/.gitignore; Assets/, Packages/, and ProjectSettings/ are shared.

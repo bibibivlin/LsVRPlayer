@@ -1,0 +1,2 @@
+-keep class com.linxyi.vrplayer.** { *; }
+-dontwarn org.slf4j.impl.StaticLoggerBinder

@@ -4,7 +4,12 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/VRPlayer/Scenes/Player.unity
+    guid: af3ce33fe025038418e6a0a9199e6390
   m_configObjects:
+    Unity.XR.PXR.Settings: {fileID: 11400000, guid: d378e47d8f5f2d746902875378d329fc, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 727f39cb6a54c5646a8a397f4acb2261, type: 2}
   m_UseUCBPForAssetBundles: 0

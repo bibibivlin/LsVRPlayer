@@ -1,0 +1,6 @@
+{
+  "name": "VRPlayer.Runtime",
+  "rootNamespace": "VRPlayer",
+  "references": ["Unity.InputSystem", "Unity.TextMeshPro", "Unity.ugui", "Unity.XR.CoreUtils", "Unity.XR.Interaction.Toolkit", "Unity.XR.PICO"],
+  "autoReferenced": true
+}

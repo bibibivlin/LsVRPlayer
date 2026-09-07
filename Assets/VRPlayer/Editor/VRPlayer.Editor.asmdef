@@ -1,0 +1,5 @@
+{
+  "name": "VRPlayer.Editor",
+  "references": ["VRPlayer.Runtime", "Unity.InputSystem", "Unity.TextMeshPro", "Unity.ugui", "Unity.XR.CoreUtils", "Unity.XR.PICO"],
+  "includePlatforms": ["Editor"]
+}
