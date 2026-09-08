@@ -18,6 +18,13 @@ namespace VRPlayer
         public PlayerStore Store{get;private set;}
         public VideoPresenter Presenter{get;private set;}
         public PlayerUI UI{get;private set;}
+        public RenderQualityController RenderQuality{get;private set;}
+        public FileSource Source{get;private set;}=FileSource.Home;
+        public SmbLibrary Smb{get;}=new SmbLibrary();
+        public SmbServer[] Servers{get;private set;}=Array.Empty<SmbServer>();
+        public SmbDiscoverySnapshot Discovery{get;private set;}=new SmbDiscoverySnapshot();
+        public event Action DiscoveryChanged;
+        private Coroutine scan;
         public PlaybackRecord Current{get;private set;}
         public List<FileEntry> Files{get;private set;}=new List<FileEntry>();
         public List<FileEntry> SubtitleCandidates{get;private set;}=new List<FileEntry>();
@@ -32,7 +39,7 @@ namespace VRPlayer
         private List<FileEntry> playlist=new List<FileEntry>();
         private CancellationTokenSource listing,subtitles;
         private SrtDocument subtitleDocument;
-        private TextMeshProUGUI caption;
+        private CaptionPresenter caption;
         private Transform captionRoot;
         private bool ended,wasPresent,tracksRestored;
         private int previousState;
@@ -43,6 +50,7 @@ namespace VRPlayer
             headCamera=headCamera!=null?headCamera:Camera.main;
             Store=new PlayerStore(Path.Combine(Application.persistentDataPath,"settings.json"));
             Screen.sleepTimeout=SleepTimeout.NeverSleep;Application.targetFrameRate=72;
+            RenderQuality=gameObject.AddComponent<RenderQualityController>();RenderQuality.Initialize(this);
             Presenter=new GameObject("Video Presenter").AddComponent<VideoPresenter>();Presenter.Initialize(headCamera);
             try{
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -69,7 +77,8 @@ namespace VRPlayer
         {
             var root=new GameObject("VR Subtitles",typeof(RectTransform),typeof(Canvas));root.GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;
             captionRoot=root.transform;((RectTransform)captionRoot).sizeDelta=new Vector2(1300,300);captionRoot.localScale=Vector3.one*.0015f;
-            caption=UiFactory.Label(captionRoot,"",0,0,1300,300,42,TextAlignmentOptions.Center);caption.richText=false;caption.textWrappingMode=TextWrappingModes.Normal;caption.outlineWidth=.2f;caption.outlineColor=new Color32(0,0,0,255);
+            root.GetComponent<Canvas>().worldCamera=headCamera;root.GetComponent<Canvas>().sortingOrder=5;
+            caption=root.AddComponent<CaptionPresenter>();caption.Initialize(1300,300,true);
         }
         private IEnumerator RenderFrames(){var wait=new WaitForEndOfFrame();while(true){yield return wait;if(Backend is AndroidMediaBackend android)android.RenderFrame();}}
         private void Update()
@@ -83,24 +92,21 @@ namespace VRPlayer
                 if(state.HasError&&lastError!=state.error){lastError=state.error;SetStatus("播放失败："+state.error+"。可点重试或选择其他文件。");}
                 if(!state.HasError&&state.state==4&&!ended){ended=true;if(Store.Settings.sequential&&!Store.Settings.loop)Next(1);}
                 if(Time.unscaledTime>=saveAt){saveAt=Time.unscaledTime+5;SaveProgress();}
-                caption.text=subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"";
-            }else caption.text="";
-            caption.fontSize=Store.Settings.subtitleSize;
-            Quaternion rotation=Store.Settings.subtitleFollow?headCamera.transform.rotation:Presenter.transform.rotation;
-            Vector3 target=headCamera.transform.position+rotation*new Vector3(0,Store.Settings.subtitleOffset,Store.Settings.subtitleDistance);
-            captionRoot.position=Vector3.Lerp(captionRoot.position,target,1-Mathf.Exp(-Time.unscaledDeltaTime*8));captionRoot.rotation=Quaternion.Slerp(captionRoot.rotation,rotation,1-Mathf.Exp(-Time.unscaledDeltaTime*8));
+                caption.SetText(subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
+            }else caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
+            caption.Position(headCamera,Presenter.transform,Store.Settings);
             InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);if(head.TryGetFeatureValue(CommonUsages.userPresence,out bool present)){if(wasPresent&&!present)Pause();wasPresent=present;}
 #if UNITY_ANDROID && !UNITY_EDITOR
             string picked=AndroidBridge.Api.CallStatic<string>("takeFolder");if(!string.IsNullOrEmpty(picked)&&picked!="CANCELLED"){if(picked.StartsWith("ERROR:"))SetStatus(picked.Substring(6));else{AddFavorite("授权目录",picked);_ = Browse(picked);}}
 #endif
-            if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=1/Mathf.Max(.001f,Time.unscaledDeltaTime),status=Status,caption=caption.text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray()},true));}catch{} }
+            if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray()},true));}catch{} }
         }
-        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle;public string[] subtitleCandidates;public float unityFps;}
+        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;}
         public void SetStatus(string value){Status=value;}
         public void Notify()=>Changed?.Invoke();
         public void Home()
         {
-            CancelListing();directories.Clear();DirectoryUri="";
+            StopDiscovery();Source=FileSource.Home;CancelListing();directories.Clear();DirectoryUri="";
             Files=new List<FileEntry>();
 #if UNITY_ANDROID && !UNITY_EDITOR
             Files.Add(new FileEntry{name="设备存储",uri="file:///storage/emulated/0/",directory=true});Files.Add(new FileEntry{name="Movies 视频",uri="file:///storage/emulated/0/Movies/",directory=true});
@@ -111,6 +117,7 @@ namespace VRPlayer
         }
         public async Task Browse(string uri,bool push=true)
         {
+            StopDiscovery();Source=FileSource.Directory;
             CancelListing();listing=new CancellationTokenSource();CancellationToken token=listing.Token;
             if(push&&!string.IsNullOrEmpty(DirectoryUri)&&DirectoryUri!=uri)directories.Push(DirectoryUri);
             DirectoryUri=uri;Loading=true;Status="正在读取目录…";Files=new List<FileEntry>();Notify();
@@ -118,7 +125,7 @@ namespace VRPlayer
             catch(OperationCanceledException){}catch(Exception ex){if(!token.IsCancellationRequested){Loading=false;SetStatus("无法读取目录："+ex.Message);}}
         }
         public void Up(){if(directories.Count>0){_ = Browse(directories.Pop(),false);return;}string parent=FileLibrary.Parent(DirectoryUri);if(parent!=null)_ = Browse(parent,false);else Home();}
-        public void Refresh(){if(string.IsNullOrEmpty(DirectoryUri))Home();else _ = Browse(DirectoryUri,false);}
+        public void Refresh(){switch(Source){case FileSource.Favorites:ShowFavorites();break;case FileSource.Recent:ShowRecent();break;case FileSource.Smb:ShowServers();break;case FileSource.Directory:_ = Browse(DirectoryUri,false);break;default:Home();break;}}
         public void CancelListing(){listing?.Cancel();listing?.Dispose();listing=null;Loading=false;}
         public void Open(FileEntry entry,string directory=null)
         {
@@ -159,7 +166,7 @@ namespace VRPlayer
         public void Skip(int seconds)=>Seek((Backend?.Snapshot.position??0)+seconds*1000L);
         public void Next(int delta){if(Current==null||playlist.Count==0)return;int index=playlist.FindIndex(x=>x.uri==Current.uri),next=index+delta;if(next<0||next>=playlist.Count){SetStatus("已到目录边界");return;}Open(playlist[next],Current.directory);}
         public void Retry(){if(Current==null)return;var record=Current;Open(new FileEntry{uri=record.uri,name=record.name,size=record.size,modified=record.modified},record.directory);}
-        public void Stop(){SaveProgress();Generation++;Backend?.Stop();Current=null;subtitleDocument=null;subtitles?.Cancel();caption.text="";SetStatus("播放已停止");}
+        public void Stop(){SaveProgress();Generation++;Backend?.Stop();Current=null;subtitleDocument=null;subtitles?.Cancel();caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
         public void SetVolume(float value){Store.Settings.volume=value;Backend?.SetVolume(value);}
         public void SetSpeed(float value){Store.Settings.speed=value;Backend?.SetSpeed(value);}
         public void SaveProgress()
@@ -169,21 +176,24 @@ namespace VRPlayer
             Store.Save();
         }
         public void AddFavorite(string name,string uri){if(Store.Settings.favorites.All(x=>x.uri!=uri))Store.Settings.favorites.Add(new Favorite{name=name,uri=uri});Store.Save();Notify();}
-        public void ShowFavorites(){CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
-        public void ShowRecent(){CancelListing();DirectoryUri="";Files=Store.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified}).ToList();SetStatus("最近播放 · 选择影片恢复进度");Notify();}
+        public void ShowFavorites(){StopDiscovery();Source=FileSource.Favorites;directories.Clear();CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
+        public void ShowRecent(){StopDiscovery();Source=FileSource.Recent;directories.Clear();CancelListing();DirectoryUri="";Files=Store.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified}).ToList();SetStatus("最近播放 · 选择影片恢复进度");Notify();}
         public void OpenRecentOrFile(FileEntry entry){var record=Store.Find(entry.uri);Open(entry,record!=null&&string.IsNullOrEmpty(DirectoryUri)?record.directory:DirectoryUri);}
         public void ShowServers()
         {
-            CancelListing();DirectoryUri="";Files=new List<FileEntry>();
+            StopDiscovery();Source=FileSource.Smb;directories.Clear();CancelListing();DirectoryUri="";Files=new List<FileEntry>();
 #if UNITY_ANDROID && !UNITY_EDITOR
-            var servers=JsonUtility.FromJson<ServerList>(AndroidBridge.Api.CallStatic<string>("listServers"));Files=(servers.servers??Array.Empty<SmbServer>()).Select(s=>new FileEntry{name=string.IsNullOrEmpty(s.name)?s.host+" / "+s.share:s.name,uri="smb://"+s.id+"/",directory=true}).ToList();
+            Servers=JsonUtility.FromJson<ServerList>(AndroidBridge.Api.CallStatic<string>("listServers")).servers??Array.Empty<SmbServer>();Files=Servers.Select(s=>new FileEntry{name=string.IsNullOrEmpty(s.name)?s.host+" / "+s.share:s.name,uri="smb://"+s.id+"/",directory=true}).ToList();
 #endif
-            SetStatus("SMB 服务器 · 使用“添加 SMB”配置共享");Notify();
+            SetStatus("SMB 服务器");Notify();StartDiscovery();
         }
+        public void StartDiscovery(){StopDiscovery();Smb.StartDiscovery();scan=StartCoroutine(PollDiscovery());}
+        private IEnumerator PollDiscovery(){do{Discovery=Smb.PollDiscovery();DiscoveryChanged?.Invoke();if(!Discovery.running)break;yield return new WaitForSecondsRealtime(.3f);}while(true);scan=null;}
+        public void StopDiscovery(){if(scan!=null){StopCoroutine(scan);scan=null;}Smb.StopDiscovery();Discovery.running=false;}
         public bool SaveServer(SmbServer server)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
-            var result=JsonUtility.FromJson<SaveServerResult>(AndroidBridge.Api.CallStatic<string>("saveServer",JsonUtility.ToJson(server)));if(!result.ok){SetStatus(result.error);return false;}ShowServers();return true;
+            var result=JsonUtility.FromJson<SaveServerResult>(AndroidBridge.Api.CallStatic<string>("saveServer",JsonUtility.ToJson(server)));if(!result.ok){SetStatus(result.error);return false;}server.id=result.id;ShowServers();return true;
 #else
             SetStatus("SMB 原生连接在 PICO Android 版本中可用");return false;
 #endif
@@ -218,8 +228,8 @@ namespace VRPlayer
 #endif
         }
         public void Recenter(bool lying){Presenter.Recenter(lying);UI.Show();SetStatus(lying?"观看方向已对齐当前视线，可躺卧观看":"观看方向已重新居中");}
-        private void OnApplicationPause(bool paused){if(paused)Pause();}
+        private void OnApplicationPause(bool paused){if(paused){StopDiscovery();UI?.CancelSmbConnection();Pause();}else if(Source==FileSource.Smb&&UI!=null&&UI.CanDiscover)StartDiscovery();}
         private void OnApplicationFocus(bool focused){if(!focused)Pause();}
-        private void OnDestroy(){SaveProgress();listing?.Cancel();subtitles?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
+        private void OnDestroy(){SaveProgress();StopDiscovery();listing?.Cancel();subtitles?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
     }
 }

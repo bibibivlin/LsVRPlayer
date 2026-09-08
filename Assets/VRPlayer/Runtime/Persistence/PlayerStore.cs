@@ -15,7 +15,9 @@ namespace VRPlayer
     [Serializable] public sealed class Favorite {public string name,uri;}
     [Serializable] public sealed class UserSettings
     {
-        public int version=1;public float volume=.8f,speed=1,subtitleSize=42,subtitleOffset=-.75f,subtitleDistance=3;
+        public int version=2;public float volume=.8f,speed=1,subtitleSize=42,subtitleOffset=-.75f,subtitleDistance=3;
+        public RenderQuality renderQuality=RenderQuality.High;
+        public SubtitleStyle subtitleStyle=new SubtitleStyle();
         public bool subtitleFollow=true,sequential,loop,autoHide=true;
         public List<PlaybackRecord> history=new List<PlaybackRecord>();
         public List<Favorite> favorites=new List<Favorite>();
@@ -24,7 +26,38 @@ namespace VRPlayer
     {
         private readonly string path;
         public UserSettings Settings{get;private set;}=new UserSettings();
-        public PlayerStore(string path){this.path=path;try{if(File.Exists(path))Settings=JsonUtility.FromJson<UserSettings>(File.ReadAllText(path))??new UserSettings();}catch(Exception ex){Debug.LogWarning("VRPlayer settings restored to defaults: "+ex.GetType().Name);}Settings.history??=new List<PlaybackRecord>();Settings.favorites??=new List<Favorite>();}
+        public PlayerStore(string path)
+        {
+            this.path=path;
+            try{if(File.Exists(path))Settings=ParseSettings(File.ReadAllText(path));}
+            catch(Exception ex){Debug.LogWarning("VRPlayer settings restored to defaults: "+ex.GetType().Name);}
+        }
+        [Serializable] private sealed class VersionHeader {public int version;}
+        public static UserSettings ParseSettings(string json)
+        {
+            var value=JsonUtility.FromJson<UserSettings>(json)??new UserSettings();
+            int version=JsonUtility.FromJson<VersionHeader>(json)?.version??0;
+            value.history??=new List<PlaybackRecord>();value.favorites??=new List<Favorite>();
+            float oldDistance=Finite(value.subtitleDistance,3);
+            value.subtitleDistance=Mathf.Clamp(oldDistance,.1f,6);
+            if(version<2){float ratio=3/Mathf.Max(.1f,oldDistance);value.subtitleSize*=ratio;value.subtitleOffset*=ratio;value.renderQuality=RenderQuality.High;value.subtitleStyle=new SubtitleStyle();}
+            value.version=2;value.subtitleStyle??=new SubtitleStyle();
+            value.subtitleSize=Mathf.Clamp(Finite(value.subtitleSize,42),12,200);
+            value.subtitleOffset=Mathf.Clamp(Finite(value.subtitleOffset,-.75f),-4,4);
+            if(!Enum.IsDefined(typeof(RenderQuality),value.renderQuality))value.renderQuality=RenderQuality.High;
+            value.subtitleStyle.Normalize();return value;
+        }
+        private static float Finite(float value,float fallback)=>float.IsNaN(value)||float.IsInfinity(value)?fallback:value;
+        public Favorite RemoveFavorite(string uri,out int index)
+        {
+            index=Settings.favorites.FindIndex(f=>f.uri==uri);if(index<0)return null;
+            Favorite removed=Settings.favorites[index];Settings.favorites.RemoveAt(index);Save();return removed;
+        }
+        public bool RestoreFavorite(Favorite favorite,int index)
+        {
+            if(favorite==null||Settings.favorites.Any(f=>f.uri==favorite.uri))return false;
+            Settings.favorites.Insert(Math.Clamp(index,0,Settings.favorites.Count),favorite);Save();return true;
+        }
         public PlaybackRecord Find(string uri)=>Settings.history.FirstOrDefault(item=>item.uri==uri);
         public PlaybackRecord Touch(FileEntry file,string directory)
         {

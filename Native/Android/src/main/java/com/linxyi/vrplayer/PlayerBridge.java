@@ -30,6 +30,8 @@ public final class PlayerBridge {
     private static final AtomicInteger requestSequence=new AtomicInteger();
     private static final ConcurrentHashMap<Integer,FutureTask<Void>> requests=new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer,String> results=new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Integer,AutoCloseable> requestResources=new ConcurrentHashMap<>();
+    private static final ThreadLocal<Integer> currentRequest=new ThreadLocal<>();
     private static ExoPlayer player;
     private static Surface videoSurface;
     private static volatile String snapshot="{}";
@@ -57,6 +59,8 @@ public final class PlayerBridge {
             player.addAnalyticsListener(new AnalyticsListener(){
                 @Override public void onVideoDecoderInitialized(EventTime time,String name,long timestamp,long duration){decoder=name;Log.i("VRPlayer","Decoder: "+name);}
                 @Override public void onAudioDecoderInitialized(EventTime time,String name,long timestamp,long duration){audioDecoder=name;Log.i("VRPlayer","Audio decoder: "+name);}
+                @Override public void onVideoDecoderReleased(EventTime time,String name){if(name.equals(decoder))decoder="";}
+                @Override public void onAudioDecoderReleased(EventTime time,String name){if(name.equals(audioDecoder))audioDecoder="";}
                 @Override public void onDroppedVideoFrames(EventTime time,int count,long elapsed){dropped+=count;}
             });
             running=true;main.post(update);
@@ -66,7 +70,9 @@ public final class PlayerBridge {
     public static void setVideoSurface(Surface surface,SurfaceTexture texture){main.post(()->{videoSurface=surface;if(texture!=null)texture.setOnFrameAvailableListener(value->nativeFrameAvailable(),main);if(player!=null)player.setVideoSurface(surface);});}
     public static void useCompositionSurface(Surface surface){main.post(()->{videoSurface=surface;if(player!=null)player.setVideoSurface(surface);});}
     public static void open(String uri,long position,int token){main.post(()->{
-        if(player==null)return;generation=token;error="";decoder="";audioDecoder="";dropped=0;embeddedSubtitle="";
+        // Media3 may reuse the current decoder when opening a compatible movie.
+        // Keep its name until the actual decoder-release event arrives.
+        if(player==null)return;generation=token;error="";dropped=0;embeddedSubtitle="";
         player.setMediaItem(MediaItem.fromUri(uri),Math.max(0,position));player.prepare();player.play();
     });}
     public static void play(){main.post(()->{if(player!=null)player.play();});}
@@ -87,7 +93,7 @@ public final class PlayerBridge {
     public static String getSnapshot(){return snapshot;}
     public static String getLaunchUri(){return activity.getIntent().getStringExtra("video");}
     public static String getLaunchMode(){return activity.getIntent().getStringExtra("projection");}
-    public static void release(){main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){player.release();player=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
+    public static void release(){SmbDiscovery.stopAll();main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){player.release();player=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
     private static final Runnable update=new Runnable(){@Override public void run(){
         if(!running||player==null)return;
         try{
@@ -106,18 +112,28 @@ public final class PlayerBridge {
         main.postDelayed(this,150);
     }};
     interface Work {JSONObject run()throws Exception;}
-    private static int request(Work work){
+    private static int request(Work work){return request(work,null);}
+    private static int request(Work work,AutoCloseable resource){
         int id=requestSequence.incrementAndGet();
+        if(resource!=null)requestResources.put(id,resource);
         FutureTask<Void> task=new FutureTask<>(()->{
+            currentRequest.set(id);
             JSONObject result;
-            try{result=work.run().put("ok",true);}catch(Exception ex){result=new JSONObject();try{result.put("ok",false).put("error",safeError(ex));}catch(Exception ignored){}}
+            try{result=work.run().put("ok",true);}catch(Exception ex){result=new JSONObject();try{result.put("ok",false).put("error",safeError(ex)).put("code",ex.getClass().getSimpleName().contains("Authentication")?"authentication":"unavailable");}catch(Exception ignored){}}
+            finally{closeRequest(id);currentRequest.remove();}
             if(!Thread.currentThread().isInterrupted()&&requests.containsKey(id))results.put(id,result.toString());return null;
         });requests.put(id,task);io.execute(task);return id;
     }
     public static int beginList(String location){return request(()->FileAccess.list(activity,location));}
     public static int beginText(String location,String encoding){return request(()->new JSONObject().put("text",FileAccess.readText(activity,location,encoding)));}
     public static String takeResult(int id){String value=results.remove(id);if(value!=null)requests.remove(id);return value==null?"":value;}
-    public static void cancelRequest(int id){FutureTask<Void> task=requests.remove(id);if(task!=null)task.cancel(true);results.remove(id);}
+    public static void cancelRequest(int id){FutureTask<Void> task=requests.remove(id);if(task!=null)task.cancel(true);closeRequest(id);results.remove(id);}
+    private static void closeRequest(int id){AutoCloseable resource=requestResources.remove(id);if(resource!=null)try{resource.close();}catch(Exception ignored){}}
+    static void attachResource(AutoCloseable resource){Integer id=currentRequest.get();if(id==null)return;requestResources.compute(id,(key,previous)->()->{if(previous!=null)previous.close();resource.close();});if(!requests.containsKey(id)||Thread.currentThread().isInterrupted())closeRequest(id);}
+    public static int beginDiscovery(){return SmbDiscovery.begin(activity);}
+    public static String pollDiscovery(int id){return SmbDiscovery.poll(id);}
+    public static void stopDiscovery(int id){SmbDiscovery.stop(id);}
+    public static int beginShares(String json){try{SmbShares shares=new SmbShares(json);return request(shares::run,shares);}catch(Exception ex){return request(()->{throw new IllegalArgumentException("SMB settings");});}}
     public static String saveServer(String json){try{return new JSONObject().put("ok",true).put("id",SmbStore.save(json)).toString();}catch(Exception ex){return "{\"ok\":false,\"error\":\"无法保存服务器，请检查填写内容\"}";}}
     public static String listServers(){return "{\"servers\":"+SmbStore.list()+"}";}
     public static void removeServer(String id){try{SmbStore.remove(id);}catch(Exception ignored){}}

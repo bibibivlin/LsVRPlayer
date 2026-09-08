@@ -30,6 +30,11 @@ namespace VRPlayer
             var colors=button.colors;colors.normalColor=Color.white;colors.highlightedColor=new Color(1.25f,1.3f,1.3f,1);colors.pressedColor=Accent;colors.selectedColor=Color.white;button.colors=colors;
             Label(rect,text,8,0,w-16,h,24,TextAlignmentOptions.Center);button.onClick.AddListener(()=>action?.Invoke());return button;
         }
+        public static void SetAccent(Button button,bool selected)
+        {
+            button.targetGraphic.color=selected?new Color(.08f,.36f,.36f,1):Panel;
+            button.GetComponentInChildren<TextMeshProUGUI>().color=selected?Accent:TextColor;
+        }
         public static TMP_InputField Input(Transform parent,string value,string placeholder,float x,float y,float w,float h,Action<TMP_InputField> selected=null,bool password=false)
         {
             var rect=Box(parent,"Input",x,y,w,h,new Color(.045f,.075f,.115f,1),true);var input=rect.gameObject.AddComponent<TMP_InputField>();

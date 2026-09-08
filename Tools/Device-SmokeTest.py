@@ -39,6 +39,7 @@ def wait_for(read, predicate, timeout=25):
     raise AssertionError('Timed out; last value: ' + str(last))
 
 def command(action, **fields):
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
     payload = ROOT / 'TestMedia' / 'device-command.json'
     payload.write_text(json.dumps({'action':action, **fields}, ensure_ascii=False), encoding='utf-8')
     adb('shell', 'run-as', PACKAGE, 'rm', '-f', 'files/command-result.json')
@@ -48,6 +49,7 @@ def command(action, **fields):
     return wait_for(lambda: json.loads(adb('shell', 'run-as', PACKAGE, 'cat', 'files/command-result.json')), lambda x: x.get('accepted') and x.get('action')==action)
 
 def status():
+    adb('shell', 'input', 'keyevent', 'KEYCODE_WAKEUP')
     return json.loads(adb('shell', 'cat', EXTERNAL+'playback-diagnostics.json'))
 
 def record(name, state=None):

@@ -57,6 +57,11 @@ namespace VRPlayer
     }
     [Serializable] public sealed class ServerList { public SmbServer[] servers=Array.Empty<SmbServer>(); }
     [Serializable] public sealed class SaveServerResult {public bool ok;public string id,error;}
+    public enum FileSource { Home, Smb, Favorites, Recent, Directory }
+    [Serializable] public sealed class DiscoveredSmbHost {public string name,host;public int port=445;}
+    [Serializable] public sealed class SmbDiscoverySnapshot {public bool running,complete;public int tested,total;public string error="";public DiscoveredSmbHost[] hosts=Array.Empty<DiscoveredSmbHost>();}
+    [Serializable] public sealed class SmbShare {public string name,comment;}
+    [Serializable] public sealed class SmbShareResult {public bool ok;public string error,code;public SmbShare[] shares=Array.Empty<SmbShare>();}
     public interface IMediaBackend : IDisposable
     {
         MediaSnapshot Snapshot{get;}

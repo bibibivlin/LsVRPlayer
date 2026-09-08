@@ -18,7 +18,7 @@ namespace VRPlayer
         private readonly LineRenderer[] rays=new LineRenderer[2];
         private readonly Transform[] dots=new Transform[2];
         private Material rayMaterial;
-        private float nextScroll;
+        private int scrollOwner=-1;
         public void Initialize(PlayerApp owner,Camera camera,Canvas target)
         {
             app=owner;head=camera;canvas=target;
@@ -35,6 +35,12 @@ namespace VRPlayer
         {
             if(app==null)return;
             bool hasController=false;
+            float strongest=0;int stickOwner=-1;
+            for(int hand=0;hand<2;hand++){
+                var device=InputDevices.GetDeviceAtXRNode(hand==0?XRNode.LeftHand:XRNode.RightHand);
+                if(device.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 axis)&&Mathf.Abs(axis.y)>Mathf.Abs(strongest)){strongest=axis.y;stickOwner=hand;}
+            }
+            if(Mathf.Abs(strongest)>.2f&&app.UI.Visible){scrollOwner=stickOwner;app.UI.ScrollList(strongest);app.UI.LastInteraction=Time.unscaledTime;}else scrollOwner=-1;
             for(int hand=0;hand<2;hand++){
                 UnityEngine.XR.InputDevice device=InputDevices.GetDeviceAtXRNode(hand==0?XRNode.LeftHand:XRNode.RightHand);
                 Vector3 position=Vector3.zero;Quaternion rotation=Quaternion.identity;
@@ -50,8 +56,7 @@ namespace VRPlayer
                 Vector3 point=ray.GetPoint(length);Vector3 screen=head.WorldToScreenPoint(point);bool usable=intersects&&distance>0&&distance<10&&screen.z>0;
                 device.TryGetFeatureValue(CommonUsages.trigger,out float trigger);device.TryGetFeatureValue(CommonUsages.triggerButton,out bool triggerButton);
                 device.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 stick);
-                if(app.UI.Visible&&Mathf.Abs(stick.y)>.65f&&Time.unscaledTime>nextScroll){nextScroll=Time.unscaledTime+.3f;app.UI.ScrollPage(stick.y);app.UI.LastInteraction=Time.unscaledTime;}
-                bool pressed=trigger>.6f||triggerButton;bool wasHeld=held[hand];Dispatch(hand,screen,pressed,new Vector2(0,stick.y*7*Time.unscaledDeltaTime),usable);
+                bool pressed=trigger>.6f||triggerButton;bool wasHeld=held[hand];Dispatch(hand,screen,pressed,Vector2.zero,usable);
                 rays[hand].enabled=app.UI.Visible;dots[hand].gameObject.SetActive(usable&&pointers[hand].pointerCurrentRaycast.gameObject!=null);
                 rays[hand].SetPosition(0,world);rays[hand].SetPosition(1,point);dots[hand].position=point-ray.direction*.005f;
                 if(pressed&&!wasHeld&&pointers[hand].pointerCurrentRaycast.gameObject!=null)device.SendHapticImpulse(0,.18f,.025f);
@@ -65,6 +70,7 @@ namespace VRPlayer
         private void Dispatch(int index,Vector2 position,bool pressed,Vector2 scroll,bool usable)
         {
             PointerEventData data=pointers[index];Vector2 previous=data.position;data.position=position;data.delta=position-previous;data.scrollDelta=scroll;
+            if(!usable&&held[index]){CancelPointer(data);held[index]=pressed;return;}
             hits.Clear();if(usable)eventSystem.RaycastAll(data,hits);data.pointerCurrentRaycast=FindFirstRaycast(hits);GameObject target=data.pointerCurrentRaycast.gameObject;
             HandlePointerExitAndEnter(data,target);
             if(target!=null&&(data.delta.sqrMagnitude>1||pressed||scroll.sqrMagnitude>.001f))app.UI.LastInteraction=Time.unscaledTime;
@@ -76,7 +82,7 @@ namespace VRPlayer
                 data.pointerDrag=ExecuteEvents.GetEventHandler<IDragHandler>(target);if(data.pointerDrag!=null)ExecuteEvents.Execute(data.pointerDrag,data,ExecuteEvents.initializePotentialDrag);
             }
             if(pressed&&data.pointerDrag!=null&&data.delta.sqrMagnitude>0){
-                if(!data.dragging&&(!data.useDragThreshold||(data.position-data.pressPosition).sqrMagnitude>eventSystem.pixelDragThreshold*eventSystem.pixelDragThreshold)){ExecuteEvents.Execute(data.pointerDrag,data,ExecuteEvents.beginDragHandler);data.dragging=true;}
+                if(!data.dragging&&(!data.useDragThreshold||(data.position-data.pressPosition).sqrMagnitude>Mathf.Pow(Mathf.Max(10,eventSystem.pixelDragThreshold),2))){ExecuteEvents.Execute(data.pointerDrag,data,ExecuteEvents.beginDragHandler);data.dragging=true;data.eligibleForClick=false;}
                 if(data.dragging){if(data.pointerPress!=data.pointerDrag){ExecuteEvents.Execute(data.pointerPress,data,ExecuteEvents.pointerUpHandler);data.eligibleForClick=false;data.pointerPress=null;data.rawPointerPress=null;}ExecuteEvents.Execute(data.pointerDrag,data,ExecuteEvents.dragHandler);}
             }
             if(up){
@@ -87,6 +93,12 @@ namespace VRPlayer
                 data.eligibleForClick=false;data.dragging=false;data.pointerPress=null;data.rawPointerPress=null;data.pointerDrag=null;
             }
             if(scroll.sqrMagnitude>.00001f)ExecuteEvents.ExecuteHierarchy(target,data,ExecuteEvents.scrollHandler);
+        }
+        private void CancelPointer(PointerEventData data)
+        {
+            ExecuteEvents.Execute(data.pointerPress,data,ExecuteEvents.pointerUpHandler);
+            if(data.dragging)ExecuteEvents.Execute(data.pointerDrag,data,ExecuteEvents.endDragHandler);
+            data.eligibleForClick=false;data.dragging=false;data.pointerPress=null;data.rawPointerPress=null;data.pointerDrag=null;HandlePointerExitAndEnter(data,null);
         }
         protected override void OnDestroy(){base.OnDestroy();foreach(var ray in rays)if(ray!=null)Destroy(ray.gameObject);foreach(var dot in dots)if(dot!=null)Destroy(dot.gameObject);if(rayMaterial!=null)Destroy(rayMaterial);}
     }

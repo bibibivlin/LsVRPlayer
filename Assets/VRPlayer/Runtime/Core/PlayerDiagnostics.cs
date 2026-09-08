@@ -12,6 +12,7 @@ namespace VRPlayer
         {
             public string action,uri,name,subtitle,host,share,username,password;
             public long position;public int projection,stereo,port=1445;public bool flag;
+            public float value,distance=3,size=42,offset=-.75f;public int preset;
         }
         private PlayerApp app;private float nextPoll;private string commandDirectory;
         private void Start(){app=GetComponent<PlayerApp>();commandDirectory=Application.persistentDataPath;
@@ -39,15 +40,23 @@ namespace VRPlayer
                     case "eyes":app.Presenter.Settings.swapEyes=command.flag;break;
                     case "track":if(command.flag)app.EmbeddedSubtitle(command.uri);else app.Backend.SelectTrack(command.uri,1);break;
                     case "inspect":break;
+                    case "tab":app.UI.SelectTab(command.name);break;
+                    case "source":if(command.name=="smb")app.ShowServers();else if(command.name=="favorites")app.ShowFavorites();else if(command.name=="recent")app.ShowRecent();else app.Home();break;
+                    case "quality":app.RenderQuality.Select((RenderQuality)Mathf.Clamp(command.preset,0,2));break;
+                    case "caption-settings":app.Store.Settings.subtitleDistance=Mathf.Clamp(command.distance,.1f,6);app.Store.Settings.subtitleSize=command.size;app.Store.Settings.subtitleOffset=command.offset;app.Store.Settings.subtitleStyle=SubtitleStyle.Preset(command.preset);break;
+                    case "scan":app.ShowServers();break;
+                    case "stop-scan":app.StopDiscovery();break;
+                    case "shares":_ = InspectShares(new SmbServer{host=command.host,port=command.port,username=command.username??"",password=command.password??""});break;
                     case "menu":if(command.flag)app.UI.Show();else app.UI.Hide();break;
                     case "capture":ScreenCapture.CaptureScreenshot(Path.Combine(Application.persistentDataPath,"capture.png"));break;
                     case "smb":app.SaveServer(new SmbServer{name=command.name??"Test fixture",host=command.host,share=command.share,port=command.port,username=command.username??"",password=command.password??"",remember=false});break;
                 }
-                File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Result{accepted=true,action=command.action,files=app.Files.ToArray(),subtitles=app.SubtitleCandidates.ToArray()}));
+                File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Result{accepted=true,action=command.action,files=app.Files.ToArray(),subtitles=app.SubtitleCandidates.ToArray(),tab=app.UI.SelectedTab,source=app.Source.ToString(),discovery=app.Discovery}));
             }catch(Exception ex){File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Failure{error=ex.ToString()}));}
         }
         [Serializable] private sealed class Failure {public string error;}
-        [Serializable] private sealed class Result {public bool accepted;public string action;public FileEntry[] files,subtitles;}
+        private async System.Threading.Tasks.Task InspectShares(SmbServer server){var result=await app.Smb.Shares(server,System.Threading.CancellationToken.None);File.WriteAllText(Path.Combine(commandDirectory,"smb-shares-result.json"),JsonUtility.ToJson(result));}
+        [Serializable] private sealed class Result {public bool accepted;public string action,tab,source;public FileEntry[] files,subtitles;public SmbDiscoverySnapshot discovery;}
 #endif
     }
 }

@@ -337,7 +337,7 @@ MonoBehaviour:
   minEyeTextureScale: 0.7
   maxEyeTextureScale: 1.26
   enableSuperResolution: 0
-  useRecommendedAntiAliasingLevel: 1
+  useRecommendedAntiAliasingLevel: 0
   usePremultipliedAlpha: 0
   useLayerBlend: 0
   srcColor: 1

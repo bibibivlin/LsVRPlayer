@@ -7,7 +7,9 @@ ADB=r'C:\Program Files\Unity\Hub\Editor\6000.3.23f1\Editor\Data\PlaybackEngines\
 PACKAGE='com.linxyi.LsVRPlayer';EXTERNAL='/sdcard/Android/data/'+PACKAGE+'/files/'
 checks=[]
 def adb(*items):return subprocess.run([ADB,'-s',args.serial,*items],capture_output=True,check=True).stdout.decode('utf-8')
-def status():return json.loads(adb('shell','cat',EXTERNAL+'playback-diagnostics.json'))
+def status():
+    adb('shell','input','keyevent','KEYCODE_WAKEUP')
+    return json.loads(adb('shell','cat',EXTERNAL+'playback-diagnostics.json'))
 def wait(predicate,timeout=25):
     end=time.monotonic()+timeout;last=None
     while time.monotonic()<end:
@@ -18,6 +20,7 @@ def wait(predicate,timeout=25):
         time.sleep(.3)
     raise AssertionError(last)
 def command(action,**fields):
+    adb('shell','input','keyevent','KEYCODE_WAKEUP')
     path=ROOT/'TestMedia/device-command.json';path.write_text(json.dumps(dict(action=action,**fields)),encoding='utf-8')
     adb('shell','run-as',PACKAGE,'rm','-f','files/command-result.json')
     adb('push',str(path),'/data/local/tmp/vrplayer-command.json');adb('shell','run-as',PACKAGE,'cp','/data/local/tmp/vrplayer-command.json','files/command.json')
@@ -33,7 +36,9 @@ def open_media(name):
     previous=status()['snapshot']['generation'];command('open',name=name,uri='file:///sdcard/Movies/VRPlayerTest/'+name)
     value=wait(lambda x:x['snapshot']['generation']!=previous and (x['snapshot']['state']==3 or bool(x['snapshot']['error'])))
     assert not value['snapshot']['error'],value
-    return value
+    # Saved playback positions may be near the end of these short fixtures.
+    command('seek',position=0);command('play')
+    return wait(lambda x:x['snapshot']['generation']==value['snapshot']['generation'] and x['snapshot']['position']<3000 and x['snapshot']['playing'])
 def record(name,**data):
     checks.append(dict(name=name,passed=True,**data));save();print('PASS '+name,flush=True)
 def save():(ROOT/'Docs/Validation/device-stability.json').write_text(json.dumps(checks,ensure_ascii=False,indent=2),encoding='utf-8')

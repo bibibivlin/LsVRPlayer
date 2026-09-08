@@ -69,10 +69,12 @@ final class SmbStore {
         return String.join("\\",segments);
     }
     static final class Handle implements AutoCloseable {
+        final NetworkSockets sockets=new NetworkSockets(null,15000);
         final SMBClient client;Connection connection;Session session;DiskShare share;final String path;
         Handle(JSONObject server,String path)throws Exception{
             this.path=path;
-            client=new SMBClient(SmbConfig.builder().withTimeout(15,TimeUnit.SECONDS).withSoTimeout(15000).withEncryptData(server.optBoolean("encrypt")).build());
+            PlayerBridge.attachResource(sockets);
+            client=new SMBClient(SmbConfig.builder().withSocketFactory(sockets).withTimeout(15,TimeUnit.SECONDS).withSoTimeout(15000).withEncryptData(server.optBoolean("encrypt")).build());
             try{
                 connection=client.connect(server.getString("host"),server.optInt("port",445));String user=server.optString("username");
                 session=connection.authenticate(user.isEmpty()?AuthenticationContext.anonymous():new AuthenticationContext(user,server.optString("password").toCharArray(),server.optString("domain")));
@@ -80,7 +82,7 @@ final class SmbStore {
             }catch(Exception ex){close();throw ex;}
         }
         com.hierynomus.smbj.share.File open(){return share.openFile(path,EnumSet.of(AccessMask.GENERIC_READ),EnumSet.of(FileAttributes.FILE_ATTRIBUTE_NORMAL),SMB2ShareAccess.ALL,SMB2CreateDisposition.FILE_OPEN,EnumSet.of(SMB2CreateOptions.FILE_NON_DIRECTORY_FILE));}
-        public void close(){try{if(share!=null)share.close();}catch(Exception ignored){}try{if(session!=null)session.close();}catch(Exception ignored){}try{if(connection!=null)connection.close();}catch(Exception ignored){}try{client.close();}catch(Exception ignored){}}
+        public void close(){try{if(share!=null)share.close();}catch(Exception ignored){}try{if(session!=null)session.close();}catch(Exception ignored){}try{if(connection!=null)connection.close();}catch(Exception ignored){}try{client.close();}catch(Exception ignored){}sockets.close();}
     }
     private static SecretKey key()throws Exception{
         KeyStore ks=KeyStore.getInstance("AndroidKeyStore");ks.load(null);
