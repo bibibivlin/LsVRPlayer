@@ -38,6 +38,12 @@ public final class PlayerBridge {
     private static String error="",decoder="",audioDecoder="",embeddedSubtitle="";
     private static int dropped=0,generation=0;
     private static boolean running=false;
+    private static volatile boolean formatProbeEnabled=true;
+    private static int probeId,probeRun;
+    private static boolean probeComplete;
+    private static FormatMetadata.Hints probeHints=new FormatMetadata.Hints(),projectionHints=new FormatMetadata.Hints();
+    private static Format lastProjectionFormat;
+    private static final ScheduledExecutorService probeTimer=Executors.newSingleThreadScheduledExecutor();
     static {System.loadLibrary("vrplayerrender");nativeBootstrap();}
     private static native void nativeBootstrap();
     private static native void nativeFrameAvailable();
@@ -73,11 +79,12 @@ public final class PlayerBridge {
         // Media3 may reuse the current decoder when opening a compatible movie.
         // Keep its name until the actual decoder-release event arrives.
         if(player==null)return;generation=token;error="";dropped=0;embeddedSubtitle="";
-        player.setMediaItem(MediaItem.fromUri(uri),Math.max(0,position));player.prepare();player.play();
+        cancelProbe();probeHints=new FormatMetadata.Hints();projectionHints=new FormatMetadata.Hints();lastProjectionFormat=null;probeComplete=false;
+        player.setMediaItem(MediaItem.fromUri(uri),Math.max(0,position));player.prepare();player.play();if(formatProbeEnabled)startProbe(uri);
     });}
     public static void play(){main.post(()->{if(player!=null)player.play();});}
     public static void pause(){main.post(()->{if(player!=null)player.pause();});}
-    public static void stop(){main.post(()->{if(player!=null){player.stop();player.clearMediaItems();embeddedSubtitle="";error="";}});}
+    public static void stop(){main.post(()->{if(player!=null){cancelProbe();player.stop();player.clearMediaItems();embeddedSubtitle="";error="";}});}
     public static void seek(long millis){main.post(()->{if(player!=null){embeddedSubtitle="";player.seekTo(Math.max(0,millis));}});}
     public static void volume(float value){main.post(()->{if(player!=null)player.setVolume(Math.max(0,Math.min(1,value)));});}
     public static void speed(float value){main.post(()->{if(player!=null)player.setPlaybackSpeed(Math.max(.25f,Math.min(3,value)));});}
@@ -93,13 +100,17 @@ public final class PlayerBridge {
     public static String getSnapshot(){return snapshot;}
     public static String getLaunchUri(){return activity.getIntent().getStringExtra("video");}
     public static String getLaunchMode(){return activity.getIntent().getStringExtra("projection");}
-    public static void release(){SmbDiscovery.stopAll();main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){player.release();player=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
+    public static void release(){SmbDiscovery.stopAll();main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){cancelProbe();player.release();player=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
     private static final Runnable update=new Runnable(){@Override public void run(){
         if(!running||player==null)return;
         try{
             VideoSize size=player.getVideoSize();Format format=player.getVideoFormat();
+            if(probeId>0){String result=takeResult(probeId);if(!result.isEmpty()){probeId=0;probeComplete=true;JSONObject json=new JSONObject(result);if(json.optBoolean("ok"))probeHints=readHints(json);}}
+            if(format!=lastProjectionFormat){lastProjectionFormat=format;projectionHints=new FormatMetadata.Hints();
+                if(format!=null&&format.projectionData!=null)try{projectionHints=FormatMetadata.projectionData(format.projectionData);}catch(Exception ignored){}
+            }
             JSONObject info=new JSONObject().put("generation",generation).put("state",player.getPlaybackState()).put("playing",player.isPlaying()).put("position",Math.max(0,player.getCurrentPosition())).put("duration",Math.max(0,player.getDuration())).put("buffered",Math.max(0,player.getBufferedPosition())).put("width",size.width).put("height",size.height).put("pixelRatio",size.pixelWidthHeightRatio).put("error",error).put("decoder",decoder).put("dropped",dropped).put("embeddedSubtitle",embeddedSubtitle);
-            info.put("audioDecoder",audioDecoder);
+            info.put("audioDecoder",audioDecoder).put("formatProbeComplete",probeComplete).put("formatHints",hintsJson(mergeHints(probeHints,projectionHints)));
             if(format!=null)info.put("codec",format.sampleMimeType).put("fps",format.frameRate).put("bitrate",format.bitrate).put("stereoMode",format.stereoMode);
             JSONArray tracks=new JSONArray();int groupIndex=0;
             for(Tracks.Group group:player.getCurrentTracks().getGroups()){
@@ -111,6 +122,22 @@ public final class PlayerBridge {
         }catch(Exception ex){Log.w("VRPlayer","Snapshot unavailable: "+ex.getClass().getSimpleName());}
         main.postDelayed(this,150);
     }};
+    public static void setFormatProbeEnabled(boolean value){formatProbeEnabled=value;}
+    public static void probeCurrentFormat(){main.post(()->{if(player!=null&&player.getCurrentMediaItem()!=null&&player.getCurrentMediaItem().localConfiguration!=null){cancelProbe();probeHints=new FormatMetadata.Hints();startProbe(player.getCurrentMediaItem().localConfiguration.uri.toString());}});}
+    private static void cancelProbe(){int id=probeId;probeId=0;probeRun++;if(id>0)io.execute(()->cancelRequest(id));}
+    private static void startProbe(String uri){
+        int run=++probeRun;probeComplete=false;FormatProbe probe=new FormatProbe(activity,uri);
+        int id=request(()->hintsJson(probe.run()),probe);probeId=id;
+        probeTimer.schedule(()->{cancelRequest(id);main.post(()->{if(run==probeRun&&probeId==id){probeId=0;probeComplete=true;}});},3,TimeUnit.SECONDS);
+    }
+    private static JSONObject hintsJson(FormatMetadata.Hints hints)throws JSONException{return new JSONObject().put("projection",hints.projection).put("stereo",hints.stereo).put("half",hints.half).put("swapEyes",hints.swapEyes).put("blockedFields",hints.blockedFields).put("unsupported",hints.unsupported).put("reason",hints.reason);}
+    private static FormatMetadata.Hints readHints(JSONObject json){FormatMetadata.Hints hints=new FormatMetadata.Hints();hints.projection=json.optInt("projection",-1);hints.stereo=json.optInt("stereo",-1);hints.half=json.optInt("half",-1);hints.swapEyes=json.optInt("swapEyes",-1);hints.blockedFields=json.optInt("blockedFields");hints.unsupported=json.optString("unsupported");return hints;}
+    private static FormatMetadata.Hints mergeHints(FormatMetadata.Hints a,FormatMetadata.Hints b){
+        FormatMetadata.Hints hints=new FormatMetadata.Hints();hints.projection=a.projection>=0?a.projection:b.projection;hints.stereo=a.stereo>=0?a.stereo:b.stereo;hints.half=a.half;hints.swapEyes=a.swapEyes;
+        hints.blockedFields=a.blockedFields|b.blockedFields;hints.unsupported=a.unsupported.isEmpty()?b.unsupported:a.unsupported;
+        if(a.projection>=0&&b.projection>=0&&a.projection!=b.projection)hints.block(1,"投影元数据冲突");
+        if(a.stereo>=0&&b.stereo>=0&&a.stereo!=b.stereo)hints.block(2,"立体元数据冲突");return hints;
+    }
     interface Work {JSONObject run()throws Exception;}
     private static int request(Work work){return request(work,null);}
     private static int request(Work work,AutoCloseable resource){

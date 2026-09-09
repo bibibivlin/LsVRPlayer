@@ -51,7 +51,10 @@ namespace VRPlayer
     }
     public static class SubtitleMatcher
     {
-        private static readonly Regex Suffix=new Regex(@"^(?:[._\s\-\[\]()]+(?:zh[-_]?(?:cn|tw|hans|hant)|chs|cht|zh|chi|zho|eng|en|ja|jpn|ko|kor|fr|fra|de|deu|es|spa|forced|sdh|cc|default))+[\]\)\s]*$",RegexOptions.IgnoreCase|RegexOptions.Compiled);
+        private const string ChineseTag=@"zh(?:[-_]?(?:cn|tw|hans|hant))?|chs|cht|chi|zho|简体中文|簡體中文|繁体中文|繁體中文|简体|簡體|繁体|繁體|简中|簡中|繁中|简英|簡英|繁英|中英双语|中英雙語|中英|中文";
+        private const string Separator=@"[._\s\-\[\]()&+]";
+        private static readonly Regex Suffix=new Regex(@"^(?:"+Separator+"+(?:"+ChineseTag+@"|eng|en|ja|jpn|ko|kor|fr|fra|de|deu|es|spa|forced|sdh|cc|default|bilingual|双语|雙語))+[\]\)\s]*$",RegexOptions.IgnoreCase|RegexOptions.Compiled);
+        private static readonly Regex ChineseSuffix=new Regex(@"(?:^|"+Separator+")(?:"+ChineseTag+")(?:$|"+Separator+")",RegexOptions.IgnoreCase|RegexOptions.Compiled);
         public static bool Matches(string video,string subtitle)
         {
             if(!subtitle.EndsWith(".srt",StringComparison.OrdinalIgnoreCase))return false;
@@ -59,6 +62,13 @@ namespace VRPlayer
             if(candidate.Equals(stem,StringComparison.OrdinalIgnoreCase))return true;
             return candidate.StartsWith(stem,StringComparison.OrdinalIgnoreCase)&&Suffix.IsMatch(candidate.Substring(stem.Length));
         }
-        public static List<FileEntry> Find(string video,IEnumerable<FileEntry> entries)=>entries.Where(e=>e.IsSubtitle&&Matches(video,e.name)).OrderByDescending(e=>Regex.IsMatch(e.name,@"(?:chs|zh|chi|zho)",RegexOptions.IgnoreCase)).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase).ToList();
+        public static int Priority(string video,string subtitle)
+        {
+            string stem=Path.GetFileNameWithoutExtension(video),candidate=Path.GetFileNameWithoutExtension(subtitle);
+            if(candidate.Equals(stem,StringComparison.OrdinalIgnoreCase))return 1;
+            string suffix=candidate.Length>=stem.Length?candidate.Substring(stem.Length):"";
+            return ChineseSuffix.IsMatch(suffix)?0:2;
+        }
+        public static List<FileEntry> Find(string video,IEnumerable<FileEntry> entries)=>entries.Where(e=>e!=null&&e.IsSubtitle&&Matches(video,e.name)).OrderBy(e=>Priority(video,e.name)).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase).ThenBy(e=>e.uri,StringComparer.Ordinal).ToList();
     }
 }

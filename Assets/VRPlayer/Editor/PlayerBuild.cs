@@ -25,9 +25,9 @@ namespace VRPlayer.Editor
         {
             if(EditorApplication.isPlaying)throw new InvalidOperationException("Exit Play Mode before configuring the project.");
             Directory.CreateDirectory("Assets/VRPlayer/Scenes");Directory.CreateDirectory("Builds");Directory.CreateDirectory("TestMedia");
-            PlayerSettings.productName="L's VRPlayer";PlayerSettings.companyName="Linxyi";PlayerSettings.bundleVersion="0.4.0";
+            PlayerSettings.productName="L's VRPlayer";PlayerSettings.companyName="Linxyi";PlayerSettings.bundleVersion="0.6.0";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,"com.linxyi.LsVRPlayer");PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android,ScriptingImplementation.IL2CPP);
-            PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;PlayerSettings.Android.bundleVersionCode=4;
+            PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;PlayerSettings.Android.bundleVersionCode=6;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android,false);PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,new[]{GraphicsDeviceType.OpenGLES3});
             PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;PlayerSettings.runInBackground=false;PlayerSettings.Android.forceInternetPermission=true;
             var pico=AssetDatabase.LoadAssetAtPath<PXR_Settings>("Assets/XR/Settings/PXR_Settings.asset");if(pico!=null){pico.stereoRenderingModeAndroid=PXR_Settings.StereoRenderingModeAndroid.Multiview;pico.systemDisplayFrequency=PXR_Settings.SystemDisplayFrequency.RefreshRate72;EditorUtility.SetDirty(pico);}

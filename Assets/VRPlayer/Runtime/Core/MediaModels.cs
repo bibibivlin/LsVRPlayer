@@ -16,14 +16,7 @@ namespace VRPlayer
         public ViewSettings Copy() => JsonUtility.FromJson<ViewSettings>(JsonUtility.ToJson(this));
         public static ViewSettings Detect(string name)
         {
-            string stem=Path.GetFileNameWithoutExtension(name).ToLowerInvariant();
-            bool Has(string token)=>Regex.IsMatch(stem,@"(?:^|[\s._\-\[\(])(?:"+token+@")(?:$|[\s._\-\]\)])");
-            var value=new ViewSettings();
-            if(Has("360"))value.projection=Projection.Equirect360;
-            else if(Has("180|vr180"))value.projection=Projection.Equirect180;
-            if(Has("sbs|lr|hsbs|fsbs"))value.stereo=StereoLayout.SideBySide;
-            else if(Has("ou|tb|hou|htb|fou|ftb"))value.stereo=StereoLayout.TopBottom;
-            value.half=!Has("fsbs|fou|ftb");return value;
+            var value=new ViewSettings();FormatDetector.Resolve(FormatDetector.Filename(name)).Apply(value);return value;
         }
         public float Aspect(int width,int height,float pixelRatio=1)
         {
@@ -41,11 +34,14 @@ namespace VRPlayer
         public float pixelRatio=1,fps,bitrate;
         public string error="",decoder="",audioDecoder="",codec="",embeddedSubtitle="";
         public MediaTrack[] tracks=Array.Empty<MediaTrack>();
+        public MediaFormatHints formatHints;
+        public bool formatProbeComplete;
         public bool HasError=>!string.IsNullOrEmpty(error);
     }
     [Serializable] public sealed class FileEntry
     {
         public string name,uri;public bool directory;public long size,modified;
+        [NonSerialized] public bool metadataVerified; // Only a live directory listing supplies file identity.
         public bool IsVideo=>!directory&&Regex.IsMatch(name??"",@"\.(mp4|mkv|m4v|mov|webm|ts|m2ts|avi|wmv|mpg|mpeg)$",RegexOptions.IgnoreCase);
         public bool IsSubtitle=>!directory&&(name??"").EndsWith(".srt",StringComparison.OrdinalIgnoreCase);
     }

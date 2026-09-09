@@ -18,7 +18,9 @@ namespace VRPlayer
         private readonly LineRenderer[] rays=new LineRenderer[2];
         private readonly Transform[] dots=new Transform[2];
         private Material rayMaterial;
-        private int scrollOwner=-1;
+        private readonly StickTransportGesture transport=new StickTransportGesture();
+        private readonly Vector2[] stickAxes=new Vector2[2];
+        private readonly bool[] stickValid=new bool[2];
         public void Initialize(PlayerApp owner,Camera camera,Canvas target)
         {
             app=owner;head=camera;canvas=target;
@@ -31,20 +33,18 @@ namespace VRPlayer
         }
         public override bool IsModuleSupported()=>true;
         public override bool ShouldActivateModule()=>enabled&&gameObject.activeInHierarchy;
+        // Unity may stop Process immediately on focus loss; suppress before its next input tick.
+        private void OnApplicationFocus(bool focused){if(!focused)transport.Suppress();}
+        private void OnApplicationPause(bool paused){if(paused)transport.Suppress();}
         public override void Process()
         {
             if(app==null)return;
             bool hasController=false;
-            float strongest=0;int stickOwner=-1;
-            for(int hand=0;hand<2;hand++){
-                var device=InputDevices.GetDeviceAtXRNode(hand==0?XRNode.LeftHand:XRNode.RightHand);
-                if(device.TryGetFeatureValue(CommonUsages.primary2DAxis,out Vector2 axis)&&Mathf.Abs(axis.y)>Mathf.Abs(strongest)){strongest=axis.y;stickOwner=hand;}
-            }
-            if(Mathf.Abs(strongest)>.2f&&app.UI.Visible){scrollOwner=stickOwner;app.UI.ScrollList(strongest);app.UI.LastInteraction=Time.unscaledTime;}else scrollOwner=-1;
             for(int hand=0;hand<2;hand++){
                 UnityEngine.XR.InputDevice device=InputDevices.GetDeviceAtXRNode(hand==0?XRNode.LeftHand:XRNode.RightHand);
                 Vector3 position=Vector3.zero;Quaternion rotation=Quaternion.identity;
                 bool valid=device.isValid&&device.TryGetFeatureValue(CommonUsages.devicePosition,out position)&&device.TryGetFeatureValue(CommonUsages.deviceRotation,out rotation);
+                stickValid[hand]=valid&&device.TryGetFeatureValue(CommonUsages.primary2DAxis,out stickAxes[hand]);
                 if(!valid){rays[hand].enabled=false;dots[hand].gameObject.SetActive(false);if(held[hand])Dispatch(hand,Vector2.zero,false,Vector2.zero,false);continue;}
                 hasController=true;
                 device.TryGetFeatureValue(CommonUsages.primaryButton,out bool primary);device.TryGetFeatureValue(CommonUsages.menuButton,out bool menu);bool toggle=primary||menu;
@@ -62,11 +62,17 @@ namespace VRPlayer
                 if(pressed&&!wasHeld&&pointers[hand].pointerCurrentRaycast.gameObject!=null)device.SendHapticImpulse(0,.18f,.025f);
             }
             if(Mouse.current!=null&&(!hasController||Application.isEditor))Dispatch(2,Mouse.current.position.ReadValue(),Mouse.current.leftButton.isPressed,Mouse.current.scroll.ReadValue()/120,app.UI.Visible);
+            bool typing=IsTyping(eventSystem.currentSelectedGameObject);
+            bool blocked=!app.HasFocus||app.UI.BlocksTransport||typing||held[0]||held[1]||held[2]||pointers[0].dragging||pointers[1].dragging||pointers[2].dragging;
+            int skip=transport.Update(stickAxes[0],stickValid[0],stickAxes[1],stickValid[1],blocked,Time.unscaledTime);
+            if(skip!=0){app.Skip(skip);app.UI.LastInteraction=Time.unscaledTime;}
+            if(!blocked&&app.UI.Visible&&Mathf.Abs(transport.Scroll)>.2f){app.UI.ScrollList(transport.Scroll);app.UI.LastInteraction=Time.unscaledTime;}
             if(eventSystem.currentSelectedGameObject!=null)ExecuteEvents.Execute(eventSystem.currentSelectedGameObject,GetBaseEventData(),ExecuteEvents.updateSelectedHandler);
-            if(Keyboard.current!=null&&!(eventSystem.currentSelectedGameObject!=null&&eventSystem.currentSelectedGameObject.GetComponent<TMP_InputField>()!=null)){
+            if(Keyboard.current!=null&&!typing&&app.HasFocus&&!app.UI.BlocksTransport){
                 if(Keyboard.current.tabKey.wasPressedThisFrame)app.UI.Toggle();if(Keyboard.current.spaceKey.wasPressedThisFrame)app.TogglePlay();if(Keyboard.current.leftArrowKey.wasPressedThisFrame)app.Skip(-10);if(Keyboard.current.rightArrowKey.wasPressedThisFrame)app.Skip(10);if(Keyboard.current.rKey.wasPressedThisFrame)app.Recenter(false);
             }
         }
+        public static bool IsTyping(GameObject selected){var field=selected!=null?selected.GetComponent<TMP_InputField>():null;return field!=null&&field.isActiveAndEnabled&&field.isFocused;}
         private void Dispatch(int index,Vector2 position,bool pressed,Vector2 scroll,bool usable)
         {
             PointerEventData data=pointers[index];Vector2 previous=data.position;data.position=position;data.delta=position-previous;data.scrollDelta=scroll;

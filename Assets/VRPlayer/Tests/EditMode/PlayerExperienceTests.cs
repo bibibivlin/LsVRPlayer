@@ -16,7 +16,7 @@ namespace VRPlayer.Tests
         public void LegacySubtitlesKeepTheirApparentSize(float distance,float expectedSize,float expectedOffset)
         {
             var settings=PlayerStore.ParseSettings("{\"version\":1,\"subtitleDistance\":"+distance.ToString(System.Globalization.CultureInfo.InvariantCulture)+",\"subtitleSize\":42,\"subtitleOffset\":-0.75}");
-            Assert.That(settings.version,Is.EqualTo(2));Assert.That(settings.subtitleSize,Is.EqualTo(expectedSize));Assert.That(settings.subtitleOffset,Is.EqualTo(expectedOffset));
+            Assert.That(settings.version,Is.EqualTo(3));Assert.That(settings.subtitleSize,Is.EqualTo(expectedSize));Assert.That(settings.subtitleOffset,Is.EqualTo(expectedOffset));
             Assert.That(settings.renderQuality,Is.EqualTo(RenderQuality.High));
             var twice=PlayerStore.ParseSettings(JsonUtility.ToJson(settings));Assert.That(twice.subtitleSize,Is.EqualTo(settings.subtitleSize));
         }

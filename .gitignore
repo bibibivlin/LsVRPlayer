@@ -125,7 +125,7 @@ InitTestScene*.unity*
 /Tools/.downloads/
 /Tools/.venv/
 
-# Device-specific raw reports and screenshots; commit curated Docs/*.md instead
+# Device-specific raw reports/screenshots; publish reviewed Docs/Images only
 /Docs/Validation/
 /Docs/Captures/
 /TestResults/
@@ -157,6 +157,13 @@ venv/
 *.pem
 /Native/Android/key.properties
 /Native/Android/keystore.properties
+# Device settings exports may contain credentials and private playback history
+*.backup.json
+*.backup.xml
+# Android Studio / CMake local intermediates (runtime AAR/SO stay versioned)
+/Native/**/.cxx/
+/Native/**/.externalNativeBuild/
+/Native/**/local.properties
 
 # OS metadata
 .DS_Store

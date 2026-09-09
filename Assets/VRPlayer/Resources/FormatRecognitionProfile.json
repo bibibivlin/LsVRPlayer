@@ -1,0 +1,12 @@
+{
+    "algorithm": 2,
+    "version": 3,
+    "stereoAutoApproved": true,
+    "vr180AutoApproved": false,
+    "evaluated": 56,
+    "correct": 56,
+    "vr180Evaluated": 0,
+    "vr180Correct": 0,
+    "realPositiveVideos": 0,
+    "realNegativeVideos": 0
+}

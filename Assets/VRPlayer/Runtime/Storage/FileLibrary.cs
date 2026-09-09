@@ -12,10 +12,12 @@ namespace VRPlayer
         public async Task<FileResult> List(string uri,CancellationToken token)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
-            int id=AndroidBridge.Api.CallStatic<int>("beginList",uri);return await AwaitResult(id,token);
+            int id=AndroidBridge.Api.CallStatic<int>("beginList",uri);var result=await AwaitResult(id,token);
+            if(result.ok&&result.entries!=null)foreach(var entry in result.entries)entry.metadataVerified=true;
+            return result;
 #else
             return await Task.Run(()=>{
-                try{var path=uri.StartsWith("file:")?new Uri(uri).LocalPath:uri;var files=new DirectoryInfo(path).EnumerateFileSystemInfos().Where(x=>!x.Name.StartsWith(".")).Select(x=>{token.ThrowIfCancellationRequested();return new FileEntry{name=x.Name,uri=new Uri(x.FullName).AbsoluteUri,directory=x is DirectoryInfo,size=x is FileInfo f?f.Length:0,modified=new DateTimeOffset(x.LastWriteTimeUtc).ToUnixTimeMilliseconds()};}).ToArray();return new FileResult{ok=true,entries=files};}
+                try{var path=uri.StartsWith("file:")?new Uri(uri).LocalPath:uri;var files=new DirectoryInfo(path).EnumerateFileSystemInfos().Where(x=>!x.Name.StartsWith(".")).Select(x=>{token.ThrowIfCancellationRequested();return new FileEntry{name=x.Name,uri=new Uri(x.FullName).AbsoluteUri,directory=x is DirectoryInfo,size=x is FileInfo f?f.Length:0,modified=new DateTimeOffset(x.LastWriteTimeUtc).ToUnixTimeMilliseconds(),metadataVerified=true};}).ToArray();return new FileResult{ok=true,entries=files};}
                 catch(OperationCanceledException){throw;}catch(Exception ex){return new FileResult{error=ex.Message};}
             },token);
 #endif
@@ -39,8 +41,8 @@ namespace VRPlayer
         public static string Parent(string location)
         {
             if(string.IsNullOrEmpty(location))return null;
-            if(location.StartsWith("content:"))return null; // SAF parents are navigated via the explicit directory stack.
-            if(location.StartsWith("smb:")){var uri=new Uri(location);string path=uri.AbsolutePath.TrimEnd('/');int slash=path.LastIndexOf('/');return slash>=0&&!string.IsNullOrEmpty(path)?uri.GetLeftPart(UriPartial.Authority)+path.Substring(0,slash)+"/":null;}
+            if(location.StartsWith("content:",StringComparison.OrdinalIgnoreCase))return null; // SAF parents are navigated via the explicit directory stack.
+            if(location.StartsWith("smb:",StringComparison.OrdinalIgnoreCase)){if(!Uri.TryCreate(location,UriKind.Absolute,out var uri))return null;string path=uri.AbsolutePath.TrimEnd('/');int slash=path.LastIndexOf('/');return slash>=0&&!string.IsNullOrEmpty(path)?uri.GetLeftPart(UriPartial.Authority)+path.Substring(0,slash)+"/":null;}
             try{string path=location.StartsWith("file:")?new Uri(location).LocalPath:location;string parent=Directory.GetParent(path)?.FullName;return parent==null?null:new Uri(parent).AbsoluteUri;}catch{return null;}
         }
     }
