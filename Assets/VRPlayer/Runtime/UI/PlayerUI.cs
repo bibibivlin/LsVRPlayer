@@ -95,10 +95,25 @@ namespace VRPlayer
             if(preview!=null)preview.SetText("字幕样式实时预览\n明亮与暗色场景 · Subtitle preview",32,app.Store.Settings.subtitleStyle);
             title.text=app.Current?.name??"选择影片开始观看";status.text=app.Status;
             if(snapshot!=null){playLabel.text=snapshot.playing?"暂停":"播放";if(!seekGesture.Dragging)seek.SetValueWithoutNotify(snapshot.duration>0?snapshot.position/(float)snapshot.duration:0);time.text=Clock(snapshot.position)+" / "+Clock(snapshot.duration);}
-            if(detail!=null&&tab=="信息")detail.text=snapshot==null?"播放内核未就绪":$"播放内核：{snapshot.decoder}\n视频：{snapshot.codec}  {snapshot.width} × {snapshot.height}  {snapshot.fps:0.##} fps\n码率：{(snapshot.bitrate>0?snapshot.bitrate/1000000f:0):0.##} Mbps\n已缓冲到：{Clock(snapshot.buffered)}\n解码丢帧：{snapshot.dropped}    GPU 更新帧：{app.Backend.RenderedFrames}\n投影：{app.Presenter.Settings.projection}    立体：{app.Presenter.Settings.stereo}\n状态：{snapshot.state}    错误：{snapshot.error}\n{app.RenderQuality.Description}\n版本：{Application.version}    图形 API：{SystemInfo.graphicsDeviceType}\n\n格式支持以当前设备解码器与样片实测为准。\nEAC / Cubemap 布局：上排 +X −X +Y，下排 −Y +Z −Z。";
+            if(detail!=null&&tab=="信息")detail.text=snapshot==null?"播放内核未就绪":PlaybackDetails(snapshot);
             if(Visible&&app.Store.Settings.autoHide&&snapshot!=null&&snapshot.playing&&!keyboard.gameObject.activeSelf&&Time.unscaledTime-LastInteraction>18)Hide();
         }
         private static string Clock(long milliseconds){var duration=TimeSpan.FromMilliseconds(Math.Max(0,milliseconds));return duration.TotalHours>=1?$"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}":$"{duration.Minutes:00}:{duration.Seconds:00}";}
+        private string PlaybackDetails(MediaSnapshot snapshot)
+        {
+            string network="";var reads=snapshot.network;
+            if(reads!=null&&reads.generation==snapshot.generation&&reads.requests>0)
+                network=$"\nSMB：{reads.mbps:0.00} Mbps    请求：{reads.requests}    平均请求：{reads.averageRequestBytes/1024:0.0} KiB"+
+                    $"\n读取耗时：平均 {reads.averageReadMs:0.0} ms / P95 {reads.readP95Ms:0.0} ms    网络错误：{reads.errors}";
+            return $"播放内核：{snapshot.decoder}\n视频：{snapshot.codec}  {snapshot.width} × {snapshot.height}  {snapshot.fps:0.##} fps"+
+                $"\n码率：{(snapshot.bitrate>0?snapshot.bitrate/1000000f:0):0.##} Mbps    已缓冲到：{Clock(snapshot.buffered)}"+
+                $"\n剩余缓冲：{snapshot.bufferAheadMs/1000d:0.0} 秒    正在加载：{(snapshot.loading?"是":"否")}    缓冲内存：{snapshot.allocatedBufferBytes/1048576d:0.0} MiB"+
+                $"\n意外缓冲：{snapshot.rebufferCount} 次 / {snapshot.rebufferMs/1000d:0.00} 秒"+network+
+                $"\n解码丢帧：{snapshot.dropped}    GPU 更新帧：{app.Backend.RenderedFrames}"+
+                $"\n投影：{app.Presenter.Settings.projection}    立体：{app.Presenter.Settings.stereo}\n状态：{snapshot.state}    错误：{snapshot.error}"+
+                $"\n{app.RenderQuality.Description}\n版本：{Application.version}    图形 API：{SystemInfo.graphicsDeviceType}"+
+                "\n\n格式支持以当前设备解码器与样片实测为准。\nEAC / Cubemap 布局：上排 +X −X +Y，下排 −Y +Z −Z。";
+        }
         public void Show(){if(Canvas==null)return;bool opening=!Visible;Canvas.gameObject.SetActive(true);LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,2);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         public void Hide(){CloseKeyboard();CancelSmbConnection();app.StopDiscovery();Canvas.gameObject.SetActive(false);app.Store.Save();}
         public void Toggle(){if(Visible)Hide();else Show();}

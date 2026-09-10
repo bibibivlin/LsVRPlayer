@@ -63,18 +63,27 @@ final class SmbStore {
         JSONObject server=servers.get(uri.getHost());if(server==null)throw new java.io.IOException("找不到 SMB 服务器配置");
         return new Handle(server,path(uri));
     }
+    static Handle connect(Uri uri,NetworkSockets sockets)throws Exception{
+        JSONObject server=servers.get(uri.getHost());if(server==null)throw new java.io.IOException("找不到 SMB 服务器配置");
+        // The playback loader may be idle longer than 15 s with a full media buffer.
+        // Keep request deadlines, but do not time out SMBJ's idle packet-reader socket.
+        return new Handle(server,path(uri),sockets,0);
+    }
     static String path(Uri uri){
         List<String> segments=uri.getPathSegments();
         for(String segment:segments)if(segment.equals("..")||segment.equals(".")||segment.contains("\\")||segment.indexOf('\0')>=0)throw new IllegalArgumentException("无效的共享路径");
         return String.join("\\",segments);
     }
     static final class Handle implements AutoCloseable {
-        final NetworkSockets sockets=new NetworkSockets(null,15000);
+        final NetworkSockets sockets;
         final SMBClient client;Connection connection;Session session;DiskShare share;final String path;
         Handle(JSONObject server,String path)throws Exception{
-            this.path=path;
+            this(server,path,new NetworkSockets(null,15000),15000);
+        }
+        Handle(JSONObject server,String path,NetworkSockets sockets,int socketTimeoutMs)throws Exception{
+            this.path=path;this.sockets=sockets;
             PlayerBridge.attachResource(sockets);
-            client=new SMBClient(SmbConfig.builder().withSocketFactory(sockets).withTimeout(15,TimeUnit.SECONDS).withSoTimeout(15000).withEncryptData(server.optBoolean("encrypt")).build());
+            client=new SMBClient(SmbConfig.builder().withSocketFactory(sockets).withTimeout(15,TimeUnit.SECONDS).withSoTimeout(socketTimeoutMs).withEncryptData(server.optBoolean("encrypt")).build());
             try{
                 connection=client.connect(server.getString("host"),server.optInt("port",445));String user=server.optString("username");
                 session=connection.authenticate(user.isEmpty()?AuthenticationContext.anonymous():new AuthenticationContext(user,server.optString("password").toCharArray(),server.optString("domain")));

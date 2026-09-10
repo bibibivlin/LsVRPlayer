@@ -53,6 +53,8 @@ $env:JAVA_HOME = Join-Path $unityAndroid 'OpenJDK'
 
 设备诊断位于应用外部文件目录的 `playback-diagnostics.json` 和 `decoder-capabilities.json`。设备能力范围不是对任意分辨率、帧率和码率组合的播放保证；实际样片结果见验证报告。
 
+SMB 播放采用 1 MiB 按需预读，信息页显示剩余缓冲、加载状态、意外缓冲和网络读取统计；后台事件记录在同目录的 `playback-events.jsonl`。使用 `Tools/Device-SmbPlaybackTest.py` 可对比原版、仅诊断和预读三组，命令、指标定义与限制见 [SMB 播放预读与诊断](SmbPlaybackDiagnostics.zh-CN.md)。
+
 `Docs/Validation/` 与 `Docs/Captures/` 是本机测试生成的原始记录和截图，已忽略，不随源码提交；可用上述脚本重新生成。仓库保留整理后的 [v0.5.0 改进与验证报告](PlaybackImprovements.zh-CN.md)、[v0.4.0 验证报告](ExperienceValidation.zh-CN.md) 和 [播放内核验证报告](ValidationReport.zh-CN.md)。APK、测试视频、工具运行环境和本机 `.codex` 配置同样不入库；必要的原生插件、字体、Unity 资源及 `.meta` 文件通过 Git/Git LFS 保留，克隆时需安装 Git LFS 并执行 `git lfs pull`。
 
 ## 0.5 字幕、历史与格式识别

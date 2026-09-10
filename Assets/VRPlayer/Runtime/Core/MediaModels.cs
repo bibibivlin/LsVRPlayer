@@ -26,11 +26,23 @@ namespace VRPlayer
         }
     }
     [Serializable] public sealed class MediaTrack { public string id,name;public int type;public bool selected,supported; }
+    [Serializable] public sealed class NetworkReadSnapshot
+    {
+        public int generation;
+        public bool readAhead;
+        public long monotonicMs,requests,networkBytes,deliveredBytes,errors,cancelledReads,smallReads,opens;
+        public double mbps,averageRequestBytes,averageReadBytes,averageReadMs,readP95Ms;
+    }
     [Serializable] public sealed class MediaSnapshot
     {
         public int generation,state,width,height,dropped,stereoMode=-1;
         public bool playing;
         public long position,duration,buffered;
+        public long monotonicMs,bufferAheadMs,allocatedBufferBytes,rebufferMs;
+        public bool loading,playWhenReady;
+        public int rebufferCount,suppressionReason;
+        public string bufferReason="";
+        public NetworkReadSnapshot network;
         public float pixelRatio=1,fps,bitrate;
         public string error="",decoder="",audioDecoder="",codec="",embeddedSubtitle="";
         public MediaTrack[] tracks=Array.Empty<MediaTrack>();

@@ -7,6 +7,7 @@ import android.media.MediaCodecInfo;
 import android.media.MediaCodecList;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Surface;
 import android.net.Uri;
 import android.util.Log;
@@ -17,6 +18,7 @@ import androidx.media3.datasource.*;
 import androidx.media3.exoplayer.*;
 import androidx.media3.exoplayer.analytics.AnalyticsListener;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
+import androidx.media3.exoplayer.upstream.DefaultAllocator;
 import org.json.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -33,6 +35,11 @@ public final class PlayerBridge {
     private static final ConcurrentHashMap<Integer,AutoCloseable> requestResources=new ConcurrentHashMap<>();
     private static final ThreadLocal<Integer> currentRequest=new ThreadLocal<>();
     private static ExoPlayer player;
+    private static DefaultAllocator allocator;
+    private static DefaultDataSource.Factory defaultSources;
+    private static PlaybackSession playbackSession;
+    private static PlaybackTelemetry telemetry;
+    private static boolean smbReadAhead=true;
     private static Surface videoSurface;
     private static volatile String snapshot="{}";
     private static String error="",decoder="",audioDecoder="",embeddedSubtitle="";
@@ -52,13 +59,30 @@ public final class PlayerBridge {
         activity=host;SmbStore.initialize(host);
         main.post(()->{
             if(player!=null)return;
-            DefaultDataSource.Factory defaults=new DefaultDataSource.Factory(host);
-            DataSource.Factory factory=()->new RoutingDataSource(defaults);
-            DefaultLoadControl loadControl=new DefaultLoadControl.Builder().setBufferDurationsMs(12000,45000,800,2500).setTargetBufferBytes(64*1024*1024).setPrioritizeTimeOverSizeThresholds(false).build();
-            player=new ExoPlayer.Builder(host,new DefaultRenderersFactory(host).setEnableDecoderFallback(true).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)).setMediaSourceFactory(new DefaultMediaSourceFactory(host).setDataSourceFactory(factory)).setLoadControl(loadControl).build();
+            defaultSources=new DefaultDataSource.Factory(host);
+            allocator=new DefaultAllocator(true,C.DEFAULT_BUFFER_SEGMENT_SIZE);
+            // Keep the existing buffering policy unchanged while measuring the SMB read fix.
+            DefaultLoadControl loadControl=new DefaultLoadControl.Builder().setAllocator(allocator).setBufferDurationsMs(12000,45000,800,2500).setTargetBufferBytes(64*1024*1024).setPrioritizeTimeOverSizeThresholds(false).build();
+            player=new ExoPlayer.Builder(host,new DefaultRenderersFactory(host).setEnableDecoderFallback(true).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)).setLoadControl(loadControl).build();
+            java.io.File diagnostics=host.getExternalFilesDir(null);telemetry=new PlaybackTelemetry(diagnostics==null?host.getFilesDir():diagnostics);
             player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),true);
             if(videoSurface!=null)player.setVideoSurface(videoSurface);
             player.addListener(new Player.Listener(){
+                @Override public void onPlaybackStateChanged(int state){
+                    // Use the event's state: onEvents may coalesce BUFFERING and READY into one batch.
+                    if(playbackSession!=null){playbackSession.buffering.update(state,player.getPlayWhenReady(),player.getPlaybackSuppressionReason()!=Player.PLAYBACK_SUPPRESSION_REASON_NONE,SystemClock.elapsedRealtime());telemetry.events(playbackSession);}
+                }
+                @Override public void onPositionDiscontinuity(Player.PositionInfo oldPosition,Player.PositionInfo newPosition,int reason){
+                    if(playbackSession!=null&&reason==Player.DISCONTINUITY_REASON_AUTO_TRANSITION)playbackSession.buffering.transition(SystemClock.elapsedRealtime());
+                }
+                @Override public void onPlayWhenReadyChanged(boolean ready,int reason){
+                    if(playbackSession!=null)playbackSession.buffering.playIntent(ready,SystemClock.elapsedRealtime());
+                }
+                @Override public void onEvents(Player value,Player.Events events){
+                    if(playbackSession==null)return;
+                    playbackSession.buffering.update(value.getPlaybackState(),value.getPlayWhenReady(),value.getPlaybackSuppressionReason()!=Player.PLAYBACK_SUPPRESSION_REASON_NONE,SystemClock.elapsedRealtime());
+                    telemetry.events(playbackSession);
+                }
                 @Override public void onPlayerError(PlaybackException value){error=value.getErrorCodeName();Log.e("VRPlayer","Playback error "+error);}
                 @Override public void onCues(CueGroup group){StringBuilder text=new StringBuilder();for(Cue cue:group.cues){if(cue.text!=null){if(text.length()>0)text.append('\n');text.append(cue.text);}}embeddedSubtitle=text.toString();}
             });
@@ -78,14 +102,23 @@ public final class PlayerBridge {
     public static void open(String uri,long position,int token){main.post(()->{
         // Media3 may reuse the current decoder when opening a compatible movie.
         // Keep its name until the actual decoder-release event arrives.
-        if(player==null)return;generation=token;error="";dropped=0;embeddedSubtitle="";
+        if(player==null)return;retirePlayback();generation=token;error="";dropped=0;embeddedSubtitle="";
+        PlaybackSession session=new PlaybackSession(token,smbReadAhead);playbackSession=session;telemetry.session(session);
         cancelProbe();probeHints=new FormatMetadata.Hints();projectionHints=new FormatMetadata.Hints();lastProjectionFormat=null;probeComplete=false;
-        player.setMediaItem(MediaItem.fromUri(uri),Math.max(0,position));player.prepare();player.play();if(formatProbeEnabled)startProbe(uri);
+        DataSource.Factory factory=()->new RoutingDataSource(defaultSources,session);
+        player.setMediaSource(new DefaultMediaSourceFactory(activity).setDataSourceFactory(factory).createMediaSource(MediaItem.fromUri(uri)),Math.max(0,position));
+        player.prepare();player.play();if(formatProbeEnabled)startProbe(uri);
     });}
     public static void play(){main.post(()->{if(player!=null)player.play();});}
     public static void pause(){main.post(()->{if(player!=null)player.pause();});}
-    public static void stop(){main.post(()->{if(player!=null){cancelProbe();player.stop();player.clearMediaItems();embeddedSubtitle="";error="";}});}
-    public static void seek(long millis){main.post(()->{if(player!=null){embeddedSubtitle="";player.seekTo(Math.max(0,millis));}});}
+    public static void stop(){main.post(()->{if(player!=null){cancelProbe();retirePlayback();player.stop();player.clearMediaItems();embeddedSubtitle="";error="";}});}
+    public static void seek(long millis){main.post(()->{if(player!=null){embeddedSubtitle="";if(playbackSession!=null){playbackSession.buffering.seek(SystemClock.elapsedRealtime());telemetry.events(playbackSession);}player.seekTo(Math.max(0,millis));}});}
+    // A/B switch for the next open only, reachable from the existing development command entrypoint.
+    public static void setSmbReadAhead(boolean enabled){main.post(()->{if((activity.getApplicationInfo().flags&android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0)smbReadAhead=enabled;});}
+    private static void retirePlayback(){
+        if(playbackSession!=null){playbackSession.buffering.finish(SystemClock.elapsedRealtime());telemetry.events(playbackSession);playbackSession.cancel();playbackSession=null;}
+        if(telemetry!=null)telemetry.session(null);
+    }
     public static void volume(float value){main.post(()->{if(player!=null)player.setVolume(Math.max(0,Math.min(1,value)));});}
     public static void speed(float value){main.post(()->{if(player!=null)player.setPlaybackSpeed(Math.max(.25f,Math.min(3,value)));});}
     public static void repeat(boolean value){main.post(()->{if(player!=null)player.setRepeatMode(value?Player.REPEAT_MODE_ONE:Player.REPEAT_MODE_OFF);});}
@@ -100,7 +133,7 @@ public final class PlayerBridge {
     public static String getSnapshot(){return snapshot;}
     public static String getLaunchUri(){return activity.getIntent().getStringExtra("video");}
     public static String getLaunchMode(){return activity.getIntent().getStringExtra("projection");}
-    public static void release(){SmbDiscovery.stopAll();main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){cancelProbe();player.release();player=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
+    public static void release(){SmbDiscovery.stopAll();main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){cancelProbe();retirePlayback();player.release();player=null;}if(telemetry!=null){telemetry.close();telemetry=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
     private static final Runnable update=new Runnable(){@Override public void run(){
         if(!running||player==null)return;
         try{
@@ -110,6 +143,13 @@ public final class PlayerBridge {
                 if(format!=null&&format.projectionData!=null)try{projectionHints=FormatMetadata.projectionData(format.projectionData);}catch(Exception ignored){}
             }
             JSONObject info=new JSONObject().put("generation",generation).put("state",player.getPlaybackState()).put("playing",player.isPlaying()).put("position",Math.max(0,player.getCurrentPosition())).put("duration",Math.max(0,player.getDuration())).put("buffered",Math.max(0,player.getBufferedPosition())).put("width",size.width).put("height",size.height).put("pixelRatio",size.pixelWidthHeightRatio).put("error",error).put("decoder",decoder).put("dropped",dropped).put("embeddedSubtitle",embeddedSubtitle);
+            long now=SystemClock.elapsedRealtime();PlaybackSession session=playbackSession;
+            JSONObject transport=new JSONObject().put("generation",generation).put("monotonicMs",now).put("state",player.getPlaybackState()).put("playing",player.isPlaying())
+                .put("playWhenReady",player.getPlayWhenReady()).put("suppressionReason",player.getPlaybackSuppressionReason()).put("loading",player.isLoading())
+                .put("position",Math.max(0,player.getCurrentPosition())).put("bufferAheadMs",Math.max(0,player.getTotalBufferedDuration())).put("allocatedBufferBytes",allocator.getTotalBytesAllocated())
+                .put("rebufferCount",session==null?0:session.buffering.count()).put("rebufferMs",session==null?0:session.buffering.duration(now)).put("bufferReason",session==null?"":session.buffering.reason());
+            for(Iterator<String> keys=transport.keys();keys.hasNext();){String key=keys.next();info.put(key,transport.get(key));}
+            if(session!=null)info.put("network",new JSONObject(session.networkSnapshot));telemetry.state(transport);
             info.put("audioDecoder",audioDecoder).put("formatProbeComplete",probeComplete).put("formatHints",hintsJson(mergeHints(probeHints,projectionHints)));
             if(format!=null)info.put("codec",format.sampleMimeType).put("fps",format.frameRate).put("bitrate",format.bitrate).put("stereoMode",format.stereoMode);
             JSONArray tracks=new JSONArray();int groupIndex=0;
@@ -180,10 +220,15 @@ public final class PlayerBridge {
         if(codec.isEncoder())continue;for(String type:codec.getSupportedTypes()){if(!type.startsWith("video/"))continue;try{MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(type).getVideoCapabilities();output.put(new JSONObject().put("name",codec.getName()).put("mime",type).put("hardware",codec.isHardwareAccelerated()).put("widths",video.getSupportedWidths().toString()).put("heights",video.getSupportedHeights().toString()).put("rates",video.getSupportedFrameRates().toString()));}catch(Exception ignored){}}
     }return "{\"decoders\":"+output+"}";}
     private static final class RoutingDataSource implements DataSource {
-        private final DefaultDataSource.Factory defaults;private DataSource current;private final List<TransferListener> listeners=new ArrayList<>();
-        RoutingDataSource(DefaultDataSource.Factory defaults){this.defaults=defaults;}
-        public void addTransferListener(TransferListener listener){listeners.add(listener);if(current!=null)current.addTransferListener(listener);}
-        public long open(DataSpec spec)throws java.io.IOException{current="smb".equals(spec.uri.getScheme())?new SmbDataSource():defaults.createDataSource();for(TransferListener listener:listeners)current.addTransferListener(listener);return current.open(spec);}
+        private final DefaultDataSource.Factory defaults;private final PlaybackSession session;private SmbDataSource smb;private DataSource current;private final List<TransferListener> listeners=new ArrayList<>();
+        RoutingDataSource(DefaultDataSource.Factory defaults,PlaybackSession session){this.defaults=defaults;this.session=session;}
+        public void addTransferListener(TransferListener listener){if(!listeners.contains(listener))listeners.add(listener);if(current!=null)current.addTransferListener(listener);if(smb!=null&&smb!=current)smb.addTransferListener(listener);}
+        public long open(DataSpec spec)throws java.io.IOException{
+            close();session.check();
+            if("smb".equals(spec.uri.getScheme())){if(smb==null){smb=new SmbDataSource(session);for(TransferListener listener:listeners)smb.addTransferListener(listener);}current=smb;}
+            else{current=defaults.createDataSource();for(TransferListener listener:listeners)current.addTransferListener(listener);}
+            return current.open(spec);
+        }
         public int read(byte[] buffer,int offset,int length)throws java.io.IOException{return current.read(buffer,offset,length);}
         public Uri getUri(){return current==null?null:current.getUri();}
         public void close()throws java.io.IOException{if(current!=null){try{current.close();}finally{current=null;}}}

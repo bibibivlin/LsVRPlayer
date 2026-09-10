@@ -52,6 +52,11 @@ namespace VRPlayer
                     case "detect-apply":app.ApplyFormatSuggestion();break;
                     case "directory-vr180":app.SetDirectoryVr180Preference(command.flag);break;
                     case "inspect":break;
+                    case "smb-read-ahead":
+#if UNITY_ANDROID && !UNITY_EDITOR
+                        AndroidBridge.Api.CallStatic("setSmbReadAhead",command.flag);
+#endif
+                        break;
                     case "tab":app.UI.SelectTab(command.name);break;
                     case "source":if(command.name=="smb")app.ShowServers();else if(command.name=="favorites")app.ShowFavorites();else if(command.name=="recent")app.ShowRecent();else app.Home();break;
                     case "quality":app.RenderQuality.Select((RenderQuality)Mathf.Clamp(command.preset,0,2));break;

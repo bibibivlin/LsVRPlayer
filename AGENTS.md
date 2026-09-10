@@ -21,6 +21,7 @@ Use Unity **6000.3.23f1** with Android SDK, NDK, and OpenJDK support. Install Gi
 - `python Tools/Device-SmokeTest.py --serial <PICO_SERIAL>`: tests the running development APK with installed fixtures; requires Pillow. See `Docs/BuildAndUse.zh-CN.md` for fixture transfer and SMB setup.
 - `python Tools/Device-ExperienceTest.py --serial <PICO_SERIAL> --host <TEST_PC_IP>`: checks quality, tabs, LAN discovery, shared folders, and cancellation. Use `Tools/Serve-LanTestSmb.py` for a fixture server; LAN testing requires Impacket and zeroconf.
 - `python Tools/Device-CaptionTest.py --serial <PICO_SERIAL>`: captures subtitle distance and style cases for visual review. `Tools/Device-StabilityTest.py --serial <PICO_SERIAL> --cycles 18` exercises high-resolution fixtures and repeated playback changes. Keep the headset awake during device tests.
+- `python Tools/Device-SmbPlaybackTest.py --serial <PICO_SERIAL> --cases <IGNORED_CASES_JSON> --mode read-ahead --seconds 600`: tests SMB prefetch; use `--mode diagnostics` to disable prefetch for comparison. `baseline` mode requires the preserved original APK. See `Docs/SmbPlaybackDiagnostics.zh-CN.md` for case format and metrics.
 
 ## Coding Style & Naming Conventions
 
@@ -30,11 +31,15 @@ Preserve the complete v1 → v2 → v3 settings migration, per-film subtitle Aut
 
 Route format changes through `PlayerApp` so UI and diagnostics share manual-lock and undo behavior. Explicit previous/next playback in the same folder inherits format fields; ordinary opens and automatic sequential playback retain per-film behavior. Preserve projection enum values, distinguish unknown fields from explicit Mono, and never equate SBS with VR180. Subtitle loading, metadata probing and frame analysis need independent cancellation and playback-generation checks. Frame sampling must not seek or block playback; validate persistent recognition caches against file metadata and algorithm/profile versions.
 
+Keep SMB playback read-ahead bounded and on the Media3 loader thread. Capture playback sessions in data-source factories, cancel retired connections, and keep probing resources independent. Count actual network reads separately from bytes delivered from cache; aggregate diagnostics off playback threads without media paths or credentials. Preserve finite SMB request deadlines while allowing playback sockets to remain idle with full media buffers. Change load-control thresholds only with separate measurements.
+
 ## Testing Guidelines
 
 Name tests after observable behavior, such as `PositiveDelayMeansLaterDisplay`; use `[TestCase]` for filename variants. Add regressions for changed parsing, timing, persistence/migration, seeking, or cancellation behavior. No percentage coverage gate exists. Wait for Unity compilation and check Console before editor automation.
 
 Validate native/rendering changes on PICO hardware. Keep raw records in ignored `Docs/Validation/` and screenshots in ignored `Docs/Captures/`; commit curated Markdown reports under `Docs/` and reviewed, nonprivate screenshots under `Docs/Images/`, with reproducible commands and remaining limitations. Distinguish short fixtures from long-film compatibility, real LAN discovery from `adb reverse` playback tests, and screenshot/automated checks from subjective headset acceptance.
+
+Do not modify PICO `screen_off_timeout` in device scripts: firmware may store `-1`, which Android's shell rejects when restoring. Back up and verify restoration of any temporary player or USB stay-awake settings, even after failed tests. External pauses or stale diagnostics invalidate a continuous playback run; restarting short runs does not satisfy a long-duration acceptance check.
 
 Use `Tools/Device-ImprovementsTest.py`, `Tools/Device-AdjacentPlaybackTest.py`, and `Tools/Device-RecognitionStressTest.py` for the added playback regressions; see the current recognition report for fixture prerequisites and commands. Read real samples only from user-designated locations, store extracted frames in ignored `TestMedia/`, and restore device settings after tests. Keep stereo and VR180 projection approval gates separate in `FormatRecognitionProfile.json`: generated fixtures and calibration samples do not establish independent real-video accuracy. Pure-frame VR180 automatic projection remains disabled pending its validation gate; report coverage, abstentions, and false positives separately.
 
