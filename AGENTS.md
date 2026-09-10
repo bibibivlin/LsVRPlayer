@@ -4,7 +4,7 @@
 
 - `Assets/VRPlayer/Runtime/`: C# playback, storage, subtitles, rendering, persistence, and world-space UI under the `VRPlayer` namespace.
 - `Assets/VRPlayer/Editor/`: project configuration and APK build commands. Keep Runtime, Editor, and Tests assemblies separate.
-- `Assets/VRPlayer/Scenes/Player.unity`: production scene; preserve existing Demo/Sample scenes.
+- `Assets/VRPlayer/Scenes/Player.unity`: production scene and the only scene in build settings. XRI Toolkit sample scenes/assets are intentionally not copied into this project.
 - `Assets/VRPlayer/Shaders/` and `Assets/VRPlayer/Resources/Fonts/`: projection/subtitle shaders and Chinese fonts. Commit Unity assets with their `.meta` files; update existing font assets without changing their GUIDs.
 - `Native/Android/`: Java Media3/SMBJ bridge; `Native/Rendering/`: C++ GLES texture plugin. Rebuild after native changes and commit changed runtime binaries in `Assets/Plugins/Android/` through the existing Git LFS rules.
 - `Assets/VRPlayer/Tests/EditMode/`: NUnit tests. `Tools/` contains build/device scripts; `Docs/` contains plans, instructions, licenses, and validation records.

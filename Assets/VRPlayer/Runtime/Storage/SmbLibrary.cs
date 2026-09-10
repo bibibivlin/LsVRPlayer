@@ -7,7 +7,9 @@ namespace VRPlayer
 {
     public sealed class SmbLibrary : IDisposable
     {
+#if UNITY_ANDROID && !UNITY_EDITOR
         private int scanId;
+#endif
         public void StartDiscovery()
         {
             StopDiscovery();
@@ -27,8 +29,8 @@ namespace VRPlayer
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             if(scanId!=0)AndroidBridge.Api.CallStatic("stopDiscovery",scanId);
-#endif
             scanId=0;
+#endif
         }
         public async Task<SmbShareResult> Shares(SmbServer server,CancellationToken token)
         {

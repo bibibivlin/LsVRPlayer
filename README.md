@@ -41,7 +41,7 @@ git lfs pull
 
 用指定版本 Unity 打开项目，等待导入与编译完成，再执行 **VRPlayer → Configure Project and Open Player** 和 **VRPlayer → Build Android APK**。Gradle 首次解析依赖需要网络；Unity 安装路径不同时，为原生构建脚本传入 `-UnityEditor`。
 
-正式场景：`Assets/VRPlayer/Scenes/Player.unity`。APK 输出到 `Builds/LsVRPlayer.apk`，仅保存在本地。源码、Unity 资源与 `.meta`、必要的原生插件和字体通过 Git／Git LFS 管理；构建缓存、测试媒体、原始设备记录与凭据不入库。
+正式场景：`Assets/VRPlayer/Scenes/Player.unity`，也是当前唯一加入 Build Settings 的场景。为保持仓库聚焦核心播放器，项目不包含 XRI Toolkit 的 Starter Assets、Device Simulator、DemoScene 或模板 SampleScene；XRI 包本身仍作为 PICO Integration SDK 的传递依赖保留。APK 输出到 `Builds/LsVRPlayer.apk`，仅保存在本地。源码、Unity 资源与 `.meta`、必要的原生插件和字体通过 Git／Git LFS 管理；构建缓存、测试媒体、原始设备记录与凭据不入库。
 
 ## 文档与验证
 
