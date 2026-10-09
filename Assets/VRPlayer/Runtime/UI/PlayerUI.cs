@@ -47,7 +47,7 @@ namespace VRPlayer
             var root=new GameObject("Player UI",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));Canvas=root.GetComponent<Canvas>();Canvas.renderMode=RenderMode.WorldSpace;Canvas.worldCamera=camera;Canvas.sortingOrder=10;
             var rect=(RectTransform)root.transform;rect.sizeDelta=new Vector2(1440,1040);rect.localScale=Vector3.one*.00145f;
             UiFactory.Box(rect,"Background",0,0,1440,1040,UiFactory.Background,true);
-            UiFactory.Label(rect,"L’s VRPlayer",32,20,490,65,42);UiFactory.Label(rect,"PICO 4  /  私人影院",1000,25,400,50,24,TextAlignmentOptions.Right).color=UiFactory.Muted;
+            UiFactory.Label(rect,"L’s VRPlayer",32,20,490,65,42);
             title=UiFactory.Label(rect,"选择影片开始观看",32,85,1376,45,26);
             string[] names={"文件","投影","字幕","设置","信息"};for(int i=0;i<names.Length;i++){string name=names[i];tabs[name]=UiFactory.Button(rect,name,32+i*158,145,142,50,()=>SelectTab(name));}
             UiFactory.Button(rect,"正前方",1060,145,160,50,()=>app.Recenter(false));UiFactory.Button(rect,"隐藏面板",1236,145,172,50,Hide);
@@ -193,6 +193,22 @@ namespace VRPlayer
             UiFactory.Label(content,name,0,y,225,45,26);var number=UiFactory.Label(content,$"{value:0.##} {unit}",1180,y,196,45,24,TextAlignmentOptions.Right);
             UiFactory.Slider(content,240,y+2,910,min,max,value,v=>{change(v);number.text=$"{v:0.##} {unit}";LastInteraction=Time.unscaledTime;});
         }
+        private void SteppedSetting(string name,float y,float min,float max,float value,Action<float> change,string unit="")
+        {
+            const float step=.1f;
+            UiFactory.Label(content,name,0,y,225,45,26);
+            var number=UiFactory.Label(content,$"{value:0.0#} {unit}",1050,y,150,45,24,TextAlignmentOptions.Right);
+            var slider=UiFactory.Slider(content,370,y+2,540,min,max,value,_=>{});
+            void Apply(float next)
+            {
+                next=Mathf.Clamp(Mathf.Round(next/step)*step,min,max);
+                slider.SetValueWithoutNotify(next);change(next);number.text=$"{next:0.0#} {unit}";LastInteraction=Time.unscaledTime;
+            }
+            slider.onValueChanged.AddListener(Apply);
+            UiFactory.Button(content,"−0.1",240,y,110,45,()=>Apply((Mathf.Ceil(slider.value/step-.0001f)-1)*step));
+            UiFactory.Button(content,"+0.1",930,y,110,45,()=>Apply((Mathf.Floor(slider.value/step+.0001f)+1)*step));
+            UiFactory.Button(content,"重置",1216,y,160,45,()=>Apply(1));
+        }
         private void DrawSubtitles()
         {
             string[] sections={"选择","位置","样式"};
@@ -245,12 +261,12 @@ namespace VRPlayer
         }
         private void DrawSettings()
         {
-            Setting("播放速度",0,.25f,3,app.Store.Settings.speed,app.SetSpeed,"倍");Setting("视频亮度",70,.3f,1.8f,app.Presenter.Settings.brightness,v=>app.Presenter.Settings.brightness=v);
+            SteppedSetting("播放速度",0,.25f,3,app.Store.Settings.speed,app.SetSpeed,"倍");SteppedSetting("视频亮度",70,.3f,1.8f,app.Presenter.Settings.brightness,v=>app.Presenter.Settings.brightness=v);
             UiFactory.Label(content,"渲染画质",0,140,225,45,26);string[] qualities={"均衡 1.0×","高清 1.25×","超清 1.5×"};for(int i=0;i<3;i++){int quality=i;UiFactory.Button(content,qualities[i],240+i*330,140,310,48,()=>{app.RenderQuality.Select((RenderQuality)quality);Draw();},(int)app.Store.Settings.renderQuality==i);}
             UiFactory.Button(content,app.Store.Settings.loop?"单片循环：开":"单片循环：关",0,225,310,52,()=>{app.Store.Settings.loop=!app.Store.Settings.loop;app.Backend?.SetRepeat(app.Store.Settings.loop);Draw();});
             UiFactory.Button(content,app.Store.Settings.sequential?"目录连播：开":"目录连播：关",330,225,310,52,()=>{app.Store.Settings.sequential=!app.Store.Settings.sequential;Draw();});
             UiFactory.Button(content,app.Store.Settings.autoHide?"自动隐藏：开":"自动隐藏：关",660,225,310,52,()=>{app.Store.Settings.autoHide=!app.Store.Settings.autoHide;Draw();});
-            UiFactory.Button(content,"选择音轨 / 内嵌字幕",0,305,440,52,DrawTracks);UiFactory.Button(content,"恢复正常速度",465,305,340,52,()=>{app.SetSpeed(1);Draw();});
+            UiFactory.Button(content,"选择音轨 / 内嵌字幕",0,305,440,52,DrawTracks);
             UiFactory.Button(content,"清空播放记录",0,391,310,52,()=>{app.Store.Settings.history.Clear();app.Store.Save();app.SetStatus("播放记录已清空");});
             UiFactory.Button(content,"自动加载同名 SRT："+(app.Store.Settings.autoLoadSubtitles?"开":"关"),330,391,500,52,()=>{app.SetAutoLoadSubtitles(!app.Store.Settings.autoLoadSubtitles);Draw();});
             UiFactory.Button(content,"格式："+new[]{"关闭","标签与元数据","增强识别"}[(int)app.Store.Settings.formatDetection],850,391,526,52,()=>{app.SetFormatDetectionMode((FormatDetectionMode)(((int)app.Store.Settings.formatDetection+1)%3));Draw();});
