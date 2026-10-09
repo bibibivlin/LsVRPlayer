@@ -65,6 +65,19 @@ namespace VRPlayer
                     case "stop-scan":app.StopDiscovery();break;
                     case "shares":_ = InspectShares(new SmbServer{host=command.host,port=command.port,username=command.username??"",password=command.password??""});break;
                     case "menu":if(command.flag)app.UI.Show();else app.UI.Hide();break;
+                    case "quick-menu":if(command.flag){app.UI.Hide();app.UI.ShowQuick();}else app.UI.HideQuick();break;
+                    case "quick-popup":app.UI.Quick.TogglePopup(command.name);break;
+                    case "quick-browse":_ = app.UI.Quick.Browse(command.uri);break;
+                    case "ui-pointer":app.GetComponent<VrUiInput>()?.SetDiagnosticPointer(command.preset,command.name,command.value,command.flag);break;
+                    case "ui-stick":app.GetComponent<VrUiInput>()?.SetDiagnosticStick(command.preset,new Vector2(command.value,command.offset));break;
+                    case "ui-input-reset":app.GetComponent<VrUiInput>()?.ResetDiagnosticInput();break;
+                    case "volume":app.SetVolume(command.value);break;
+                    case "mute":app.ToggleMute();break;
+                    case "speed":app.SetSpeed(command.value);break;
+                    case "auto-hide":app.Store.Settings.autoHide=command.flag;break;
+                    case "subtitle-enabled":app.SetSubtitlesEnabled(command.flag);break;
+                    case "subtitle-delay":app.SetSubtitleDelay(command.value);break;
+                    case "panorama-zoom":app.SetPanoramaZoom(command.value);break;
                     case "capture":ScreenCapture.CaptureScreenshot(Path.Combine(Application.persistentDataPath,"capture.png"));break;
                     case "smb":app.SaveServer(new SmbServer{name=command.name??"Test fixture",host=command.host,share=command.share,port=command.port,username=command.username??"",password=command.password??"",remember=false});break;
                 }

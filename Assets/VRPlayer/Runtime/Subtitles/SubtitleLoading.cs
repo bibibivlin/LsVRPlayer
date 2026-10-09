@@ -46,7 +46,7 @@ namespace VRPlayer
             if(Current==null)return;CancelSubtitleSelection();Current.subtitleSelection=SubtitleSelection.Auto;Current.subtitle="";subtitleDocument=null;Backend?.SelectTrack("off",3);Store.Save();
             _ = DiscoverSubtitles(Current.directory,Generation);SetStatus(Store.Settings.autoLoadSubtitles?"正在自动选择字幕":"已恢复自动选择；可在设置中开启自动加载");Notify();
         }
-        private async Task DiscoverSubtitles(string directory,int generation)
+        private async Task DiscoverSubtitles(string directory,int generation,bool explicitEnable=false)
         {
             subtitleListing?.Cancel();subtitleListing?.Dispose();subtitleListing=new CancellationTokenSource();var token=subtitleListing.Token;
             var record=Current;int revision=subtitleRevision;
@@ -61,7 +61,7 @@ namespace VRPlayer
                 if(playlist.Count==0)playlist=entries.Where(e=>e.IsVideo).OrderBy(e=>e.name,StringComparer.OrdinalIgnoreCase).ToList();
                 Notify();if(revision!=subtitleRevision)return;
                 if(record.subtitleSelection==SubtitleSelection.Manual&&!string.IsNullOrEmpty(record.subtitle)&&!record.subtitle.StartsWith("track:"))await LoadSubtitle(record.subtitle);
-                else if(record.subtitleSelection==SubtitleSelection.Auto&&Store.Settings.autoLoadSubtitles)await LoadSubtitleCandidates(SubtitleCandidates.Select(x=>x.uri).ToArray(),false);
+                else if(record.subtitleSelection==SubtitleSelection.Auto&&(Store.Settings.autoLoadSubtitles||explicitEnable))await LoadSubtitleCandidates(SubtitleCandidates.Select(x=>x.uri).ToArray(),false);
             }catch(OperationCanceledException){}catch(Exception){if(generation==Generation&&!token.IsCancellationRequested)SetStatus("字幕目录读取失败，可手动选择 SRT");}
         }
         public Task LoadSubtitle(string uri)=>LoadSubtitleCandidates(new[]{uri},true);
@@ -79,7 +79,23 @@ namespace VRPlayer
                 SetStatus($"字幕已加载：{result.document.Cues.Count} 条"+(result.document.InvalidBlocks>0?$"，跳过 {result.document.InvalidBlocks} 个损坏块":""));Notify();
             }catch(OperationCanceledException){}
         }
-        public void DisableSubtitles(){CancelSubtitleSelection();subtitleListing?.Cancel();subtitleDocument=null;if(Current!=null){Current.subtitle="";Current.subtitleSelection=SubtitleSelection.Off;}Backend?.SelectTrack("off",3);Store.Save();SetStatus("字幕已关闭 · 已记住该片设置");Notify();}
+        public void SetSubtitlesEnabled(bool enabled)
+        {
+            if(Current==null)return;if(!enabled){DisableSubtitles();return;}
+            if(Current.subtitleSelection!=SubtitleSelection.Off)return;
+            CancelSubtitleSelection();Current.subtitleSelection=Current.subtitleSelectionBeforeOff;
+            string previous=Current.subtitleBeforeOff;
+            if(!string.IsNullOrEmpty(previous)){
+                if(previous.StartsWith("track:")){
+                    string id=previous.Substring(6);Current.subtitle=previous;subtitleDocument=null;
+                    var state=Backend?.Snapshot;
+                    if(state!=null&&state.generation==Generation&&(state.tracks??Array.Empty<MediaTrack>()).Any(t=>t.type==3&&t.id==id&&t.supported))EmbeddedSubtitle(id);
+                    else SetStatus("上次选择的内嵌字幕暂不可用，请重新选择");
+                }else _ = LoadSubtitleCandidates(new[]{previous},Current.subtitleSelection==SubtitleSelection.Manual);
+            }else{Current.subtitleSelection=SubtitleSelection.Auto;Current.subtitle="";_ = DiscoverSubtitles(Current.directory,Generation,true);}
+            Store.Save();Notify();
+        }
+        public void DisableSubtitles(){CancelSubtitleSelection();subtitleListing?.Cancel();subtitleDocument=null;if(Current!=null){if(Current.subtitleSelection!=SubtitleSelection.Off){Current.subtitleBeforeOff=Current.subtitle;Current.subtitleSelectionBeforeOff=Current.subtitleSelection;}Current.subtitle="";Current.subtitleSelection=SubtitleSelection.Off;}Backend?.SelectTrack("off",3);Store.Save();SetStatus("字幕已关闭 · 已记住该片设置");Notify();}
         public void EmbeddedSubtitle(string id){CancelSubtitleSelection();subtitleListing?.Cancel();subtitleDocument=null;if(Current!=null){Current.subtitle="track:"+id;Current.subtitleSelection=SubtitleSelection.Manual;}Backend?.SelectTrack(id,3);Store.Save();Notify();}
     }
 }

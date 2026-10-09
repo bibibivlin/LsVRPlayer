@@ -13,11 +13,16 @@ namespace VRPlayer
     {
         public Canvas Canvas{get;private set;}
         public bool Visible=>Canvas!=null&&Canvas.gameObject.activeSelf;
+        public QuickControlsUI Quick{get;private set;}
+        public bool AnyVisible=>Visible||Quick!=null&&Quick.Visible;
+        public Canvas ActiveCanvas=>Visible?Canvas:Quick!=null&&Quick.Visible?Quick.Canvas:null;
+        public int SurfaceRevision{get;private set;}
         public float LastInteraction{get;set;}
         private PlayerApp app;private Camera head;
         private RectTransform content,keyboard;
         private TextMeshProUGUI title,status,time,playLabel,detail,keyboardPreview;
         private Slider seek;private SeekGesture seekGesture;
+        private Slider volumeSlider,fullSpeedSlider;private TextMeshProUGUI fullSpeedNumber;
         private TMP_InputField address,filter,keyboardTarget;
         private string tab="文件",query="";
         private int sort,subtitlePage;
@@ -37,7 +42,9 @@ namespace VRPlayer
         private readonly List<Button> projectionButtons=new List<Button>(),stereoButtons=new List<Button>();
         private Button halfButton,eyesButton;
         private int projectionButtonState=-1;
-        public bool BlocksTransport=>Visible&&(modal!=""||(keyboard!=null&&keyboard.gameObject.activeSelf)||(seekGesture!=null&&seekGesture.Dragging));
+        private bool projectionDistanceWasFlat;
+        public bool BlocksTransport=>Visible&&(modal!=""||(keyboard!=null&&keyboard.gameObject.activeSelf)||(seekGesture!=null&&seekGesture.Dragging))||Quick!=null&&Quick.BlocksTransport;
+        public bool BlocksScrolling=>Visible&&(keyboard!=null&&keyboard.gameObject.activeSelf||modal!="");
         private CancellationTokenSource connection;
         public bool CanDiscover=>Visible&&tab=="文件"&&modal==""&&!keyboard.gameObject.activeSelf;
         public string SelectedTab=>tab;
@@ -58,11 +65,12 @@ namespace VRPlayer
             UiFactory.Button(rect,"上一部",32,953,112,54,()=>app.Next(-1));
             var play=UiFactory.Button(rect,"播放",156,953,128,54,()=>app.TogglePlay(),true);playLabel=play.GetComponentInChildren<TextMeshProUGUI>();
             UiFactory.Button(rect,"下一部",296,953,112,54,()=>app.Next(1));UiFactory.Button(rect,"−10 秒",424,953,112,54,()=>app.Skip(-10));UiFactory.Button(rect,"+10 秒",548,953,112,54,()=>app.Skip(10));
-            UiFactory.Label(rect,"音量",690,953,68,54,23);UiFactory.Slider(rect,765,960,225,0,1,app.Store.Settings.volume,app.SetVolume);
+            UiFactory.Label(rect,"音量",690,953,68,54,23);volumeSlider=UiFactory.Slider(rect,765,960,225,0,1,app.Store.Settings.volume,app.SetVolume);
             UiFactory.Button(rect,"重试",1014,953,112,54,app.Retry);UiFactory.Button(rect,"停止",1138,953,112,54,app.Stop);UiFactory.Button(rect,"躺卧",1262,953,146,54,()=>app.Recenter(true));
             keyboard=UiFactory.Box(rect,"Virtual keyboard",30,340,1380,485,new Color(.025f,.065f,.09f,1),true);keyboard.gameObject.SetActive(false);
             var hud=new GameObject("Transport feedback",typeof(RectTransform),typeof(Canvas));transportRoot=(RectTransform)hud.transform;transportRoot.sizeDelta=new Vector2(700,70);transportRoot.localScale=Vector3.one*.001f;hud.GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;hud.GetComponent<Canvas>().sortingOrder=12;
             UiFactory.Box(transportRoot,"Backdrop",0,0,700,70,UiFactory.Background);transportLabel=UiFactory.Label(transportRoot,"",0,0,700,70,30);hud.SetActive(false);
+            Quick=gameObject.AddComponent<QuickControlsUI>();Quick.Initialize(this,app,head);
             app.Changed+=OnAppChanged;app.DiscoveryChanged+=RefreshFileRows;Draw();Show();
         }
         private string CurrentFileKey=>$"{app.Source}|{app.DirectoryUri}|{query}|{sort}|{subtitleBrowse}";
@@ -78,10 +86,13 @@ namespace VRPlayer
         private void Update()
         {
             if(Canvas==null)return;var snapshot=app.Backend?.Snapshot;
+            if(volumeSlider!=null&&!(volumeSlider as OwnedSlider).HasOwner)volumeSlider.SetValueWithoutNotify(app.Store.Settings.volume);
+            if(fullSpeedSlider!=null&&!(fullSpeedSlider as OwnedSlider).HasOwner){fullSpeedSlider.SetValueWithoutNotify(app.Store.Settings.speed);fullSpeedNumber.text=$"{app.Store.Settings.speed:0.0#} 倍";}
             if(transportRoot!=null){transportRoot.gameObject.SetActive(Time.unscaledTime<transportUntil);transportRoot.SetPositionAndRotation(head.transform.position+head.transform.rotation*new Vector3(-.35f,-.35f,2),head.transform.rotation);}
             if(formatLabel!=null)formatLabel.text=app.FormatDescription;
             if(tab=="投影"&&modal==""&&halfButton!=null){
                 var view=app.Presenter.Settings;
+                if((view.projection==Projection.Flat)!=projectionDistanceWasFlat)DrawProjectionPage();
                 int state=(int)view.projection|((int)view.stereo<<3)|(view.half?32:0)|(view.swapEyes?64:0);
                 if(state!=projectionButtonState){
                     projectionButtonState=state;
@@ -114,12 +125,16 @@ namespace VRPlayer
                 $"\n{app.RenderQuality.Description}\n版本：{Application.version}    图形 API：{SystemInfo.graphicsDeviceType}"+
                 "\n\n格式支持以当前设备解码器与样片实测为准。\nEAC / Cubemap 布局：上排 +X −X +Y，下排 −Y +Z −Z。";
         }
-        public void Show(){if(Canvas==null)return;bool opening=!Visible;Canvas.gameObject.SetActive(true);LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,2);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
-        public void Hide(){CloseKeyboard();CancelSmbConnection();app.StopDiscovery();Canvas.gameObject.SetActive(false);app.Store.Save();}
+        public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,2);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
+        public void Hide(){CloseKeyboard();CancelSmbConnection();app.StopDiscovery();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
         public void Toggle(){if(Visible)Hide();else Show();}
+        public void ShowQuick(){if(Quick==null||Visible)return;Quick.Show();SurfaceRevision++;}
+        public void HideQuick(){Quick?.Hide();SurfaceRevision++;app?.Store?.Save();}
+        public void ToggleQuick(){if(Visible)return;if(Quick!=null&&Quick.Visible)HideQuick();else ShowQuick();}
+        public void PlaybackOpened(){SurfaceRevision++;seekGesture?.Cancel();Quick?.PlaybackOpened();LastInteraction=Time.unscaledTime;}
         private void Draw()
         {
-            if(content==null)return;if(fileList!=null)fileOffset=fileList.Offset;UiFactory.Clear(content);detail=null;formatLabel=null;address=filter=null;fileList=null;preview=null;scanLabel=countLabel=null;undoButton=null;modal="";
+            if(content==null)return;if(fileList!=null)fileOffset=fileList.Offset;UiFactory.Clear(content);detail=null;formatLabel=null;address=filter=null;fileList=null;preview=null;scanLabel=countLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
             foreach(var pair in tabs)UiFactory.SetAccent(pair.Value,pair.Key==tab);
             if(tab=="文件")DrawFiles();else if(tab=="投影")DrawProjection();else if(tab=="字幕")DrawSubtitles();else if(tab=="设置")DrawSettings();else DrawInfo();
         }
@@ -176,18 +191,20 @@ namespace VRPlayer
         private void DrawProjection()
         {
             projectionButtons.Clear();stereoButtons.Clear();projectionButtonState=-1;
+            projectionDistanceWasFlat=app.Presenter.Settings.projection==Projection.Flat;
             var view=app.Presenter.Settings;string[] names={"平面 / 曲面","VR 180°","VR 360°","鱼眼","Cubemap 3×2","EAC 3×2"};
             for(int i=0;i<names.Length;i++){int index=i;projectionButtons.Add(UiFactory.Button(content,names[i],i*230,0,216,52,()=>{app.ChangeFormat(v=>v.projection=(Projection)index);Draw();},(int)view.projection==i));}
             string[] stereo={"普通 2D","左右 SBS","上下 OU"};for(int i=0;i<3;i++){int index=i;stereoButtons.Add(UiFactory.Button(content,stereo[i],i*230,72,216,52,()=>{app.ChangeFormat(v=>v.stereo=(StereoLayout)index);Draw();},(int)view.stereo==i));}
             halfButton=UiFactory.Button(content,view.half?"Half 半宽/半高":"Full 全宽/全高",690,72,216,52,()=>{app.ChangeFormat(v=>v.half=!v.half);Draw();},view.half);
             eyesButton=UiFactory.Button(content,view.swapEyes?"已交换左右眼":"交换左右眼",920,72,216,52,()=>{app.ChangeFormat(v=>v.swapEyes=!v.swapEyes);Draw();},view.swapEyes);
             UiFactory.Button(content,view.monoEye?"单眼 2D 已开":"单眼 2D",1150,72,216,52,()=>{view.monoEye=!view.monoEye;Draw();},view.monoEye);
-            Setting("屏幕宽度",140,1,10,view.width,v=>view.width=v,"米");Setting("屏幕距离",196,1.2f,10,view.distance,v=>view.distance=v,"米");Setting("屏幕高度",252,-3,3,view.heightOffset,v=>view.heightOffset=v,"米");Setting("屏幕曲率",308,0,150,view.curvature,v=>view.curvature=v,"°");Setting("鱼眼角度",364,120,240,view.fisheyeFov,v=>app.ChangeFormat(settings=>settings.fisheyeFov=v),"°");
+            Setting("屏幕宽度",140,1,10,view.width,v=>view.width=v,"米");if(view.projection==Projection.Flat)Setting("屏幕距离",196,1.2f,10,view.distance,app.SetViewDistance,"米");else Setting("全景缩放",196,.5f,2,view.panoramaZoom,app.SetPanoramaZoom,"倍");Setting("屏幕高度",252,-3,3,view.heightOffset,v=>view.heightOffset=v,"米");Setting("屏幕曲率",308,0,150,view.curvature,v=>view.curvature=v,"°");Setting("鱼眼角度",364,120,240,view.fisheyeFov,v=>app.ChangeFormat(settings=>settings.fisheyeFov=v),"°");
             UiFactory.Button(content,"对齐正前方",0,422,220,44,()=>app.Recenter(false));UiFactory.Button(content,"对齐视线 / 躺卧",232,422,270,44,()=>app.Recenter(true));UiFactory.Button(content,"重新识别格式",514,422,270,44,()=>{app.RedetectFormat();Draw();});UiFactory.Button(content,"撤销本次识别",796,422,270,44,()=>{app.UndoFormatDetection();Draw();});UiFactory.Button(content,"采用建议",1078,422,290,44,()=>{app.ApplyFormatSuggestion();Draw();});
             UiFactory.Button(content,app.CurrentDirectoryPrefersVr180?"本目录优先 VR180：开":"本目录优先 VR180：关",0,472,470,40,()=>{app.SetDirectoryVr180Preference(!app.CurrentDirectoryPrefersVr180);Draw();},app.CurrentDirectoryPrefersVr180);
             UiFactory.Label(content,"仅在确认 SBS 后使用；明确标签与元数据优先",490,472,880,40,20);
             formatLabel=UiFactory.Label(content,app.FormatDescription,0,516,1376,94,20);formatLabel.textWrappingMode=TextWrappingModes.Normal;
         }
+        private void DrawProjectionPage(){UiFactory.Clear(content);DrawProjection();}
         private void Setting(string name,float y,float min,float max,float value,Action<float> change,string unit="")
         {
             UiFactory.Label(content,name,0,y,225,45,26);var number=UiFactory.Label(content,$"{value:0.##} {unit}",1180,y,196,45,24,TextAlignmentOptions.Right);
@@ -199,6 +216,7 @@ namespace VRPlayer
             UiFactory.Label(content,name,0,y,225,45,26);
             var number=UiFactory.Label(content,$"{value:0.0#} {unit}",1050,y,150,45,24,TextAlignmentOptions.Right);
             var slider=UiFactory.Slider(content,370,y+2,540,min,max,value,_=>{});
+            if(name=="播放速度"){fullSpeedSlider=slider;fullSpeedNumber=number;}
             void Apply(float next)
             {
                 next=Mathf.Clamp(Mathf.Round(next/step)*step,min,max);
@@ -216,7 +234,7 @@ namespace VRPlayer
             var settings=app.Store.Settings;
             if(subtitlePage==2){DrawSubtitleStyle();return;}
             if(subtitlePage==1){
-                Setting("字幕延后",78,-10,10,app.Current?.subtitleDelay??0,v=>{if(app.Current!=null)app.Current.subtitleDelay=v;},"秒");
+                Setting("字幕延后",78,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,"秒");
                 Setting("字幕大小",146,12,200,settings.subtitleSize,v=>settings.subtitleSize=v);
                 Setting("视觉高度",214,-4,4,settings.subtitleOffset,v=>settings.subtitleOffset=v);
                 Setting("字幕距离",282,.1f,6,settings.subtitleDistance,v=>settings.subtitleDistance=v,"米");
@@ -270,7 +288,7 @@ namespace VRPlayer
             UiFactory.Button(content,"清空播放记录",0,391,310,52,()=>{app.Store.Settings.history.Clear();app.Store.Save();app.SetStatus("播放记录已清空");});
             UiFactory.Button(content,"自动加载同名 SRT："+(app.Store.Settings.autoLoadSubtitles?"开":"关"),330,391,500,52,()=>{app.SetAutoLoadSubtitles(!app.Store.Settings.autoLoadSubtitles);Draw();});
             UiFactory.Button(content,"格式："+new[]{"关闭","标签与元数据","增强识别"}[(int)app.Store.Settings.formatDetection],850,391,526,52,()=>{app.SetFormatDetectionMode((FormatDetectionMode)(((int)app.Store.Settings.formatDetection+1)%3));Draw();});
-            var instructions=UiFactory.Label(content,"摇杆上下滚动，左右 ±10 秒；长拨连续跳转。A / X 或菜单键呼出面板。\n自动字幕：中文后缀 → 无后缀 → 其他语言；手动选择与关闭状态优先。\n键盘：空格播放暂停，← / → 快退快进，Tab 面板，R 居中。",0,478,1376,122,24);instructions.textWrappingMode=TextWrappingModes.Normal;
+            var instructions=UiFactory.Label(content,"扳机开关简易面板；A / X 或菜单键开关完整面板。摇杆上下滚动，左右 ±10 秒。\n自动字幕：中文后缀 → 无后缀 → 其他语言；手动选择与关闭状态优先。\n键盘：空格播放暂停，← / → 快退快进，Tab 完整面板，R 居中。",0,478,1376,122,24);instructions.textWrappingMode=TextWrappingModes.Normal;
         }
         private void DrawTracks()
         {
@@ -332,7 +350,7 @@ namespace VRPlayer
                 var server=new SmbServer{id=initial.id,name=fields[0].text,host=fields[1].text,share=fields[2].text,username=fields[3].text,password=fields[4].text,domain=fields[5].text,port=parsed,remember=remember,encrypt=encrypt};if(app.SaveServer(server)){keyboard.gameObject.SetActive(false);Draw();}},true);
         }
         private void ShowKeyboard(TMP_InputField target){keyboardTarget=target;LastInteraction=Time.unscaledTime;keyboard.gameObject.SetActive(true);fileList?.Block(true);DrawKeyboard();}
-        public void ScrollList(float direction){if(!keyboard.gameObject.activeSelf)fileList?.Scroll(direction);}
+        public void ScrollList(float direction){if(Quick!=null&&Quick.Visible){Quick.Scroll(direction);return;}if(keyboard!=null&&!keyboard.gameObject.activeSelf)fileList?.Scroll(direction);}
         private void UpdateKeyboardPreview(){if(keyboardPreview!=null&&keyboardTarget!=null)keyboardPreview.text=keyboardTarget.contentType==TMP_InputField.ContentType.Password?new string('•',keyboardTarget.text.Length):keyboardTarget.text;}
         private void DrawKeyboard()
         {

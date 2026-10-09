@@ -14,6 +14,8 @@ namespace VRPlayer
         public long position,size,modified;public string lastPlayed;
         public float subtitleDelay;public ViewSettings view=new ViewSettings();
         public SubtitleSelection subtitleSelection;
+        public string subtitleBeforeOff="";
+        public SubtitleSelection subtitleSelectionBeforeOff;
         public bool formatLocked;
         public FormatLockOrigin formatLockOrigin;
         public FormatDetectionCache formatCache;
@@ -22,6 +24,7 @@ namespace VRPlayer
     [Serializable] public sealed class UserSettings
     {
         public int version=3;public float volume=.8f,speed=1,subtitleSize=42,subtitleOffset=-.75f,subtitleDistance=3;
+        public float lastAudibleVolume=.8f;
         public bool autoLoadSubtitles;
         public FormatDetectionMode formatDetection=FormatDetectionMode.Enhanced;
         public RenderQuality renderQuality=RenderQuality.High;
@@ -52,19 +55,24 @@ namespace VRPlayer
             if(version<2){float ratio=3/Mathf.Max(.1f,oldDistance);value.subtitleSize*=ratio;value.subtitleOffset*=ratio;value.renderQuality=RenderQuality.High;value.subtitleStyle=new SubtitleStyle();}
             value.history.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.uri));
             foreach(var record in value.history){
-                record.subtitle??="";record.view??=new ViewSettings();
+                record.subtitle??="";record.subtitleBeforeOff??="";record.view??=new ViewSettings();
+                record.view.panoramaZoom=NormalizeZoom(record.view.panoramaZoom);
+                if(record.subtitleSelectionBeforeOff!=SubtitleSelection.Manual)record.subtitleSelectionBeforeOff=SubtitleSelection.Auto;
                 if(version<3){record.subtitleSelection=string.IsNullOrEmpty(record.subtitle)?SubtitleSelection.Auto:SubtitleSelection.Manual;record.formatLocked=true;}
                 if(!Enum.IsDefined(typeof(SubtitleSelection),record.subtitleSelection))record.subtitleSelection=SubtitleSelection.Auto;
             }
             if(version<3){value.autoLoadSubtitles=false;value.formatDetection=FormatDetectionMode.Enhanced;}
             if(!Enum.IsDefined(typeof(FormatDetectionMode),value.formatDetection))value.formatDetection=FormatDetectionMode.Enhanced;
             value.version=3;value.subtitleStyle??=new SubtitleStyle();
+            value.volume=Mathf.Clamp01(Finite(value.volume,.8f));
+            float remembered=Finite(value.lastAudibleVolume,.8f);value.lastAudibleVolume=value.volume>0?value.volume:Mathf.Clamp(remembered>0?remembered:.8f,.01f,1);
             value.subtitleSize=Mathf.Clamp(Finite(value.subtitleSize,42),12,200);
             value.subtitleOffset=Mathf.Clamp(Finite(value.subtitleOffset,-.75f),-4,4);
             if(!Enum.IsDefined(typeof(RenderQuality),value.renderQuality))value.renderQuality=RenderQuality.High;
             value.subtitleStyle.Normalize();return value;
         }
         private static float Finite(float value,float fallback)=>float.IsNaN(value)||float.IsInfinity(value)?fallback:value;
+        public static float NormalizeZoom(float value)=>Mathf.Clamp(Finite(value,1)>0?Finite(value,1):1,.5f,2);
         public Favorite RemoveFavorite(string uri,out int index)
         {
             index=Settings.favorites.FindIndex(f=>f.uri==uri);if(index<0)return null;
@@ -80,7 +88,7 @@ namespace VRPlayer
         {
             var record=Find(file.uri);
             if(record==null){record=new PlaybackRecord{uri=file.uri,name=file.name,directory=directory};Settings.history.Insert(0,record);}
-            if(record.size!=0&&file.size!=0&&(record.size!=file.size||(record.modified>0&&file.modified>0&&record.modified!=file.modified))){record.position=0;record.subtitle="";record.formatCache=null;if(record.subtitleSelection==SubtitleSelection.Manual)record.subtitleSelection=SubtitleSelection.Auto;}
+            if(record.size!=0&&file.size!=0&&(record.size!=file.size||(record.modified>0&&file.modified>0&&record.modified!=file.modified))){record.position=0;record.subtitle="";record.subtitleBeforeOff="";record.subtitleSelectionBeforeOff=SubtitleSelection.Auto;record.formatCache=null;if(record.subtitleSelection==SubtitleSelection.Manual)record.subtitleSelection=SubtitleSelection.Auto;}
             record.name=file.name;if(file.size>0)record.size=file.size;if(file.modified>0)record.modified=file.modified;
             if(!string.IsNullOrEmpty(directory))record.directory=directory;record.lastPlayed=DateTime.UtcNow.ToString("O");
             Settings.history.Remove(record);Settings.history.Insert(0,record);if(Settings.history.Count>200)Settings.history.RemoveRange(200,Settings.history.Count-200);return record;

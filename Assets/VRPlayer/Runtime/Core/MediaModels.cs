@@ -12,7 +12,7 @@ namespace VRPlayer
         public Projection projection;
         public StereoLayout stereo;
         public bool half=true, swapEyes, monoEye;
-        public float distance=3.5f, width=4.5f, heightOffset=.1f, curvature, fisheyeFov=180, brightness=1;
+        public float distance=3.5f, width=4.5f, heightOffset=.1f, curvature, fisheyeFov=180, brightness=1, panoramaZoom=1;
         public ViewSettings Copy() => JsonUtility.FromJson<ViewSettings>(JsonUtility.ToJson(this));
         public static ViewSettings Detect(string name)
         {

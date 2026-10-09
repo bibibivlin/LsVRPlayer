@@ -14,13 +14,14 @@ namespace VRPlayer
         public int Owner=>owner;
         public float Scroll{get;private set;}
         public void Suppress(){owner=-1;axes[0]=axes[1]=3;Scroll=0;}
-        public int Update(Vector2 left,bool leftValid,Vector2 right,bool rightValid,bool blocked,float now)
+        public int Update(Vector2 left,bool leftValid,Vector2 right,bool rightValid,bool blocked,float now,bool blockHorizontal=false)
         {
             Scroll=0;values[0]=left;values[1]=right;valid[0]=leftValid;valid[1]=rightValid;
             for(int hand=0;hand<2;hand++){
                 Vector2 axis=values[hand];
                 if(!valid[hand]||blocked){axes[hand]=3;if(owner==hand)owner=-1;continue;}
                 if(axis.magnitude<=.25f){axes[hand]=0;if(owner==hand)owner=-1;continue;}
+                if(blockHorizontal&&(axes[hand]==1||owner==hand||Mathf.Abs(axis.x)>Mathf.Abs(axis.y))){axes[hand]=3;if(owner==hand)owner=-1;continue;}
                 if(owner>=0&&owner!=hand){axes[hand]=3;continue;}
                 if(axes[hand]==0){if(Mathf.Abs(axis.x)>=.65f&&Mathf.Abs(axis.x)>Mathf.Abs(axis.y)*1.35f)axes[hand]=1;else if(Mathf.Abs(axis.y)>.25f&&Mathf.Abs(axis.y)>=Mathf.Abs(axis.x))axes[hand]=2;}
                 if(axes[hand]==2&&owner<0&&Mathf.Abs(axis.y)>Mathf.Abs(Scroll))Scroll=axis.y;

@@ -11,6 +11,7 @@ namespace VRPlayer
     {
         public string key,label,detail,secondary;
         public Action open,action;
+        public bool selected;
     }
     // Fixed-height recycled rows: object count depends on the viewport, never directory size.
     public sealed class VirtualFileList : MonoBehaviour
@@ -22,23 +23,25 @@ namespace VRPlayer
         private IReadOnlyList<BrowserRow> items=Array.Empty<BrowserRow>();
         private int first=-1;
         private bool dirty;
+        private bool quickStyle;
         private sealed class Row {public RectTransform root;public Button open,action;public TextMeshProUGUI label,detail,actionLabel;public RowBinding binding;}
         public float Offset=>body==null?0:body.anchoredPosition.y;
         public int PoolCount=>pool.Count;
         public int Count=>items.Count;
-        public void Initialize(float width,float height)
+        public void Initialize(float width,float height,bool quickStyle=false)
         {
+            this.quickStyle=quickStyle;
             scroll=gameObject.AddComponent<ListScrollRect>();scroll.horizontal=false;scroll.vertical=true;scroll.movementType=ScrollRect.MovementType.Clamped;scroll.scrollSensitivity=48;scroll.decelerationRate=.12f;
             var viewport=UiFactory.Box(transform,"Viewport",0,0,width-32,height,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();scroll.viewport=viewport;
             body=UiFactory.Rect(viewport,"Rows",0,0,width-32,height);scroll.content=body;
-            var barRect=UiFactory.Box(transform,"Scrollbar",width-24,0,24,height,UiFactory.Panel,true);
-            var bar=barRect.gameObject.AddComponent<Scrollbar>();var handle=UiFactory.Box(barRect,"Handle",0,0,24,height,UiFactory.Accent,true);
+            var barRect=UiFactory.Box(transform,"Scrollbar",width-24,0,24,height,quickStyle?new Color(.16f,.17f,.18f,1):UiFactory.Panel,true);
+            var bar=barRect.gameObject.AddComponent<Scrollbar>();var handle=UiFactory.Box(barRect,"Handle",0,0,24,height,quickStyle?new Color(.38f,.40f,.42f,1):UiFactory.Accent,true);
             handle.anchorMin=Vector2.zero;handle.anchorMax=Vector2.one;handle.offsetMin=handle.offsetMax=Vector2.zero;
             bar.handleRect=handle;bar.targetGraphic=handle.GetComponent<Image>();bar.direction=Scrollbar.Direction.BottomToTop;scroll.verticalScrollbar=bar;
             for(int i=0;i<Mathf.CeilToInt(height/RowPitch)+2;i++){
                 var row=new Row();row.root=UiFactory.Rect(body,"Row",0,0,width-32,56);
                 row.binding=row.root.gameObject.AddComponent<RowBinding>();
-                row.open=UiFactory.Button(row.root,"",0,0,width-230,56,()=>row.binding.Open());row.label=row.open.GetComponentInChildren<TextMeshProUGUI>();row.label.alignment=TextAlignmentOptions.Left;
+                row.open=quickStyle?QuickUiFactory.Button(row.root,"",0,0,width-230,56,()=>row.binding.Open()):UiFactory.Button(row.root,"",0,0,width-230,56,()=>row.binding.Open());row.label=row.open.GetComponentInChildren<TextMeshProUGUI>();row.label.alignment=TextAlignmentOptions.Left;
                 row.open.gameObject.AddComponent<RowPress>().Bind(row.binding);
                 row.action=UiFactory.Button(row.root,"",width-216,0,180,56,()=>row.binding.Action());row.actionLabel=row.action.GetComponentInChildren<TextMeshProUGUI>();
                 row.action.gameObject.AddComponent<RowPress>().Bind(row.binding);
@@ -62,6 +65,7 @@ namespace VRPlayer
                 var row=pool[i];int index=start+i;row.root.gameObject.SetActive(index<items.Count);if(index>=items.Count)continue;
                 var item=items[index];row.root.anchoredPosition=new Vector2(0,-index*RowPitch);row.binding.Item=item;
                 row.label.text=item.label;row.open.interactable=item.open!=null;
+                if(quickStyle){QuickUiFactory.Select(row.open,item.selected);row.detail.color=item.selected?QuickUiFactory.Blue:UiFactory.Muted;}
                 row.action.gameObject.SetActive(item.action!=null);row.actionLabel.text=item.secondary;
                 row.detail.gameObject.SetActive(item.action==null);row.detail.text=item.detail;
             }

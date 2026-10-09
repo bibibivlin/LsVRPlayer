@@ -33,6 +33,8 @@ namespace VRPlayer
             if(key!=geometryKey){geometryKey=key;RebuildScreen(Settings.width,Settings.width/Settings.Aspect(width,height,pixelRatio),Settings.curvature);}
             if(texture!=null)material.mainTexture=texture;
             material.SetInt("_Projection",(int)Settings.projection);material.SetInt("_Stereo",(int)Settings.stereo);material.SetFloat("_SwapEyes",Settings.swapEyes?1:0);material.SetFloat("_MonoEye",Settings.monoEye?1:0);material.SetFloat("_GammaInput",gamma?1:0);material.SetFloat("_FisheyeFov",Settings.fisheyeFov);material.SetFloat("_Brightness",Settings.brightness);
+            material.SetFloat("_PanoramaZoom",PlayerStore.NormalizeZoom(Settings.panoramaZoom));
+            material.SetVector("_PanoramaForward",transform.InverseTransformDirection(cameraTransform.forward));
         }
         private void RebuildScreen(float width,float height,float curve)
         {

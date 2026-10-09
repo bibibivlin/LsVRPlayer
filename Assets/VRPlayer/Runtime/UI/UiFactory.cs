@@ -47,21 +47,35 @@ namespace VRPlayer
         }
         public static Slider Slider(Transform parent,float x,float y,float w,float min,float max,float value,Action<float> changed)
         {
-            var rect=Rect(parent,"Slider",x,y,w,42);var slider=rect.gameObject.AddComponent<Slider>();
+            var rect=Rect(parent,"Slider",x,y,w,42);var slider=rect.gameObject.AddComponent<OwnedSlider>();
             var hitArea=rect.gameObject.AddComponent<Image>();hitArea.color=Color.clear;hitArea.raycastTarget=true;
             Box(rect,"Rail",0,17,w,8,new Color(.12f,.2f,.25f,1));
             var fillArea=Rect(rect,"Fill Area",0,17,w,8);var fill=Box(fillArea,"Fill",0,0,0,0,Accent);fill.anchorMin=Vector2.zero;fill.anchorMax=Vector2.one;fill.offsetMin=fill.offsetMax=Vector2.zero;slider.fillRect=fill;
             var handleArea=Rect(rect,"Handle Area",10,6,w-20,30);var handle=Box(handleArea,"Handle",0,0,22,0,new Color(.8f,.98f,.96f,1),true);handle.pivot=new Vector2(.5f,.5f);handle.anchorMin=Vector2.zero;handle.anchorMax=new Vector2(0,1);handle.anchoredPosition=Vector2.zero;slider.handleRect=handle;slider.targetGraphic=handle.GetComponent<Image>();slider.minValue=min;slider.maxValue=max;slider.SetValueWithoutNotify(value);slider.onValueChanged.AddListener(v=>changed?.Invoke(v));return slider;
         }
-        public static void Clear(Transform parent){for(int i=parent.childCount-1;i>=0;i--){var child=parent.GetChild(i).gameObject;child.SetActive(false);UnityEngine.Object.Destroy(child);}}
+        public static void Clear(Transform parent){for(int i=parent.childCount-1;i>=0;i--){var child=parent.GetChild(i).gameObject;child.SetActive(false);if(Application.isPlaying)UnityEngine.Object.Destroy(child);else UnityEngine.Object.DestroyImmediate(child);}}
     }
     public sealed class SeekGesture : MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IBeginDragHandler,IEndDragHandler
     {
         public bool Dragging{get;private set;}
+        private int? owner;
         public Action<float> Commit;
-        public void OnPointerDown(PointerEventData data)=>Dragging=true;
-        public void OnBeginDrag(PointerEventData data)=>Dragging=true;
-        public void OnPointerUp(PointerEventData data){Dragging=false;Commit?.Invoke(GetComponent<Slider>().value);}
-        public void OnEndDrag(PointerEventData data){Dragging=false;}
+        public void OnPointerDown(PointerEventData data){if(owner.HasValue)return;owner=data.pointerId;Dragging=true;}
+        public void OnBeginDrag(PointerEventData data){if(owner==data.pointerId)Dragging=true;}
+        public void OnPointerUp(PointerEventData data){if(owner!=data.pointerId)return;Cancel();Commit?.Invoke(GetComponent<Slider>().value);}
+        public void OnEndDrag(PointerEventData data){if(owner==data.pointerId)Cancel();}
+        public void Cancel(){owner=null;Dragging=false;}
+        public void Cancel(int pointerId){if(owner==pointerId)Cancel();}
+        private void OnDisable()=>Cancel();
+    }
+    public sealed class OwnedSlider : Slider
+    {
+        private int? owner;
+        public bool HasOwner=>owner.HasValue;
+        public override void OnPointerDown(PointerEventData data){if(!IsActive()||!IsInteractable()||data.button!=PointerEventData.InputButton.Left||owner.HasValue)return;owner=data.pointerId;base.OnPointerDown(data);}
+        public override void OnDrag(PointerEventData data){if(owner==data.pointerId)base.OnDrag(data);}
+        public override void OnPointerUp(PointerEventData data){if(owner!=data.pointerId)return;base.OnPointerUp(data);owner=null;}
+        public override void OnInitializePotentialDrag(PointerEventData data){if(!owner.HasValue||owner==data.pointerId)base.OnInitializePotentialDrag(data);}
+        protected override void OnDisable(){owner=null;base.OnDisable();}
     }
 }

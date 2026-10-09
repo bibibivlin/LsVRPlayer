@@ -49,6 +49,7 @@ namespace VRPlayer
         private int previousState;
         private string lastError="";
         private float saveAt,diagnosticsAt;
+        private bool viewDistanceDirty;
         private void Start()
         {
             headCamera=headCamera!=null?headCamera:Camera.main;
@@ -103,9 +104,10 @@ namespace VRPlayer
 #if UNITY_ANDROID && !UNITY_EDITOR
             string picked=AndroidBridge.Api.CallStatic<string>("takeFolder");if(!string.IsNullOrEmpty(picked)&&picked!="CANCELLED"){if(picked.StartsWith("ERROR:"))SetStatus(picked.Substring(6));else{AddFavorite("授权目录",picked);_ = Browse(picked);}}
 #endif
-            if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString()},true));}catch{} }
+            if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
+                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance},true));}catch{} }
         }
-        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;}
+        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;}
         public void SetStatus(string value){Status=value;}
         public void Notify()=>Changed?.Invoke();
         public void Home()
@@ -152,7 +154,7 @@ namespace VRPlayer
             Generation++;BeginFormatDetection(entry);
             if(inheritedFormat!=null){FormatDescription="已继承上一部播放影片的格式；可重新识别格式";Store.Save();}
             Backend.Open(entry.uri,Current.position,Generation);Backend.SelectTrack("off",3);
-            Status="正在打开："+entry.name;UI.Show();Notify();_ = DiscoverSubtitles(Current.directory,Generation);
+            Status="正在打开："+entry.name;UI.PlaybackOpened();Notify();_ = DiscoverSubtitles(Current.directory,Generation);
         }
         public void TogglePlay(){if(Backend==null||Current==null)return;if(Backend.Snapshot.playing)Pause();else Backend.Play();}
         public void Pause(){Backend?.Pause();SaveProgress();}
@@ -167,13 +169,30 @@ namespace VRPlayer
         }
         public void Retry(){if(Current==null)return;var record=Current;Open(new FileEntry{uri=record.uri,name=record.name,size=record.size,modified=record.modified},record.directory);}
         public void Stop(){SaveProgress();Generation++;CancelFormatDetection();Backend?.Stop();Current=null;subtitleDocument=null;CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
-        public void SetVolume(float value){Store.Settings.volume=value;Backend?.SetVolume(value);}
-        public void SetSpeed(float value){Store.Settings.speed=value;Backend?.SetSpeed(value);}
+        public bool CanNavigateAdjacent(int delta){if(Current==null||delta==0)return false;int index=playlist.FindIndex(x=>x.uri==Current.uri);return index>=0&&index+delta>=0&&index+delta<playlist.Count;}
+        public void SetVolume(float value){value=Mathf.Clamp01(value);Store.Settings.volume=value;if(value>0)Store.Settings.lastAudibleVolume=value;Backend?.SetVolume(value);}
+        public void ToggleMute(){SetVolume(Store.Settings.volume>0?0:Store.Settings.lastAudibleVolume);Store.Save();}
+        public void SetSpeed(float value){value=Mathf.Clamp(value,.25f,3);Store.Settings.speed=value;Backend?.SetSpeed(value);}
+        public void SetSubtitleDelay(float value){if(Current==null)return;Current.subtitleDelay=Mathf.Clamp(value,-10,10);Store.Save();Notify();}
+        public void SetViewDistance(float value)=>SetViewDistance(value,true);
+        public void SetViewDistance(float value,bool save){Presenter.Settings.distance=Mathf.Clamp(value,1.2f,10);viewDistanceDirty=true;if(save)CommitViewDistance();}
+        public void SetPanoramaZoom(float value)=>SetPanoramaZoom(value,true);
+        public void SetPanoramaZoom(float value,bool save){Presenter.Settings.panoramaZoom=PlayerStore.NormalizeZoom(value);viewDistanceDirty=true;if(save)CommitViewDistance();}
+        public void ResetViewDistance(){if(Presenter.Settings.projection==Projection.Flat)SetViewDistance(3.5f);else SetPanoramaZoom(1);}
+        public bool AdjustViewDistance(float direction,float deltaTime)
+        {
+            if(Current==null||Presenter==null||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;
+            var view=Presenter.Settings;direction=Mathf.Clamp(direction,-1,1);
+            if(view.projection==Projection.Flat){float value=Mathf.Clamp(view.distance-direction*2*deltaTime,1.2f,10);if(value==view.distance)return false;SetViewDistance(value,false);}
+            else{float value=Mathf.Clamp(view.panoramaZoom+direction*.5f*deltaTime,.5f,2);if(value==view.panoramaZoom)return false;SetPanoramaZoom(value,false);}
+            return true;
+        }
+        public void CommitViewDistance(){if(!viewDistanceDirty||Store==null)return;Store.Save();viewDistanceDirty=false;}
         public void SaveProgress()
         {
             if(Store==null)return;var state=Backend?.Snapshot;
             if(Current!=null&&state!=null&&state.generation==Generation&&state.duration>0){Current.position=state.state==4?0:state.position;}
-            Store.Save();
+            Store.Save();viewDistanceDirty=false;
         }
         public void AddFavorite(string name,string uri){if(Store.Settings.favorites.All(x=>x.uri!=uri))Store.Settings.favorites.Add(new Favorite{name=name,uri=uri});Store.Save();Notify();}
         public void ShowFavorites(){StopDiscovery();Source=FileSource.Favorites;directories.Clear();CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
