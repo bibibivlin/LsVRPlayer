@@ -42,6 +42,7 @@ namespace VRPlayer
         private readonly RelativeSeekTarget seekTarget=new RelativeSeekTarget();
         public string LocateFileUri{get;private set;}="";
         public bool HasFocus{get;private set;}=true;
+        public bool PresenceKnown{get;private set;}
         private SrtDocument subtitleDocument;
         private CaptionPresenter caption;
         private Transform captionRoot;
@@ -64,6 +65,7 @@ namespace VRPlayer
                 Backend=new UnityMediaBackend(gameObject);
 #endif
             }catch(Exception ex){Status="播放内核初始化失败："+ex.GetType().Name;Debug.LogException(ex);}
+            InitializeEmby();
             UI=gameObject.AddComponent<PlayerUI>();UI.Initialize(this,headCamera);
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             gameObject.AddComponent<PlayerDiagnostics>();
@@ -89,7 +91,7 @@ namespace VRPlayer
         private void Update()
         {
             if(Store==null||Backend==null)return;
-            Backend.Tick();var state=Backend.Snapshot;TickFormatDetection(state);
+            Backend.Tick();var state=Backend.Snapshot;TickFormatDetection(state);TickEmbyPlayback(state);
             Presenter.UpdateVideo(Backend.Texture,Backend.RequiresGammaConversion,state.width,state.height,state.pixelRatio);
             if(Current!=null&&state.generation==Generation){
                 if(state.state!=previousState){previousState=state.state;if(state.state==3)SetStatus("媒体已准备好");else if(state.state==2)SetStatus("正在缓冲…");else if(state.state==4)SetStatus("播放完成");}
@@ -100,14 +102,14 @@ namespace VRPlayer
                 caption.SetText(subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
             }else caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
             caption.Position(headCamera,Presenter.transform,Store.Settings);
-            InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);if(head.TryGetFeatureValue(CommonUsages.userPresence,out bool present)){if(wasPresent&&!present)Pause();wasPresent=present;}
+            InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);PresenceKnown=head.TryGetFeatureValue(CommonUsages.userPresence,out bool present);if(PresenceKnown){if(wasPresent&&!present)Pause();wasPresent=present;}
 #if UNITY_ANDROID && !UNITY_EDITOR
             string picked=AndroidBridge.Api.CallStatic<string>("takeFolder");if(!string.IsNullOrEmpty(picked)&&picked!="CANCELLED"){if(picked.StartsWith("ERROR:"))SetStatus(picked.Substring(6));else{AddFavorite("授权目录",picked);_ = Browse(picked);}}
 #endif
             if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
-                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance},true));}catch{} }
+                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance},true));}catch{} }
         }
-        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;}
+        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;}
         public void SetStatus(string value){Status=value;}
         public void Notify()=>Changed?.Invoke();
         public void Home()
@@ -131,17 +133,21 @@ namespace VRPlayer
             catch(OperationCanceledException){}catch(Exception ex){if(!token.IsCancellationRequested){Loading=false;SetStatus("无法读取目录："+ex.Message);}}
         }
         public void Up(){if(directories.Count>0){_ = Browse(directories.Pop(),false);return;}string parent=FileLibrary.Parent(DirectoryUri);if(parent!=null)_ = Browse(parent,false);else Home();}
-        public void Refresh(){switch(Source){case FileSource.Favorites:ShowFavorites();break;case FileSource.Recent:ShowRecent();break;case FileSource.Smb:ShowServers();break;case FileSource.Directory:_ = Browse(DirectoryUri,false);break;default:Home();break;}}
-        public void CancelListing(){listing?.Cancel();listing?.Dispose();listing=null;Loading=false;}
+        public void Refresh(){switch(Source){case FileSource.Emby:RefreshEmby();break;case FileSource.Favorites:ShowFavorites();break;case FileSource.Recent:ShowRecent();break;case FileSource.Smb:ShowServers();break;case FileSource.Directory:_ = Browse(DirectoryUri,false);break;default:Home();break;}}
+        public void CancelListing(){listing?.Cancel();listing?.Dispose();listing=null;Loading=false;CancelEmbyBrowsing();}
         public void Open(FileEntry entry,string directory=null)
         {
             OpenVideo(entry,directory,null,false);
         }
-        private void OpenVideo(FileEntry entry,string directory,ViewSettings inheritedFormat,bool keepPlaylist)
+        private void OpenVideo(FileEntry entry,string directory,ViewSettings inheritedFormat,bool keepPlaylist,EmbyPlayback embyPlayback=null)
         {
+            if(TryOpenEmby(entry,directory,inheritedFormat,keepPlaylist,embyPlayback))return;
             if(entry.directory){_ = Browse(entry.uri);return;}if(entry.IsSubtitle){_ = LoadSubtitle(entry.uri);return;}
             if(Backend==null){SetStatus("播放内核不可用");return;}
+            CancelEmbyPlaybackRequest();
+            if(embyPlayback==null){embyMovieParts=null;embyMovieExtras=null;}
             SaveProgress();CancelSubtitleSelection();subtitleListing?.Cancel();subtitleDocument=null;SubtitleCandidates.Clear();lastError="";ended=false;tracksRestored=false;previousState=0;seekTarget.Reset();
+            EndEmbyPlayback();
             Current=Store.Touch(entry,directory??DirectoryUri);Presenter.Settings=Current.view??new ViewSettings();Current.view=Presenter.Settings;if(Current.subtitleSelection==SubtitleSelection.Auto)Current.subtitle="";
             if(!keepPlaylist)playlist=Source==FileSource.Directory&&DirectoryUri==Current.directory&&!Loading&&Files.Any(item=>item.uri==entry.uri)
                 ?Files.Where(item=>item.IsVideo).OrderBy(item=>item.name,StringComparer.OrdinalIgnoreCase).ToList():new List<FileEntry>();
@@ -153,11 +159,17 @@ namespace VRPlayer
             }
             Generation++;BeginFormatDetection(entry);
             if(inheritedFormat!=null){FormatDescription="已继承上一部播放影片的格式；可重新识别格式";Store.Save();}
-            Backend.Open(entry.uri,Current.position,Generation);Backend.SelectTrack("off",3);
+            if(embyPlayback!=null){
+                Current.position=embyPlayback.startPositionMs;
+                BeginEmbyPlayback(embyPlayback);
+                if(Backend is IAuthenticatedMediaBackend authenticated)authenticated.OpenAuthenticated(embyPlayback.url,embyPlayback.token,Current.position,Generation);
+                else Backend.Open(embyPlayback.url,Current.position,Generation);
+            }else Backend.Open(entry.uri,Current.position,Generation);
+            Backend.SelectTrack("off",3);
             Status="正在打开："+entry.name;UI.PlaybackOpened();Notify();_ = DiscoverSubtitles(Current.directory,Generation);
         }
         public void TogglePlay(){if(Backend==null||Current==null)return;if(Backend.Snapshot.playing)Pause();else Backend.Play();}
-        public void Pause(){Backend?.Pause();SaveProgress();}
+        public void Pause(){Backend?.Pause();if(embyPlayback!=null&&embyReportedStart)QueueEmbyReport("progress",Backend.Snapshot.position,true);SaveProgress();}
         public void Seek(long milliseconds){if(Backend==null||Current==null||Backend.Snapshot.generation!=Generation||Backend.Snapshot.duration<=0)return;ended=false;long target=seekTarget.Absolute(milliseconds,Backend.Snapshot.duration,Time.unscaledTime);Backend.Seek(target);}
         public void Skip(int seconds){if(Backend==null||Current==null||Backend.Snapshot.generation!=Generation||Backend.Snapshot.duration<=0)return;var state=Backend.Snapshot;long target=seekTarget.Relative(state.position,seconds*1000L,state.duration,Time.unscaledTime);ended=false;Backend.Seek(target);UI.ShowTransport((seconds<0?"快退":"快进")+" 10 秒 · "+TimeSpan.FromMilliseconds(target).ToString(@"hh\:mm\:ss"));}
         public void Next(int delta,bool inheritFormat=true)
@@ -165,11 +177,12 @@ namespace VRPlayer
             if(Current==null||playlist.Count==0||delta==0)return;
             int index=playlist.FindIndex(x=>x.uri==Current.uri),next=index+delta;
             if(index<0||next<0||next>=playlist.Count){SetStatus("已到目录边界");return;}
-            OpenVideo(playlist[next],Current.directory,inheritFormat?Presenter.Settings.Copy():null,true);
+            if(!AllowEmbyAdjacent(playlist[next].uri,!inheritFormat))return;
+            OpenVideo(playlist[next],Current.directory,inheritFormat||InheritEmbyPartFormat(playlist[next].uri)?Presenter.Settings.Copy():null,true);
         }
         public void Retry(){if(Current==null)return;var record=Current;Open(new FileEntry{uri=record.uri,name=record.name,size=record.size,modified=record.modified},record.directory);}
-        public void Stop(){SaveProgress();Generation++;CancelFormatDetection();Backend?.Stop();Current=null;subtitleDocument=null;CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
-        public bool CanNavigateAdjacent(int delta){if(Current==null||delta==0)return false;int index=playlist.FindIndex(x=>x.uri==Current.uri);return index>=0&&index+delta>=0&&index+delta<playlist.Count;}
+        public void Stop(){CancelEmbyPlaybackRequest();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;CancelFormatDetection();Backend?.Stop();Current=null;subtitleDocument=null;CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
+        public bool CanNavigateAdjacent(int delta){if(Current==null||delta==0)return false;int index=playlist.FindIndex(x=>x.uri==Current.uri);return index>=0&&index+delta>=0&&index+delta<playlist.Count&&AllowEmbyAdjacent(playlist[index+delta].uri,false);}
         public void SetVolume(float value){value=Mathf.Clamp01(value);Store.Settings.volume=value;if(value>0)Store.Settings.lastAudibleVolume=value;Backend?.SetVolume(value);}
         public void ToggleMute(){SetVolume(Store.Settings.volume>0?0:Store.Settings.lastAudibleVolume);Store.Save();}
         public void SetSpeed(float value){value=Mathf.Clamp(value,.25f,3);Store.Settings.speed=value;Backend?.SetSpeed(value);}
@@ -200,6 +213,7 @@ namespace VRPlayer
         public void OpenRecentOrFile(FileEntry entry){var record=Store.Find(entry.uri);Open(entry,record!=null&&string.IsNullOrEmpty(DirectoryUri)?record.directory:DirectoryUri);}
         public void OpenContainingDirectory(string uri)
         {
+            if(OpenEmbyContainingItem(uri))return;
             var record=Store.Find(uri);string directory=ContainingDirectory(record);
             if(string.IsNullOrEmpty(directory)){SetStatus("该记录没有可用的父目录，请重新授权或从文件来源打开");return;}
             UI.PrepareDirectoryNavigation();directories.Clear();_ = Browse(directory,false,uri);
@@ -256,6 +270,6 @@ namespace VRPlayer
         public void Recenter(bool lying){Presenter.Recenter(lying);UI.Show();SetStatus(lying?"观看方向已对齐当前视线，可躺卧观看":"观看方向已重新居中");}
         private void OnApplicationPause(bool paused){HasFocus=!paused;if(paused){StopDiscovery();UI?.CancelSmbConnection();Pause();}else if(Source==FileSource.Smb&&UI!=null&&UI.CanDiscover)StartDiscovery();}
         private void OnApplicationFocus(bool focused){HasFocus=focused;if(!focused)Pause();}
-        private void OnDestroy(){SaveProgress();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
+        private void OnDestroy(){SaveProgress();DisposeEmby();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
     }
 }

@@ -10,7 +10,7 @@ namespace VRPlayer
     public enum FormatLockOrigin { Saved, Manual, Inherited }
     [Serializable] public sealed class PlaybackRecord
     {
-        public string uri,name,subtitle="",audio="auto",directory="";
+        public string uri,name,subtitle="",audio="auto",directory="",formatName="";
         public long position,size,modified;public string lastPlayed;
         public float subtitleDelay;public ViewSettings view=new ViewSettings();
         public SubtitleSelection subtitleSelection;
@@ -89,7 +89,7 @@ namespace VRPlayer
             var record=Find(file.uri);
             if(record==null){record=new PlaybackRecord{uri=file.uri,name=file.name,directory=directory};Settings.history.Insert(0,record);}
             if(record.size!=0&&file.size!=0&&(record.size!=file.size||(record.modified>0&&file.modified>0&&record.modified!=file.modified))){record.position=0;record.subtitle="";record.subtitleBeforeOff="";record.subtitleSelectionBeforeOff=SubtitleSelection.Auto;record.formatCache=null;if(record.subtitleSelection==SubtitleSelection.Manual)record.subtitleSelection=SubtitleSelection.Auto;}
-            record.name=file.name;if(file.size>0)record.size=file.size;if(file.modified>0)record.modified=file.modified;
+            record.name=file.name;if(!string.IsNullOrEmpty(file.formatName))record.formatName=file.formatName;if(file.size>0)record.size=file.size;if(file.modified>0)record.modified=file.modified;
             if(!string.IsNullOrEmpty(directory))record.directory=directory;record.lastPlayed=DateTime.UtcNow.ToString("O");
             Settings.history.Remove(record);Settings.history.Insert(0,record);if(Settings.history.Count>200)Settings.history.RemoveRange(200,Settings.history.Count-200);return record;
         }

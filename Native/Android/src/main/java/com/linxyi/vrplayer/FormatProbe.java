@@ -10,13 +10,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Each probe owns its descriptor/SMB handle; cancellation never touches the playback source. */
 final class FormatProbe implements AutoCloseable {
-    private final Context context;private final String location;
+    private final Context context;private final String location,accessToken;
     private final AtomicBoolean cancelled=new AtomicBoolean();
     private volatile FormatMetadata.Reader reader;
-    FormatProbe(Context context,String location){this.context=context;this.location=location;}
+    FormatProbe(Context context,String location){this(context,location,"");}
+    FormatProbe(Context context,String location,String accessToken){this.context=context;this.location=location;this.accessToken=accessToken;}
     FormatMetadata.Hints run() throws Exception {
         Uri uri=Uri.parse(location);FormatMetadata.Reader opened;
-        if("smb".equals(uri.getScheme())){
+        if("http".equals(uri.getScheme())||"https".equals(uri.getScheme())){
+            opened=new HttpFormatReader(location,accessToken);PlayerBridge.attachResource(opened);
+        }else if("smb".equals(uri.getScheme())){
             SmbStore.Handle handle=SmbStore.connect(uri);PlayerBridge.attachResource(handle);
             com.hierynomus.smbj.share.File file=handle.open();long length=file.getFileInformation().getStandardInformation().getEndOfFile();
             opened=new FormatMetadata.Reader(){

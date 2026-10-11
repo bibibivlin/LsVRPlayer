@@ -54,7 +54,8 @@ namespace VRPlayer
     {
         public string name,uri;public bool directory;public long size,modified;
         [NonSerialized] public bool metadataVerified; // Only a live directory listing supplies file identity.
-        public bool IsVideo=>!directory&&Regex.IsMatch(name??"",@"\.(mp4|mkv|m4v|mov|webm|ts|m2ts|avi|wmv|mpg|mpeg)$",RegexOptions.IgnoreCase);
+        [NonSerialized] public string formatName; // Server titles need not contain the source file's VR tags.
+        public bool IsVideo=>!directory&&((uri??"").StartsWith("emby://",StringComparison.OrdinalIgnoreCase)||Regex.IsMatch(name??"",@"\.(mp4|mkv|m4v|mov|webm|ts|m2ts|avi|wmv|mpg|mpeg)$",RegexOptions.IgnoreCase));
         public bool IsSubtitle=>!directory&&(name??"").EndsWith(".srt",StringComparison.OrdinalIgnoreCase);
     }
     [Serializable] public sealed class FileResult { public bool ok;public string error,text;public FileEntry[] entries; }
@@ -65,7 +66,7 @@ namespace VRPlayer
     }
     [Serializable] public sealed class ServerList { public SmbServer[] servers=Array.Empty<SmbServer>(); }
     [Serializable] public sealed class SaveServerResult {public bool ok;public string id,error;}
-    public enum FileSource { Home, Smb, Favorites, Recent, Directory }
+    public enum FileSource { Home, Smb, Favorites, Recent, Directory, Emby }
     [Serializable] public sealed class DiscoveredSmbHost {public string name,host;public int port=445;}
     [Serializable] public sealed class SmbDiscoverySnapshot {public bool running,complete;public int tested,total;public string error="";public DiscoveredSmbHost[] hosts=Array.Empty<DiscoveredSmbHost>();}
     [Serializable] public sealed class SmbShare {public string name,comment;}

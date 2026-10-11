@@ -23,3 +23,5 @@ Apache-2.0、SMBJ-RPC BSD-3-Clause、Jellyfin GPL-3.0 原文及 Jellyfin Maven P
 `Tools/Serve-LanTestSmb.py` 是可选的真实局域网测试工具，必须显式指定本机地址，仅只读暴露 `TestMedia/LanFixtureShare` 中按名称和扩展名筛选的生成媒体，不包含设置备份或诊断文件，默认 600 秒后退出。开发依赖 zeroconf 0.151.3（LGPL-2.1-or-later）和 ifaddr 0.2.0（MIT）只安装在忽略目录 `Tools/.runtime`，不进入 APK。`--auth` 使用公开的测试专用账号，不可用于私人共享。
 
 原生单元测试使用 JUnit 4.13.2（EPL-1.0），截图检查使用 Pillow；这些开发依赖均不打入 APK。
+
+Emby 集成直接使用服务器 REST API、项目现有 HTTP 桥和 Media3 播放路径，没有引入或打包 Emby 客户端 / SDK，也没有新增 Gradle 或 Unity 包依赖。服务器需由用户单独运行；接口与媒体命名参考链接见 [Emby 使用说明](Emby.zh-CN.md)。三个 Emby 验证脚本使用 Python 标准库，模拟服务器只监听本机回环地址，公开的 fixture 账户仅用于生成样片；测试媒体、私人记录和凭据不随源码提交。

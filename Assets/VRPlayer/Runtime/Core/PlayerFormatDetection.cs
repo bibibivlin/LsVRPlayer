@@ -39,7 +39,7 @@ namespace VRPlayer
             if(!formatActive){AnalysisStatus=Current.formatLocked?(Current.formatLockOrigin==FormatLockOrigin.Inherited?"继承格式，未运行自动识别":Current.formatLockOrigin==FormatLockOrigin.Manual?"手动格式，未运行自动识别":"已保存格式，未运行自动识别"):"自动识别已关闭";FormatDescription=AnalysisStatus+"；可重新识别格式";return;}
             // Reset only source-format fields; preserve the user's viewing and subtitle settings.
             var view=Presenter.Settings;view.projection=Projection.Flat;view.stereo=StereoLayout.Mono;view.half=true;view.swapEyes=false;
-            filenameHints=FormatDetector.Filename(entry.name);
+            filenameHints=FormatDetector.Filename(string.IsNullOrEmpty(entry.formatName)?entry.name:entry.formatName);
             if(!force&&Current.formatCache?.Matches(entry)==true){
                 var cache=Current.formatCache;metadataHints=cache.metadata;
                 if(cache.profileVersion==recognitionProfile.version){if(recognitionProfile.Approved)frameHints=cache.frames;if(recognitionProfile.Vr180Approved)projectionFrameHints=cache.projectionFrames;}
@@ -132,14 +132,14 @@ namespace VRPlayer
         public void SetFormatDetectionMode(FormatDetectionMode mode)
         {
             Store.Settings.formatDetection=mode;Store.Save();
-            if(Current!=null&&!Current.formatLocked)BeginFormatDetection(new FileEntry{uri=Current.uri,name=Current.name,size=Current.size,modified=Current.modified});
+            if(Current!=null&&!Current.formatLocked)BeginFormatDetection(new FileEntry{uri=Current.uri,name=Current.name,formatName=Current.formatName,size=Current.size,modified=Current.modified});
             else if(mode==FormatDetectionMode.Off)CancelFormatDetection();Notify();
         }
         public void RedetectFormat()
         {
             if(Current==null)return;
             Current.formatLocked=false;Current.formatCache=null;
-            BeginFormatDetection(new FileEntry{uri=Current.uri,name=Current.name,size=Current.size,modified=Current.modified},true);
+            BeginFormatDetection(new FileEntry{uri=Current.uri,name=Current.name,formatName=Current.formatName,size=Current.size,modified=Current.modified},true);
 #if UNITY_ANDROID && !UNITY_EDITOR
             AndroidBridge.Api.CallStatic("probeCurrentFormat");
 #endif

@@ -47,6 +47,7 @@ public final class PlayerBridge {
     private static boolean running=false;
     private static volatile boolean formatProbeEnabled=true;
     private static int probeId,probeRun;
+    private static String currentProbeToken="";
     private static boolean probeComplete;
     private static FormatMetadata.Hints probeHints=new FormatMetadata.Hints(),projectionHints=new FormatMetadata.Hints();
     private static Format lastProjectionFormat;
@@ -56,7 +57,7 @@ public final class PlayerBridge {
     private static native void nativeFrameAvailable();
 
     public static void initialize(Activity host){
-        activity=host;SmbStore.initialize(host);
+        activity=host;SmbStore.initialize(host);EmbyAccountVault.initialize(host);
         main.post(()->{
             if(player!=null)return;
             defaultSources=new DefaultDataSource.Factory(host);
@@ -99,15 +100,19 @@ public final class PlayerBridge {
     // Called on Unity's render thread. ExoPlayer and Surface listeners belong to the Android main looper.
     public static void setVideoSurface(Surface surface,SurfaceTexture texture){main.post(()->{videoSurface=surface;if(texture!=null)texture.setOnFrameAvailableListener(value->nativeFrameAvailable(),main);if(player!=null)player.setVideoSurface(surface);});}
     public static void useCompositionSurface(Surface surface){main.post(()->{videoSurface=surface;if(player!=null)player.setVideoSurface(surface);});}
-    public static void open(String uri,long position,int token){main.post(()->{
+    public static void open(String uri,long position,int token){openMedia(uri,"",position,token);}
+    public static void openAuthenticated(String uri,String accessToken,long position,int token){openMedia(uri,accessToken==null?"":accessToken,position,token);}
+    private static void openMedia(String uri,String accessToken,long position,int token){main.post(()->{
         // Media3 may reuse the current decoder when opening a compatible movie.
         // Keep its name until the actual decoder-release event arrives.
         if(player==null)return;retirePlayback();generation=token;error="";dropped=0;embeddedSubtitle="";
         PlaybackSession session=new PlaybackSession(token,smbReadAhead);playbackSession=session;telemetry.session(session);
         cancelProbe();probeHints=new FormatMetadata.Hints();projectionHints=new FormatMetadata.Hints();lastProjectionFormat=null;probeComplete=false;
-        DataSource.Factory factory=()->new RoutingDataSource(defaultSources,session);
+        currentProbeToken=accessToken;
+        DataSource.Factory http=accessToken.isEmpty()?null:()->new EmbyDataSource(session,uri,accessToken);
+        DataSource.Factory factory=()->new RoutingDataSource(defaultSources,session,http);
         player.setMediaSource(new DefaultMediaSourceFactory(activity).setDataSourceFactory(factory).createMediaSource(MediaItem.fromUri(uri)),Math.max(0,position));
-        player.prepare();player.play();if(formatProbeEnabled)startProbe(uri);
+        player.prepare();player.play();if(formatProbeEnabled)startProbe(uri,accessToken);
     });}
     public static void play(){main.post(()->{if(player!=null)player.play();});}
     public static void pause(){main.post(()->{if(player!=null)player.pause();});}
@@ -116,6 +121,7 @@ public final class PlayerBridge {
     // A/B switch for the next open only, reachable from the existing development command entrypoint.
     public static void setSmbReadAhead(boolean enabled){main.post(()->{if((activity.getApplicationInfo().flags&android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0)smbReadAhead=enabled;});}
     private static void retirePlayback(){
+        currentProbeToken="";
         if(playbackSession!=null){playbackSession.buffering.finish(SystemClock.elapsedRealtime());telemetry.events(playbackSession);playbackSession.cancel();playbackSession=null;}
         if(telemetry!=null)telemetry.session(null);
     }
@@ -163,10 +169,10 @@ public final class PlayerBridge {
         main.postDelayed(this,150);
     }};
     public static void setFormatProbeEnabled(boolean value){formatProbeEnabled=value;}
-    public static void probeCurrentFormat(){main.post(()->{if(player!=null&&player.getCurrentMediaItem()!=null&&player.getCurrentMediaItem().localConfiguration!=null){cancelProbe();probeHints=new FormatMetadata.Hints();startProbe(player.getCurrentMediaItem().localConfiguration.uri.toString());}});}
+    public static void probeCurrentFormat(){main.post(()->{if(player!=null&&player.getCurrentMediaItem()!=null&&player.getCurrentMediaItem().localConfiguration!=null){cancelProbe();probeHints=new FormatMetadata.Hints();startProbe(player.getCurrentMediaItem().localConfiguration.uri.toString(),currentProbeToken);}});}
     private static void cancelProbe(){int id=probeId;probeId=0;probeRun++;if(id>0)io.execute(()->cancelRequest(id));}
-    private static void startProbe(String uri){
-        int run=++probeRun;probeComplete=false;FormatProbe probe=new FormatProbe(activity,uri);
+    private static void startProbe(String uri,String accessToken){
+        int run=++probeRun;probeComplete=false;FormatProbe probe=new FormatProbe(activity,uri,accessToken);
         int id=request(()->hintsJson(probe.run()),probe);probeId=id;
         probeTimer.schedule(()->{cancelRequest(id);main.post(()->{if(run==probeRun&&probeId==id){probeId=0;probeComplete=true;}});},3,TimeUnit.SECONDS);
     }
@@ -203,6 +209,8 @@ public final class PlayerBridge {
     public static int beginShares(String json){try{SmbShares shares=new SmbShares(json);return request(shares::run,shares);}catch(Exception ex){return request(()->{throw new IllegalArgumentException("SMB settings");});}}
     public static String saveServer(String json){try{return new JSONObject().put("ok",true).put("id",SmbStore.save(json)).toString();}catch(Exception ex){return "{\"ok\":false,\"error\":\"无法保存服务器，请检查填写内容\"}";}}
     public static String listServers(){return "{\"servers\":"+SmbStore.list()+"}";}
+    public static String loadEmbyAccounts(){return EmbyAccountVault.load();}
+    public static boolean saveEmbyAccounts(String json){return EmbyAccountVault.save(json);}
     public static void removeServer(String id){try{SmbStore.remove(id);}catch(Exception ignored){}}
     public static void pickFolder(){pickerResult="";main.post(()->{try{activity.startActivity(new Intent(activity,FolderPickerActivity.class));}catch(Exception ex){pickerResult="ERROR:无法打开目录选择器";}});}
     public static String takeFolder(){String value=pickerResult;pickerResult="";return value;}
@@ -220,13 +228,13 @@ public final class PlayerBridge {
         if(codec.isEncoder())continue;for(String type:codec.getSupportedTypes()){if(!type.startsWith("video/"))continue;try{MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(type).getVideoCapabilities();output.put(new JSONObject().put("name",codec.getName()).put("mime",type).put("hardware",codec.isHardwareAccelerated()).put("widths",video.getSupportedWidths().toString()).put("heights",video.getSupportedHeights().toString()).put("rates",video.getSupportedFrameRates().toString()));}catch(Exception ignored){}}
     }return "{\"decoders\":"+output+"}";}
     private static final class RoutingDataSource implements DataSource {
-        private final DefaultDataSource.Factory defaults;private final PlaybackSession session;private SmbDataSource smb;private DataSource current;private final List<TransferListener> listeners=new ArrayList<>();
-        RoutingDataSource(DefaultDataSource.Factory defaults,PlaybackSession session){this.defaults=defaults;this.session=session;}
+        private final DefaultDataSource.Factory defaults;private final PlaybackSession session;private final DataSource.Factory authenticatedHttp;private SmbDataSource smb;private DataSource current;private final List<TransferListener> listeners=new ArrayList<>();
+        RoutingDataSource(DefaultDataSource.Factory defaults,PlaybackSession session,DataSource.Factory authenticatedHttp){this.defaults=defaults;this.session=session;this.authenticatedHttp=authenticatedHttp;}
         public void addTransferListener(TransferListener listener){if(!listeners.contains(listener))listeners.add(listener);if(current!=null)current.addTransferListener(listener);if(smb!=null&&smb!=current)smb.addTransferListener(listener);}
         public long open(DataSpec spec)throws java.io.IOException{
             close();session.check();
             if("smb".equals(spec.uri.getScheme())){if(smb==null){smb=new SmbDataSource(session);for(TransferListener listener:listeners)smb.addTransferListener(listener);}current=smb;}
-            else{current=defaults.createDataSource();for(TransferListener listener:listeners)current.addTransferListener(listener);}
+            else{String scheme=spec.uri.getScheme();current=authenticatedHttp!=null&&("http".equals(scheme)||"https".equals(scheme))?authenticatedHttp.createDataSource():defaults.createDataSource();for(TransferListener listener:listeners)current.addTransferListener(listener);}
             return current.open(spec);
         }
         public int read(byte[] buffer,int offset,int length)throws java.io.IOException{return current.read(buffer,offset,length);}

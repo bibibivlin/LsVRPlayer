@@ -10,7 +10,7 @@ namespace VRPlayer
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         [Serializable] private sealed class Command
         {
-            public string action,uri,name,subtitle,host,share,username,password;
+            public string action,uri,name,subtitle,host,share,username,password,collectionType;
             public long position;public int projection,stereo,port=1445;public bool flag;
             public float value,distance=3,size=42,offset=-.75f;public int preset;
         }
@@ -33,6 +33,7 @@ namespace VRPlayer
                     case "pause":app.Pause();break;
                     case "stop":app.Stop();break;
                     case "repeat":app.Store.Settings.loop=command.flag;app.Backend?.SetRepeat(command.flag);break;
+                    case "sequential":app.Store.Settings.sequential=command.flag;break;
                     case "recenter":app.Recenter(command.flag);break;
                     case "play":app.Backend?.Play();break;
                     case "subtitle":_ = app.LoadSubtitle(command.uri);break;
@@ -58,7 +59,21 @@ namespace VRPlayer
 #endif
                         break;
                     case "tab":app.UI.SelectTab(command.name);break;
-                    case "source":if(command.name=="smb")app.ShowServers();else if(command.name=="favorites")app.ShowFavorites();else if(command.name=="recent")app.ShowRecent();else app.Home();break;
+                    case "source":if(command.name=="emby")app.ShowEmby();else if(command.name=="smb")app.ShowServers();else if(command.name=="favorites")app.ShowFavorites();else if(command.name=="recent")app.ShowRecent();else app.Home();break;
+                    case "emby-login":_ = app.LoginEmby(command.uri,command.username,command.password,command.flag);break;
+                    case "emby-account":app.SelectEmbyAccount(command.name);break;
+                    case "emby-accounts":app.ShowEmbyAccounts();break;
+                    case "emby-remove":app.RemoveEmbyAccount(command.name);break;
+                    case "emby-home":app.EmbyHome();break;
+                    case "emby-back":app.EmbyBack();break;
+                    case "emby-library":app.OpenEmbyLibrary(new EmbyItem{Id=command.uri,Name=command.name??"媒体库",Type=string.IsNullOrEmpty(command.collectionType)?null:"CollectionFolder",CollectionType=command.collectionType},(int)command.position,command.subtitle??"");break;
+                    case "emby-item":app.OpenEmbyItem(new EmbyItem{Id=command.uri,Name=command.name??"影片"});break;
+                    case "emby-play":app.PlayEmby(new EmbyItem{Id=command.uri},command.flag);break;
+                    case "emby-part":app.PlayEmbyPart(new EmbyItem{Id=command.uri});break;
+                    case "emby-extra":app.PlayEmbyExtra(new EmbyItem{Id=command.uri});break;
+                    case "emby-person":app.OpenEmbyPerson(new EmbyPerson{Id=command.uri,Name=command.name??"演员"});break;
+                    case "emby-filter":app.OpenEmbyCategory(command.name,command.uri,command.subtitle??"");break;
+                    case "emby-search":app.SearchEmbyLibrary(command.subtitle??"");break;
                     case "quality":app.RenderQuality.Select((RenderQuality)Mathf.Clamp(command.preset,0,2));break;
                     case "caption-settings":app.Store.Settings.subtitleDistance=Mathf.Clamp(command.distance,.1f,6);app.Store.Settings.subtitleSize=command.size;app.Store.Settings.subtitleOffset=command.offset;app.Store.Settings.subtitleStyle=SubtitleStyle.Preset(command.preset);break;
                     case "scan":app.ShowServers();break;
@@ -81,12 +96,21 @@ namespace VRPlayer
                     case "capture":ScreenCapture.CaptureScreenshot(Path.Combine(Application.persistentDataPath,"capture.png"));break;
                     case "smb":app.SaveServer(new SmbServer{name=command.name??"Test fixture",host=command.host,share=command.share,port=command.port,username=command.username??"",password=command.password??"",remember=false});break;
                 }
-                File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Result{accepted=true,action=command.action,files=app.Files.ToArray(),subtitles=app.SubtitleCandidates.ToArray(),tab=app.UI.SelectedTab,source=app.Source.ToString(),discovery=app.Discovery}));
+                File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Result{accepted=true,action=command.action,files=app.Files.ToArray(),subtitles=app.SubtitleCandidates.ToArray(),tab=app.UI.SelectedTab,source=app.Source.ToString(),discovery=app.Discovery,emby=EmbyDiagnostic.From(app)}));
             }catch(Exception ex){File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Failure{error=ex.ToString()}));}
         }
         [Serializable] private sealed class Failure {public string error;}
         private async System.Threading.Tasks.Task InspectShares(SmbServer server){var result=await app.Smb.Shares(server,System.Threading.CancellationToken.None);File.WriteAllText(Path.Combine(commandDirectory,"smb-shares-result.json"),JsonUtility.ToJson(result));}
-        [Serializable] private sealed class Result {public bool accepted;public string action,tab,source;public FileEntry[] files,subtitles;public SmbDiscoverySnapshot discovery;}
+        [Serializable] private sealed class EmbyDiagnostic
+        {
+            public string page,accountId,selectedId,currentId,error,filterKind,filterValue,playbackQueueKind,playbackMainId;public bool loading,canNext,canPrevious,personOverviewPresent;public int accountCount,viewCount,resumeCount,latestCount,totalCount,startIndex,itemCount,castCount,pendingReportCount,partCount,extraCount,partPlaylistIndex,playbackQueueIndex;public string[] viewIds,itemIds,partIds,extraIds,partPlaylistIds,playbackQueueIds;public long resumePosition;
+            public static EmbyDiagnostic From(PlayerApp app)
+            {
+                EmbyIdentity.TryParse(app.Current?.uri,out _,out string currentId);
+                return new EmbyDiagnostic{page=app.EmbyState.page.ToString(),accountId=app.ActiveEmbyAccount?.id??"",selectedId=app.EmbyState.selected?.Id??"",currentId=currentId??"",error=app.EmbyState.error,loading=app.EmbyState.loading,accountCount=app.EmbyAccounts.Count,viewCount=app.EmbyState.views.Length,resumeCount=app.EmbyState.resume.Length,latestCount=app.EmbyState.latest.Length,totalCount=app.EmbyState.totalCount,startIndex=app.EmbyState.startIndex,itemCount=app.EmbyState.items.Length,castCount=app.EmbyState.selected?.People?.Length??0,pendingReportCount=app.EmbyPendingReports,resumePosition=(app.EmbyState.selected?.UserData?.PlaybackPositionTicks??0)/10000,viewIds=Array.ConvertAll(app.EmbyState.views,x=>x.Id),itemIds=Array.ConvertAll(app.EmbyState.items,x=>x.Id),partCount=app.EmbyState.parts.Length,extraCount=app.EmbyState.extras.Length,partIds=Array.ConvertAll(app.EmbyState.parts,x=>x.Id),extraIds=Array.ConvertAll(app.EmbyState.extras,x=>x.Id),partPlaylistIds=app.EmbyPlaybackPartIds,partPlaylistIndex=app.EmbyPlaybackPartIndex,canNext=app.CanNavigateAdjacent(1),canPrevious=app.CanNavigateAdjacent(-1),filterKind=app.EmbyState.filterKind,filterValue=app.EmbyState.filterValue,personOverviewPresent=app.EmbyState.page==EmbyPage.Person&&!string.IsNullOrWhiteSpace(app.EmbyState.selected?.Overview),playbackQueueKind=app.EmbyPlaybackQueueKind,playbackQueueIds=app.EmbyPlaybackQueueIds,playbackQueueIndex=app.EmbyPlaybackQueueIndex,playbackMainId=app.EmbyPlaybackMainId};
+            }
+        }
+        [Serializable] private sealed class Result {public bool accepted;public string action,tab,source;public FileEntry[] files,subtitles;public SmbDiscoverySnapshot discovery;public EmbyDiagnostic emby;}
 #endif
     }
 }

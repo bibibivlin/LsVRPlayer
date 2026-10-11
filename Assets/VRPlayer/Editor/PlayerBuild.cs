@@ -30,6 +30,7 @@ namespace VRPlayer.Editor
             PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;PlayerSettings.Android.bundleVersionCode=6;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android,false);PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,new[]{GraphicsDeviceType.OpenGLES3});
             PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;PlayerSettings.runInBackground=false;PlayerSettings.Android.forceInternetPermission=true;
+            PlayerSettings.insecureHttpOption=InsecureHttpOption.AlwaysAllowed;
             var pico=AssetDatabase.LoadAssetAtPath<PXR_Settings>("Assets/XR/Settings/PXR_Settings.asset");if(pico!=null){pico.stereoRenderingModeAndroid=PXR_Settings.StereoRenderingModeAndroid.Multiview;pico.systemDisplayFrequency=PXR_Settings.SystemDisplayFrequency.RefreshRate72;EditorUtility.SetDirty(pico);}
             if(TMP_Settings.instance==null){var package=UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(TMP_Settings).Assembly);AssetDatabase.ImportPackage(Path.Combine(package.resolvedPath,"Package Resources/TMP Essential Resources.unitypackage"),false);throw new InvalidOperationException("TMP essentials imported. Run Configure once importing has finished.");}
             EnsureShaders();EnsureFont();
@@ -58,16 +59,22 @@ namespace VRPlayer.Editor
         private static void EnsureFont()
         {
             const string path="Assets/VRPlayer/Resources/Fonts/UIChinese.asset";var existing=AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(path);
-            if(existing!=null&&existing.material!=null&&existing.atlasTextures.Length>0&&existing.atlasTextures[0]!=null&&existing.faceInfo.pointSize==90&&existing.atlasWidth==4096&&existing.atlasPadding==12)return;
+            if(existing!=null&&existing.material!=null&&existing.atlasTextures.Length>0&&existing.atlasTextures[0]!=null&&existing.faceInfo.pointSize==90&&existing.atlasWidth==4096&&existing.atlasPadding==12){PopulateUiFont(existing);return;}
             var font=AssetDatabase.LoadAssetAtPath<Font>("Assets/VRPlayer/Resources/Fonts/NotoSansCJKsc-Regular.otf");if(font==null)throw new InvalidOperationException("Chinese font has not been imported.");
             var asset=TMP_FontAsset.CreateFontAsset(font,90,12,GlyphRenderMode.SDFAA,4096,4096,AtlasPopulationMode.Dynamic,true);asset.name="UIChinese";
             if(existing!=null){foreach(var child in AssetDatabase.LoadAllAssetsAtPath(path))if(child!=existing)UnityEngine.Object.DestroyImmediate(child,true);EditorUtility.CopySerialized(asset,existing);asset.material=null;asset.atlasTextures=Array.Empty<Texture2D>();UnityEngine.Object.DestroyImmediate(asset);asset=existing;}
             else AssetDatabase.CreateAsset(asset,path);
             AssetDatabase.AddObjectToAsset(asset.material,asset);
             foreach(var atlas in asset.atlasTextures)AssetDatabase.AddObjectToAsset(atlas,asset);
-            // Populate the shipped UI alphabet; dynamic atlases cover user filenames and subtitles.
+            PopulateUiFont(asset);
+        }
+        private static void PopulateUiFont(TMP_FontAsset asset)
+        {
+            // Populate only shipped source text; server titles and captions use dynamic atlases.
             string alphabet=string.Concat(Directory.GetFiles("Assets/VRPlayer/Runtime","*.cs",SearchOption.AllDirectories).Select(File.ReadAllText));
-            asset.TryAddCharacters(new string(alphabet.Where(c=>c>=32).Distinct().ToArray()));EditorUtility.SetDirty(asset);AssetDatabase.SaveAssets();
+            string missing=new string(alphabet.Where(c=>c>=32&&!asset.HasCharacter(c)).Distinct().ToArray());
+            if(missing.Length==0)return;
+            asset.TryAddCharacters(missing);EditorUtility.SetDirty(asset);AssetDatabase.SaveAssets();
         }
         private static void CreateScene()
         {

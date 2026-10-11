@@ -51,6 +51,9 @@ namespace VRPlayer
             subtitleListing?.Cancel();subtitleListing?.Dispose();subtitleListing=new CancellationTokenSource();var token=subtitleListing.Token;
             var record=Current;int revision=subtitleRevision;
             try{
+                if(EmbyIdentity.TryParse(record.uri,out _,out _)){
+                    await DiscoverEmbySubtitles(record,generation,revision,explicitEnable,token);return;
+                }
                 FileEntry[] entries=Array.Empty<FileEntry>();
                 if(!string.IsNullOrEmpty(directory)){
                     var result=Source==FileSource.Directory&&directory==DirectoryUri&&!Loading?new FileResult{ok=true,entries=Files.ToArray()}:await library.List(directory,token);
@@ -72,7 +75,7 @@ namespace VRPlayer
             if(manual){subtitleListing?.Cancel();record.subtitleSelection=SubtitleSelection.Manual;record.subtitle=uris[0];subtitleDocument=null;Backend?.SelectTrack("off",3);Store.Save();}
             string encoding=SubtitleEncoding;if(uris.Length>0)SetStatus("正在读取字幕…");
             try{
-                var result=await SubtitleLoader.Load(uris,(uri,ct)=>library.Text(uri,encoding,ct),token);
+                var result=await SubtitleLoader.Load(uris,(uri,ct)=>ReadPlayerSubtitle(uri,encoding,ct),token);
                 if(token.IsCancellationRequested||generation!=Generation||revision!=subtitleRevision||record!=Current)return;
                 if(result.document==null){SetStatus((manual?"请重新选择字幕：":"自动字幕：")+result.error);Notify();return;}
                 subtitleDocument=result.document;record.subtitle=result.uri;Backend.SelectTrack("off",3);Store.Save();
