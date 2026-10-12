@@ -324,15 +324,31 @@ namespace VRPlayer
             categoryY=CategoryRow("标签","Tag",Categories(item.TagItems,item.Tags),categoryY);
             categoryY=CategoryRow("制片厂","Studio",Categories(item.Studios,null),categoryY);
             float playY=Mathf.Max(204,categoryY+4);
+            float actionsBottom=playY+56;
             if(item.IsBrowsable){Button(body,"浏览季 / 剧集",290,playY,416,56,()=>app.OpenEmbyLibrary(item),true);}
             else{
-                bool resume=(item.UserData?.PlaybackPositionTicks??0)>0;
-                Button(body,resume?"继续播放 · "+TicksClock(item.UserData.PlaybackPositionTicks):"播放",290,playY,416,56,()=>app.PlayEmby(item,true),true);
-                if(resume)Button(body,"从头播放",728,playY,260,56,()=>app.PlayEmby(item,false));
+                var last=app.EmbyMovieResume;
+                long currentTicks=app.EmbyPartProgress(item)?.PositionTicks??item.UserData?.PlaybackPositionTicks??0;
+                if(last!=null){
+                    int cd=Array.FindIndex(app.EmbyState.parts,part=>part.Id==last.Item.Id)+1;
+                    var label=UiFactory.Label(body,(last.HasLastPlayed?"上次播放":"已保存进度")+"：CD"+cd+" · "+DisplayName(last.Item),290,playY,1026,42,25);label.color=Muted;
+                    float primaryY=playY+48;
+                    Button(body,(last.PositionTicks>0?"继续播放":"播放上次部分")+" · CD"+cd+(last.PositionTicks>0?" · "+TicksClock(last.PositionTicks):""),290,primaryY,650,56,()=>app.ContinueEmbyMovie(),true);
+                    actionsBottom=primaryY+56;
+                    if(last.Item.Id!=item.Id){
+                        float secondaryY=primaryY+68;
+                        if(currentTicks>0)Button(body,"仅继续 CD1 · "+TicksClock(currentTicks),290,secondaryY,440,48,()=>app.PlayEmby(item,true));
+                        Button(body,"CD1 从头播放",currentTicks>0?750:290,secondaryY,360,48,()=>app.PlayEmby(item,false));
+                        actionsBottom=secondaryY+48;
+                    }else Button(body,"从头播放",962,primaryY,350,56,()=>app.PlayEmby(item,false));
+                }else{
+                    Button(body,currentTicks>0?"继续播放 · "+TicksClock(currentTicks):"播放",290,playY,416,56,()=>app.PlayEmby(item,true),true);
+                    if(currentTicks>0)Button(body,"从头播放",728,playY,260,56,()=>app.PlayEmby(item,false));
+                }
             }
             string overview=string.IsNullOrWhiteSpace(item.Overview)?"暂无影片简介":PlainOverview(item.Overview);
             if(overview.Length>10000)overview=overview.Substring(0,10000)+"…";
-            float overviewY=playY+78;
+            float overviewY=actionsBottom+22;
             UiFactory.Label(body,"简介",290,overviewY,1026,46,28);
             var description=UiFactory.Label(body,overview,290,overviewY+52,1026,100,24);description.textWrappingMode=TextWrappingModes.Normal;description.alignment=TextAlignmentOptions.TopLeft;
             float overviewHeight=Mathf.Max(100,description.GetPreferredValues(overview,1026,float.PositiveInfinity).y+12);description.rectTransform.sizeDelta=new Vector2(1026,overviewHeight);
@@ -402,6 +418,7 @@ namespace VRPlayer
         {
             var videos=(items??Array.Empty<EmbyItem>()).Where(item=>item!=null&&!string.IsNullOrEmpty(item.Id)).ToArray();
             if(videos.Length==0)return y;
+            var last=parts?app.EmbyMovieResume:null;
             y=SectionTitle(title,y+16);
             for(int i=0;i<videos.Length;i++){
                 var video=videos[i];float x=14+(i%3)*444,py=y+(i/3)*354;
@@ -414,7 +431,10 @@ namespace VRPlayer
                 UiFactory.Label(card.transform,name,12,245,404,42,25);
                 long ticks=video.RunTimeTicks>0?video.RunTimeTicks:(video.MediaSources?.FirstOrDefault()?.RunTimeTicks??0);
                 string duration=ticks>0?TicksClock(ticks):"时长未知";
-                UiFactory.Label(card.transform,(parts&&i==0?"主片 · ":"")+duration,12,289,404,40,22).color=Muted;
+                var progress=parts?app.EmbyPartProgress(video):null;
+                string resume=progress?.PositionTicks>0?" · 进度 "+TicksClock(progress.PositionTicks):"";
+                var subtitle=UiFactory.Label(card.transform,(last?.Item.Id==video.Id?last.HasLastPlayed?"上次播放 · ":"已存进度 · ":parts&&i==0?"主片 · ":"")+duration+resume,12,289,404,40,22);
+                subtitle.color=last?.Item.Id==video.Id?Green:Muted;
             }
             return y+Mathf.CeilToInt(videos.Length/3f)*354;
         }

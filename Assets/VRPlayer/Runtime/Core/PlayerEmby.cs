@@ -189,6 +189,7 @@ namespace VRPlayer
             var state=new EmbyBrowserState{page=EmbyPage.Details,title=item.Name,selected=item,loading=true,canGoBack=true};
             var token=BeginEmbyRequest(state);
             try{
+                await embyReports;token.ThrowIfCancellationRequested();
                 var detail=await EmbyApi.GetItem(account,item.Id,token);
                 if(directory!=null)detail=await ResolveEmbyContainingItem(account,detail,directory,token);
                 var parts=EmbyApi.GetAdditionalParts(account,detail.Id,token);
@@ -290,6 +291,41 @@ namespace VRPlayer
             _ = ResolveEmbyVideo(ActiveEmbyAccount,item.Id,null,null,false,resume,parts);
         }
 
+        public EmbyPartResume EmbyMovieResume
+        {
+            get{
+                var parts=ActiveEmbyAccount==null?null:EmbyMovieParts.FromDetails(ActiveEmbyAccount.id,EmbyState);
+                if(parts==null)return null;
+                var snapshot=Backend?.Snapshot;
+                if(parts.IndexOfUri(Current?.uri)>=0&&snapshot?.generation==Generation&&snapshot.state==3)
+                    return ReadEmbyPartProgress(parts,parts.Items[parts.IndexOfUri(Current.uri)]);
+                return parts.LastPlayed(Store==null?null:new Func<string,PlaybackRecord>(Store.Find));
+            }
+        }
+
+        public EmbyPartResume EmbyPartProgress(EmbyItem item)
+        {
+            var parts=ActiveEmbyAccount==null?null:EmbyMovieParts.FromDetails(ActiveEmbyAccount.id,EmbyState);
+            return parts==null?null:ReadEmbyPartProgress(parts,item);
+        }
+
+        private EmbyPartResume ReadEmbyPartProgress(EmbyMovieParts parts,EmbyItem item)
+        {
+            var progress=parts.ProgressFor(item,Store==null?null:new Func<string,PlaybackRecord>(Store.Find));
+            var snapshot=Backend?.Snapshot;
+            if(progress!=null&&Current?.uri==EmbyIdentity.Create(parts.AccountId,item.Id)&&snapshot?.generation==Generation&&snapshot.state==3)
+                return new EmbyPartResume(item,Math.Min(Math.Max(0,snapshot.position),long.MaxValue/10000)*10000,DateTimeOffset.UtcNow);
+            return progress;
+        }
+
+        public void ContinueEmbyMovie()
+        {
+            var target=EmbyMovieResume;
+            if(target==null){PlayEmby(EmbyState.selected,true);return;}
+            var parts=EmbyMovieParts.FromDetails(ActiveEmbyAccount.id,EmbyState);
+            _ = ResolveEmbyVideo(ActiveEmbyAccount,target.Item.Id,null,null,false,true,parts);
+        }
+
         public void PlayEmbyPart(EmbyItem item)
         {
             if(item==null||ActiveEmbyAccount==null)return;
@@ -332,7 +368,8 @@ namespace VRPlayer
                     parts=await ResolveEmbyParts(captured,item,directory,token);
                     if(parts==null)extras=await ResolveEmbyExtras(captured,item,directory,token);
                 }
-                long position=resume?Math.Max(0,(item.UserData?.PlaybackPositionTicks??0)/10000):0;
+                var partProgress=resume?parts?.ProgressFor(item,Store==null?null:new Func<string,PlaybackRecord>(Store.Find)):null;
+                long position=resume?Math.Max(0,(partProgress?.PositionTicks??item.UserData?.PlaybackPositionTicks??0)/10000):0;
                 var playback=await EmbyApi.GetPlayback(captured,itemId,position,token);
                 if(token.IsCancellationRequested||generation!=Generation||embyDisposed)return;
                 var currentState=Backend?.Snapshot;

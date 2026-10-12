@@ -58,6 +58,7 @@ namespace VRPlayer
     [Serializable] public sealed class EmbyUserData
     {
         public long PlaybackPositionTicks;
+        public string LastPlayedDate;
         public double PlayedPercentage;
         public bool Played, IsFavorite;
     }

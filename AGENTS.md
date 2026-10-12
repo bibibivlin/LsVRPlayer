@@ -46,6 +46,8 @@ Use official `AdditionalParts`, `SpecialFeatures` and `LocalTrailers` results an
 
 Route left Y/right B and keyboard Esc through the shared global back path. Back follows actual visited pages and source roots, while the Up button visits the physical parent; never use URI parents as a fallback for Back. Capture each visit's query, sort, video/subtitle mode and scroll offset, including repeated visits to the same URI, and retain pending restoration through asynchronous loading and tab redraws. Explicit source changes clear main browsing history; top-level tab changes preserve it. Keep main and quick subtitle entry boundaries independent of older file history, and bound in-memory history/view/parent caches to 64 entries. Sample both hands before navigating so simultaneous or held presses return once; require release after focus, pause or tracking interruption. Do not commit cancelled drags or let stale directory/authentication callbacks overwrite a restored view.
 
+Movie-level Emby resume follows the most recently played official part using server `LastPlayedDate`, account-scoped local history and a valid current snapshot. Keep current-part resume a separate action; do not infer recency from CD index or position magnitude. Resume restores that part's settings; same-group adjacent controls retain their inheritance behavior.
+
 ## Testing Guidelines
 
 Name tests after observable behavior, such as `PositiveDelayMeansLaterDisplay`; use `[TestCase]` for filename variants. Add regressions for changed parsing, timing, persistence/migration, seeking, or cancellation behavior. No percentage coverage gate exists. Wait for Unity compilation and check Console before editor automation.
