@@ -1,4 +1,4 @@
-"""Serve an isolated Emby movie-parts fixture using only the Python standard library.
+"""Serve an isolated Emby movie-parts fixture (optional --artwork uses Pillow).
 
 Example (use a short, existing MP4 whose actual duration matches --duration-ms):
     python Tools/Serve-EmbyMoviePartsFixture.py --media TestMedia/fixture.mp4 --duration-ms 30000
@@ -18,12 +18,15 @@ item's next PlaybackInfo response once (0 clears an unused delay, maximum 12000)
 State includes pendingPlaybackInfoIds and scheduledPlaybackInfoDelayIds so tests
 can observe the delay window without relying on a guessed wait.
 This simulator verifies client behavior; it is not an actual Emby server test.
+--artwork adds generated posters, banners, transparent discs/logos and landscape
+images, including missing-image fallbacks, for library-view rendering checks.
 """
 import argparse
 import copy
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import io
 from pathlib import Path
 import re
 import secrets
@@ -65,8 +68,35 @@ def byte_range(header, size):
     return start, end, True
 
 
+def generated_artwork():
+    from PIL import Image, ImageDraw, ImageFont
+    result = {}
+    for kind, size, color in (("Primary", (200, 300), "#214f76"), ("Banner", (400, 75), "#633b69"),
+                              ("Disc", (240, 240), "#228b80"), ("Logo", (400, 120), "#e0bd51"),
+                              ("Thumb", (400, 225), "#815234"), ("Backdrop", (400, 225), "#315d43")):
+        transparent = kind in ("Disc", "Logo")
+        image = Image.new("RGBA" if transparent else "RGB", size, (0, 0, 0, 0) if transparent else color)
+        draw = ImageDraw.Draw(image)
+        if kind == "Disc":
+            draw.ellipse((2, 2, size[0]-3, size[1]-3), fill=color)
+            draw.ellipse((104, 104, 136, 136), fill=(0, 0, 0, 0))
+        elif kind == "Logo":
+            draw.rounded_rectangle((8, 12, 390, 106), 16, fill=color)
+        else:
+            draw.rectangle((8, 8, size[0]-9, size[1]-9), outline="white", width=3)
+        try:
+            font = ImageFont.load_default(size=24)
+        except TypeError:
+            font = ImageFont.load_default()
+        draw.text((18, 25 if kind != "Disc" else 55), kind.upper(), font=font, fill="black" if kind == "Logo" else "white")
+        output = io.BytesIO()
+        image.save(output, format="PNG" if transparent else "JPEG")
+        result[kind] = (output.getvalue(), "image/png" if transparent else "image/jpeg")
+    return result
+
+
 class FixtureState:
-    def __init__(self, media, duration_ms):
+    def __init__(self, media, duration_ms, artwork=False):
         self.media = Path(media)
         stat = self.media.stat()
         self.size = stat.st_size
@@ -79,6 +109,8 @@ class FixtureState:
         self.user_data = {item_id: self.empty_user_data() for item_id in PLAYABLE_IDS}
         self.playback_info_delays = {}
         self.pending_playback_info = {}
+        self.artwork = generated_artwork() if artwork else {}
+        self.image_requests = []
 
     @staticmethod
     def empty_user_data():
@@ -131,6 +163,18 @@ class FixtureState:
             result["ExtraType"] = "Clip" if item_id == "pv" else "Trailer"
         if item_id in ("cd2", "cd3"):
             result["ExtraType"] = "AdditionalPart"
+        if self.artwork:
+            result["ImageTags"] = {kind: "fixture-"+kind.lower() for kind in self.artwork if kind != "Backdrop"}
+            result["BackdropImageTags"] = ["fixture-backdrop"]
+            result["PrimaryImageAspectRatio"] = 2/3
+            if item_id == "movie-001":
+                result["ImageTags"] = {"Primary": "fixture-primary"}
+                result["BackdropImageTags"] = []
+            elif item_id == "movie-002":
+                result["ImageTags"] = {}
+                result["BackdropImageTags"] = []
+            elif item_id == "movie-003":
+                result["ImageTags"] = {"Primary": "fixture-primary"}
         return result
 
     def library_items(self, query):
@@ -228,7 +272,8 @@ class FixtureState:
                     "playing": [{key: value for key, value in entry.items() if key != "authToken"}
                                 for entry in self.playing.values()], "activeLoginCount": len(self.tokens),
                     "pendingPlaybackInfoIds": sorted(self.pending_playback_info),
-                    "scheduledPlaybackInfoDelayIds": sorted(self.playback_info_delays)}
+                    "scheduledPlaybackInfoDelayIds": sorted(self.playback_info_delays),
+                    "imageRequests": copy.deepcopy(self.image_requests)}
 
     def schedule_playback_info_delay(self, payload):
         item_id = payload.get("itemId")
@@ -347,6 +392,23 @@ class FixtureHandler(BaseHTTPRequestHandler):
             authorized = auth_token in state.tokens
         if not authorized:
             return self.reply(401, {"Error": "Fixture login required"})
+        if len(path) in (4, 5) and path[0] == "Items" and path[2] == "Images" and method in ("GET", "HEAD"):
+            item = state.item(path[1])
+            kind = path[3]
+            if len(path) == 5 and (kind != "Backdrop" or path[4] != "0"):
+                return self.reply(404, {"Error": "Fixture image index absent"})
+            if kind not in state.artwork or not (item.get("BackdropImageTags") if kind == "Backdrop" else item["ImageTags"].get(kind)):
+                return self.reply(404, {"Error": "Fixture artwork absent"})
+            data, content_type = state.artwork[kind]
+            with state.lock:
+                state.image_requests.append({"itemId": path[1], "type": kind, "authenticated": True})
+            self.send_response(200)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            if method != "HEAD":
+                self.wfile.write(data)
+            return
         if path == ["Sessions", "Logout"] and method == "POST":
             with state.lock:
                 state.tokens.pop(auth_token, None)
@@ -440,6 +502,7 @@ def main():
     parser.add_argument("--media", required=True, help="Existing short MP4; never copied or modified")
     parser.add_argument("--duration-ms", type=int, default=12000, help="Actual MP4 duration in milliseconds (default: 12000)")
     parser.add_argument("--port", type=int, default=18096, help="Loopback listen port (default: 18096)")
+    parser.add_argument("--artwork", action="store_true", help="Generate image-type and transparency fixtures; requires Pillow")
     args = parser.parse_args()
     if not 1 <= args.port <= 65535 or not 1 <= args.duration_ms <= 24 * 60 * 60 * 1000:
         parser.error("Port or duration is outside the supported range")
@@ -447,10 +510,12 @@ def main():
         media = Path(args.media).resolve(strict=True)
         if not media.is_file() or media.suffix.lower() != ".mp4" or media.stat().st_size <= 0:
             parser.error("An existing nonempty MP4 is required")
-        state = FixtureState(media, args.duration_ms)
+        state = FixtureState(media, args.duration_ms, args.artwork)
         server = FixtureServer(("127.0.0.1", args.port), state)
     except OSError:
         parser.error("Could not read the fixture or bind the loopback port")
+    except ImportError:
+        parser.error("The optional artwork fixture requires Pillow")
     print("Listening on http://127.0.0.1:" + str(args.port) + " (media bytes: " + str(state.size) + ")", flush=True)
     try:
         server.serve_forever(poll_interval=0.25)

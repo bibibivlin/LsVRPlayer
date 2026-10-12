@@ -81,10 +81,12 @@ namespace VRPlayer.Tests
         [TestCase("Thumb", "thumb")]
         [TestCase("Banner", "banner")]
         [TestCase("Backdrop", "backdrop")]
+        [TestCase("Disc", "disc")]
+        [TestCase("Logo", "logo")]
         [TestCase("Unsupported", "primary")]
         public void ImageTagMatchesRequestedImageType(string type, string expectedTag)
         {
-            var item = new EmbyItem { Id = "1", ImageTags = new EmbyImageTags { Primary = "primary", Thumb = "thumb", Banner = "banner" }, BackdropImageTags = new[] { "backdrop" } };
+            var item = new EmbyItem { Id = "1", ImageTags = new EmbyImageTags { Primary = "primary", Thumb = "thumb", Banner = "banner", Disc = "disc", Logo = "logo" }, BackdropImageTags = new[] { "backdrop" } };
             string url = new EmbyClient("test-device").ImageUrl(Account(), item, type);
             Assert.That(url, Does.EndWith("&tag=" + expectedTag));
         }

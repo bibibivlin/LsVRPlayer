@@ -52,7 +52,7 @@ namespace VRPlayer
 
     [Serializable] public sealed class EmbyImageTags
     {
-        public string Primary, Thumb, Banner;
+        public string Primary, Thumb, Banner, Disc, Logo;
     }
 
     [Serializable] public sealed class EmbyUserData

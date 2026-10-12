@@ -14,6 +14,7 @@ namespace VRPlayer
         public EmbyPage page=EmbyPage.Accounts;
         public string title="Emby 服务器与账户",error="",search="";
         public string filterKind="",filterValue="",filterId="";
+        public string viewLibraryId="";
         public bool loading,canGoBack;
         public int revision,totalCount,startIndex;
         public EmbyItem[] views=Array.Empty<EmbyItem>(),resume=Array.Empty<EmbyItem>(),latest=Array.Empty<EmbyItem>(),items=Array.Empty<EmbyItem>(),parts=Array.Empty<EmbyItem>(),extras=Array.Empty<EmbyItem>();
@@ -166,7 +167,8 @@ namespace VRPlayer
         private async Task LoadEmbyLibrary(EmbyItem parent,int startIndex,string search)
         {
             var account=ActiveEmbyAccount;if(account==null)return;
-            var state=new EmbyBrowserState{page=EmbyPage.Library,parent=parent,title=parent.Name,loading=true,search=search??"",canGoBack=true};
+            string libraryId=parent.Type=="CollectionFolder"||parent.Type=="UserView"||EmbyState.page==EmbyPage.Home||string.IsNullOrEmpty(EmbyState.viewLibraryId)?parent.Id:EmbyState.viewLibraryId;
+            var state=new EmbyBrowserState{page=EmbyPage.Library,parent=parent,title=parent.Name,loading=true,search=search??"",canGoBack=true,viewLibraryId=libraryId};
             var token=BeginEmbyRequest(state);
             try{
                 var metadata=string.IsNullOrEmpty(parent.Type)?await EmbyApi.GetItem(account,parent.Id,token):parent;
@@ -188,7 +190,7 @@ namespace VRPlayer
         private async Task LoadEmbyDetails(EmbyItem item,string directory=null,string playbackItemId=null,CancellationToken playbackToken=default)
         {
             var account=ActiveEmbyAccount;if(account==null)return;
-            var state=new EmbyBrowserState{page=EmbyPage.Details,title=item.Name,selected=item,loading=true,canGoBack=true};
+            var state=new EmbyBrowserState{page=EmbyPage.Details,title=item.Name,selected=item,loading=true,canGoBack=true,viewLibraryId=EmbyState.viewLibraryId};
             var token=BeginEmbyRequest(state);
             try{
                 await embyReports;token.ThrowIfCancellationRequested();
@@ -221,7 +223,7 @@ namespace VRPlayer
         private async Task LoadEmbyPerson(EmbyPerson person)
         {
             var account=ActiveEmbyAccount;if(account==null)return;
-            var state=new EmbyBrowserState{page=EmbyPage.Person,title=person.Name,selected=new EmbyItem{Id=person.Id,Name=person.Name,Type="Person"},loading=true,canGoBack=true};
+            var state=new EmbyBrowserState{page=EmbyPage.Person,title=person.Name,selected=new EmbyItem{Id=person.Id,Name=person.Name,Type="Person"},loading=true,canGoBack=true,viewLibraryId=EmbyState.viewLibraryId};
             var token=BeginEmbyRequest(state);
             try{
                 var detail=EmbyApi.GetPerson(account,person.Id,token);var movies=EmbyApi.GetPersonMovies(account,person.Id,token);
@@ -241,7 +243,7 @@ namespace VRPlayer
         private async Task LoadEmbyCategory(string kind,string value,string id,string search)
         {
             var account=ActiveEmbyAccount;if(account==null)return;
-            var state=new EmbyBrowserState{page=EmbyPage.Library,title=value,filterKind=kind,filterValue=value,filterId=id??"",search=search??"",loading=true,canGoBack=true};
+            var state=new EmbyBrowserState{page=EmbyPage.Library,title=value,filterKind=kind,filterValue=value,filterId=id??"",search=search??"",loading=true,canGoBack=true,viewLibraryId=EmbyState.viewLibraryId};
             var token=BeginEmbyRequest(state);
             try{
                 var result=await EmbyApi.GetFilteredMovies(account,kind,value,id,state.search,token);

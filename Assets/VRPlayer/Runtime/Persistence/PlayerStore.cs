@@ -33,6 +33,7 @@ namespace VRPlayer
         public List<PlaybackRecord> history=new List<PlaybackRecord>();
         public List<Favorite> favorites=new List<Favorite>();
         public List<string> vr180Directories=new List<string>();
+        public List<EmbyLibraryViewPreference> embyLibraryViews=new List<EmbyLibraryViewPreference>();
     }
     public sealed class PlayerStore
     {
@@ -50,6 +51,9 @@ namespace VRPlayer
             var value=JsonUtility.FromJson<UserSettings>(json)??new UserSettings();
             int version=JsonUtility.FromJson<VersionHeader>(json)?.version??0;
             value.history??=new List<PlaybackRecord>();value.favorites??=new List<Favorite>();value.vr180Directories??=new List<string>();
+            value.embyLibraryViews??=new List<EmbyLibraryViewPreference>();
+            value.embyLibraryViews.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.accountId)||string.IsNullOrEmpty(item.libraryId));
+            foreach(var item in value.embyLibraryViews)item.view=EmbyLibraryViews.Normalize(item.view);
             float oldDistance=Finite(value.subtitleDistance,3);
             value.subtitleDistance=Mathf.Clamp(oldDistance,.1f,6);
             if(version<2){float ratio=3/Mathf.Max(.1f,oldDistance);value.subtitleSize*=ratio;value.subtitleOffset*=ratio;value.renderQuality=RenderQuality.High;value.subtitleStyle=new SubtitleStyle();}
@@ -84,6 +88,13 @@ namespace VRPlayer
             Settings.favorites.Insert(Math.Clamp(index,0,Settings.favorites.Count),favorite);Save();return true;
         }
         public PlaybackRecord Find(string uri)=>Settings.history.FirstOrDefault(item=>item.uri==uri);
+        public EmbyLibraryView GetEmbyLibraryView(string accountId,string libraryId)=>EmbyLibraryViews.Normalize(Settings.embyLibraryViews.LastOrDefault(item=>item.accountId==accountId&&item.libraryId==libraryId)?.view??EmbyLibraryView.Poster);
+        public void SetEmbyLibraryView(string accountId,string libraryId,EmbyLibraryView view)
+        {
+            if(string.IsNullOrEmpty(accountId)||string.IsNullOrEmpty(libraryId))return;
+            Settings.embyLibraryViews.RemoveAll(item=>item.accountId==accountId&&item.libraryId==libraryId);
+            Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId,view=EmbyLibraryViews.Normalize(view)});Save();
+        }
         public PlaybackRecord Touch(FileEntry file,string directory)
         {
             var record=Find(file.uri);

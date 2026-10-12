@@ -48,6 +48,8 @@ Route left Y/right B and keyboard Esc through the shared global back path. Back 
 
 Movie-level Emby resume follows the most recently played official part using server `LastPlayedDate`, account-scoped local history and a valid current snapshot. Keep current-part resume a separate action; do not infer recency from CD index or position magnitude. Resume restores that part's settings; same-group adjacent controls retain their inheritance behavior.
 
+Persist Emby library view choices by stable account configuration ID and library root ID, defaulting to Poster; retain the root through searches and nested pages. Keep all seven views virtualized with view-specific geometry and independent scroll memory. Preserve artwork aspect ratios and Disc/Logo PNG alpha, hide loading placeholders after images arrive, and restore them when rows recycle. View menus consume Back before page navigation, block background scrolling, and reject stale selection callbacks after account/page changes.
+
 ## Testing Guidelines
 
 Name tests after observable behavior, such as `PositiveDelayMeansLaterDisplay`; use `[TestCase]` for filename variants. Add regressions for changed parsing, timing, persistence/migration, seeking, or cancellation behavior. No percentage coverage gate exists. Wait for Unity compilation and check Console before editor automation.

@@ -288,18 +288,17 @@ namespace VRPlayer
         {
             RequireId(itemId);
             if (account == null) throw new ArgumentException("Emby 账户无效");
-            if (type != "Primary" && type != "Backdrop" && type != "Thumb" && type != "Banner") type = "Primary";
-            return Endpoint(account.serverUrl, "/Items/" + Escape(itemId) + "/Images/" + type +
-                "?maxWidth=" + Math.Clamp(width, 32, 1024) + "&quality=85&format=jpg");
+            if (type != "Primary" && type != "Backdrop" && type != "Thumb" && type != "Banner" && type != "Disc" && type != "Logo") type = "Primary";
+            return Endpoint(account.serverUrl, "/Items/" + Escape(itemId) + "/Images/" + type + (type == "Backdrop" ? "/0" : "") +
+                "?maxWidth=" + Math.Clamp(width, 32, 1024) + "&quality=85&format=" + (type == "Disc" || type == "Logo" ? "png" : "jpg"));
         }
 
         public string ImageUrl(EmbyAccount account, EmbyItem item, string type = "Primary", int width = 300)
         {
             if (item == null) throw new ArgumentException("Emby 图片标识无效");
-            if (type != "Primary" && type != "Backdrop" && type != "Thumb" && type != "Banner") type = "Primary";
+            if (type != "Primary" && type != "Backdrop" && type != "Thumb" && type != "Banner" && type != "Disc" && type != "Logo") type = "Primary";
             string url = ImageUrl(account, item.Id, type, width);
-            string tag = type == "Backdrop" ? item.BackdropImageTags?.FirstOrDefault() :
-                type == "Thumb" ? item.ImageTags?.Thumb : type == "Banner" ? item.ImageTags?.Banner : item.ImageTags?.Primary;
+            string tag = EmbyLibraryViews.ImageTag(item,type);
             return string.IsNullOrEmpty(tag) ? url : url + "&tag=" + Escape(tag);
         }
 

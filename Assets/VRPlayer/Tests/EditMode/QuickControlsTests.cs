@@ -588,6 +588,70 @@ namespace VRPlayer.Tests
             Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));Assert.That(app.Presenter.Settings.distance,Is.EqualTo(7));
             Assert.That(app.Presenter.Settings.projection,Is.EqualTo(Projection.Equirect360));Assert.That(app.Presenter.Settings.stereo,Is.EqualTo(StereoLayout.SideBySide));Assert.That(app.Current.formatLocked);
         }
+        private EmbyBrowserUI LibraryViewFixture(string account="fixture",string library="movies")
+        {
+            Set("ActiveEmbyAccount",new EmbyAccount{id=account});Set("Source",FileSource.Emby);
+            Set("EmbyState",new EmbyBrowserState{page=EmbyPage.Library,title="测试媒体库",parent=new EmbyItem{Id=library,Type="CollectionFolder"},viewLibraryId=library,
+                items=Enumerable.Range(0,205).Select(i=>new EmbyItem{Id="movie"+i,Name="影片 "+i,Type="Movie",ProductionYear=2026,RunTimeTicks=600000000}).ToArray()});
+            ui.SelectTab("文件");return (EmbyBrowserUI)typeof(PlayerUI).GetField("embyBrowser",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+        }
+        private static void LibraryViewButton(EmbyBrowserUI browser)
+        {
+            var root=(RectTransform)typeof(EmbyBrowserUI).GetField("root",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(browser);
+            root.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby view selector").onClick.Invoke();
+        }
+        private static Button[] LibraryViewOptions(EmbyBrowserUI browser)
+        {
+            var menu=(RectTransform)typeof(EmbyBrowserUI).GetField("viewMenu",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(browser);
+            return menu.GetComponentsInChildren<Button>().Where(button=>button.transform.parent.name=="Options").ToArray();
+        }
+        [TestCase(EmbyLibraryView.Poster)][TestCase(EmbyLibraryView.Banner)][TestCase(EmbyLibraryView.Disc)]
+        [TestCase(EmbyLibraryView.Logo)][TestCase(EmbyLibraryView.Thumb)][TestCase(EmbyLibraryView.List)][TestCase(EmbyLibraryView.Table)]
+        public void LibraryViewChoicePersistsAndEveryViewReachesTheLastFilm(EmbyLibraryView view)
+        {
+            var browser=LibraryViewFixture();LibraryViewButton(browser);
+            var options=LibraryViewOptions(browser);
+            Assert.That(options.Select(button=>button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text.TrimStart('✓',' ')),Is.EqualTo(new[]{"海报","横幅图","光盘封面","徽标","缩略图","列表","表格"}));
+            options[(int)view].onClick.Invoke();
+            Assert.That(new PlayerStore(path).GetEmbyLibraryView("fixture","movies"),Is.EqualTo(view));
+            var fields=BindingFlags.Instance|BindingFlags.NonPublic;
+            var scroll=(ListScrollRect)typeof(EmbyBrowserUI).GetField("scroll",fields).GetValue(browser);var body=(RectTransform)typeof(EmbyBrowserUI).GetField("body",fields).GetValue(browser);
+            var layout=EmbyLibraryViews.Layout(view);
+            Assert.That(body.GetComponentsInChildren<RowBinding>(true).Length,Is.EqualTo(layout.PoolSize(205,scroll.viewport.rect.height,180)));
+            var first=body.GetComponentsInChildren<RowBinding>().First();first.Press();
+            typeof(EmbyBrowserUI).GetMethod("SetOffset",fields).Invoke(browser,new object[]{body.rect.height});
+            typeof(EmbyBrowserUI).GetMethod("UpdatePosterWall",fields).Invoke(browser,null);
+            Assert.That(body.GetComponentsInChildren<RowBinding>().Any(row=>row.Item?.key=="fixture:movie204"),Is.True);
+            first.Open();Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Library),"A press must not open a newly recycled film");
+        }
+        [Test] public void LibraryViewMenuBackAndStaleChoicesLeaveThePageAndPreferencesUntouched()
+        {
+            var browser=LibraryViewFixture();LibraryViewButton(browser);var stale=LibraryViewOptions(browser)[(int)EmbyLibraryView.Table];
+            Assert.That(ui.Back(),Is.True);Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Library));
+            LibraryViewButton(browser);stale.onClick.Invoke();Assert.That(store.GetEmbyLibraryView("fixture","movies"),Is.EqualTo(EmbyLibraryView.Poster));
+            ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Emby));
+        }
+        [Test] public void LoadedTransparentArtworkHidesThePlaceholderAndRecyclingRestoresIt()
+        {
+            var holder=UiFactory.Rect(ui.Canvas.transform,"Artwork test",0,0,120,120);
+            var placeholder=UiFactory.Label(holder,"Emby",0,0,120,120);var image=UiFactory.Rect(holder,"Image",0,0,120,120).gameObject.AddComponent<RawImage>();
+            var texture=new Texture2D(2,2,TextureFormat.RGBA32,false);texture.SetPixels(new[]{Color.clear,Color.white,Color.white,Color.clear});texture.Apply();
+            try{
+                typeof(EmbyBrowserUI).GetMethod("Assign",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{image,texture});
+                Assert.That(placeholder.gameObject.activeSelf,Is.False);Assert.That(texture.GetPixel(0,0).a,Is.Zero);
+                typeof(EmbyBrowserUI).GetMethod("Detach",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{image});
+                Assert.That(image.texture,Is.Null);Assert.That(placeholder.gameObject.activeSelf,Is.True);
+            }finally{UnityEngine.Object.DestroyImmediate(texture);UnityEngine.Object.DestroyImmediate(holder.gameObject);}
+        }
+        [Test] public void LibraryViewRedrawRestoresEachLibraryAndAccountWithoutSharingChoices()
+        {
+            store.SetEmbyLibraryView("fixture","movies",EmbyLibraryView.Table);store.SetEmbyLibraryView("fixture","shows",EmbyLibraryView.Banner);
+            foreach(var target in new[]{new{account="fixture",library="movies",view="表格"},new{account="fixture",library="shows",view="横幅图"},new{account="other",library="movies",view="海报"}}){
+                var browser=LibraryViewFixture(target.account,target.library);LibraryViewButton(browser);
+                Assert.That(LibraryViewOptions(browser).Single(button=>button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text.StartsWith("✓ ")).GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("✓ "+target.view));ui.Back();
+            }
+        }
+
         private System.Collections.Generic.IReadOnlyList<BrowserRow> RecentRows=>
             (System.Collections.Generic.IReadOnlyList<BrowserRow>)typeof(VirtualFileList).GetField("items",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(FullFileList);
 

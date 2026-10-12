@@ -18,6 +18,8 @@ namespace VRPlayer
         private const float ImagePreload=180;
         private PlayerApp app;
         private RectTransform root,body;
+        private RectTransform viewMenu;
+        private bool externallyBlocked;
         private ListScrollRect scroll;
         private Action<TMP_InputField> keyboard;
         private Action closeKeyboard,surfaceChanged;
@@ -34,6 +36,8 @@ namespace VRPlayer
         private readonly List<PosterSlot> posterPool=new List<PosterSlot>();
         private EmbyItem[] posterItems=Array.Empty<EmbyItem>();
         private float posterTop;
+        private EmbyLibraryView posterView;
+        private EmbyWallLayout posterLayout;
         private int posterFirstRow=int.MinValue;
         private int textureBytes,imageWorkerCount;
         private float imageOffset=float.NaN,imageViewportHeight;
@@ -51,6 +55,7 @@ namespace VRPlayer
             public RectTransform root,artwork,progressRail,progress,watched;
             public RawImage image;
             public TextMeshProUGUI label,meta,placeholder;
+            public TextMeshProUGUI overview,year,duration,rating,resume;
             public RowBinding binding;
             public ImageBinding imageBinding;
         }
@@ -65,12 +70,13 @@ namespace VRPlayer
         }
         public void ReleasePanel()
         {
-            CaptureLogin();RememberOffset();CancelImages();ClearPosterWall();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
+            CaptureLogin();RememberOffset();CloseViewMenu();CancelImages();ClearPosterWall();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
         }
-        public void Suspend()=>CancelImages();
+        public void Suspend(){CloseViewMenu();CancelImages();}
         public bool TryBack()
         {
             if(app==null)return false;
+            if(viewMenu!=null){CloseViewMenu();return true;}
             if(login){ReturnFromLogin();return true;}
             if(!string.IsNullOrEmpty(removing)){closeKeyboard?.Invoke();removing="";Render(true);return true;}
             if(app.EmbyState.page==EmbyPage.Accounts)return app.ReturnToRecentFromEmby();
@@ -82,7 +88,7 @@ namespace VRPlayer
         }
         public void Block(bool blocked)
         {
-            if(scroll==null)return;scroll.enabled=!blocked;if(blocked)scroll.StopMovement();
+            externallyBlocked=blocked;if(scroll==null)return;scroll.enabled=!blocked&&viewMenu==null;if(blocked)scroll.StopMovement();
         }
         public void Scroll(float axis)
         {
@@ -98,7 +104,7 @@ namespace VRPlayer
         {
             if(root==null||app==null)return;var state=app.EmbyState;
             if(!force&&revision==state.revision)return;
-            CaptureLogin();RememberOffset();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id}.Select(value=>(value?.Length??0)+":"+(value??"")));
+            CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
             float offset=pageOffsets.TryGetValue(key,out var remembered)?remembered:0;viewKey=key;revision=state.revision;
             CancelImages();ClearPosterWall();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
             UiFactory.Box(root,"Emby background",0,0,1376,root.rect.height,Background,true);
@@ -257,12 +263,45 @@ namespace VRPlayer
         private void DrawLibrary()
         {
             var state=app.EmbyState;
-            var search=UiFactory.Input(root,state.search??"","搜索当前影片列表",14,78,1040,48,keyboard);
-            Button(root,"搜索",1070,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
-            Button(root,"清空",1224,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");});
+            var search=UiFactory.Input(root,state.search??"","搜索当前影片列表",14,78,744,48,keyboard);
+            Button(root,"搜索",774,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
+            Button(root,"清空",928,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");});
+            var selector=Button(root,"视图 · "+EmbyLibraryViews.Label(LibraryView),1082,78,280,48,ToggleViewMenu);selector.name="Emby view selector";
+            selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,48);
+            var left=UiFactory.Box(selector.transform,"Chevron left",253,23,12,3,Muted);left.pivot=new Vector2(.5f,.5f);left.localRotation=Quaternion.Euler(0,0,-45);
+            var right=UiFactory.Box(selector.transform,"Chevron right",261,23,12,3,Muted);right.pivot=new Vector2(.5f,.5f);right.localRotation=Quaternion.Euler(0,0,45);
             BeginScroll(142,root.rect.height-156);var items=state.items??Array.Empty<EmbyItem>();
             if(items.Length==0){UiFactory.Label(body,string.IsNullOrEmpty(state.search)?"此媒体库暂无影片":"未找到匹配的影片",18,80,1290,68,30).color=Muted;FinishScroll(260);}
-            else{BuildPosterWall(items,0);FinishScroll(Mathf.CeilToInt(items.Length/6f)*344);}
+            else{float top=LibraryView==EmbyLibraryView.Table?TableHeader():0;FinishScroll(BuildPosterWall(items,top,LibraryView));}
+        }
+        private string ViewLibraryId=>!string.IsNullOrEmpty(app.EmbyState.viewLibraryId)?app.EmbyState.viewLibraryId:app.EmbyState.parent?.Id??"all-movies";
+        private EmbyLibraryView LibraryView=>app.Store?.GetEmbyLibraryView(app.ActiveEmbyAccount?.id,ViewLibraryId)??EmbyLibraryView.Poster;
+        private void ToggleViewMenu()
+        {
+            closeKeyboard?.Invoke();if(viewMenu!=null){CloseViewMenu();return;}
+            viewMenu=UiFactory.Box(root,"Emby view menu",0,0,1376,root.rect.height,Color.clear,true);
+            var outside=viewMenu.gameObject.AddComponent<Button>();outside.onClick.AddListener(CloseViewMenu);
+            var panel=UiFactory.Box(viewMenu,"Options",1082,134,280,390,Background,true);
+            var openedMenu=viewMenu;var state=app.EmbyState;string accountId=app.ActiveEmbyAccount?.id,libraryId=ViewLibraryId;
+            foreach(EmbyLibraryView view in Enum.GetValues(typeof(EmbyLibraryView))){
+                var selected=view;Button(panel,(LibraryView==view?"✓ ":"")+EmbyLibraryViews.Label(view),8,8+(int)view*54,264,48,()=>{
+                    if(viewMenu!=openedMenu||app.Source!=FileSource.Emby||app.EmbyState!=state||app.ActiveEmbyAccount?.id!=accountId)return;
+                    app.Store?.SetEmbyLibraryView(accountId,libraryId,selected);Render(true);
+                },LibraryView==view);
+            }
+            if(scroll!=null){scroll.StopMovement();scroll.enabled=false;}surfaceChanged?.Invoke();
+        }
+        private void CloseViewMenu()
+        {
+            if(viewMenu==null)return;viewMenu.gameObject.SetActive(false);
+            if(Application.isPlaying)Destroy(viewMenu.gameObject);else DestroyImmediate(viewMenu.gameObject);
+            viewMenu=null;if(scroll!=null)scroll.enabled=!externallyBlocked;surfaceChanged?.Invoke();
+        }
+        private float TableHeader()
+        {
+            foreach(var column in new[]{new{title="名称",x=124f,w=666f},new{title="年份",x=814f,w=86f},new{title="时长",x=914f,w=126f},new{title="评分",x=1054f,w=90f},new{title="进度",x=1168f,w=146f}})
+                UiFactory.Label(body,column.title,column.x,0,column.w,42,23).color=Muted;
+            return 50;
         }
         private void PosterCard(EmbyItem item,float x,float y)
         {
@@ -273,40 +312,52 @@ namespace VRPlayer
             float progress=Progress(item);if(progress>0){UiFactory.Box(card.transform,"Progress rail",0,240,204,6,new Color(0,0,0,.6f));UiFactory.Box(card.transform,"Progress",0,240,204*progress,6,Green);}
             if(item.UserData?.Played==true){UiFactory.Box(card.transform,"Watched",150,8,44,28,Green);UiFactory.Label(card.transform,"已看",150,8,44,28,17,TextAlignmentOptions.Center);}
         }
-        private float BuildPosterWall(EmbyItem[] items,float top)
+        private float BuildPosterWall(EmbyItem[] items,float top,EmbyLibraryView view=EmbyLibraryView.Poster)
         {
-            posterItems=items??Array.Empty<EmbyItem>();posterTop=top;posterFirstRow=int.MinValue;
-            int count=Math.Min(posterItems.Length,(Mathf.CeilToInt((scroll.viewport.rect.height+ImagePreload*2)/344)+1)*6);
+            posterItems=items??Array.Empty<EmbyItem>();posterTop=top;posterFirstRow=int.MinValue;posterView=view;posterLayout=EmbyLibraryViews.Layout(view);
+            var layout=posterLayout;bool list=view==EmbyLibraryView.List,table=view==EmbyLibraryView.Table;
+            int count=layout.PoolSize(posterItems.Length,scroll.viewport.rect.height,ImagePreload);
             for(int i=0;i<count;i++){
-                var slot=new PosterSlot();var card=Button(body,"",14,top,204,326,null);UiFactory.Clear(card.transform);slot.root=(RectTransform)card.transform;
+                var slot=new PosterSlot();var card=Button(body,"",14,top,layout.Width,layout.CardHeight,null);UiFactory.Clear(card.transform);slot.root=(RectTransform)card.transform;
                 slot.binding=slot.root.gameObject.AddComponent<RowBinding>();slot.root.gameObject.AddComponent<RowPress>().Bind(slot.binding);card.onClick.AddListener(slot.binding.Open);
-                slot.artwork=UiFactory.Box(slot.root,"Artwork",0,0,204,246,new Color(.09f,.1f,.095f,1));
-                slot.placeholder=UiFactory.Label(slot.artwork,"",8,0,188,246,22,TextAlignmentOptions.Center);slot.placeholder.color=Muted;
-                var imageRect=UiFactory.Rect(slot.artwork,"Image",0,0,204,246);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.raycastTarget=false;slot.image.color=Color.clear;
-                var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.FitInParent;fit.aspectRatio=204f/246;
-                slot.label=UiFactory.Label(slot.root,"",8,250,188,42,24);slot.meta=UiFactory.Label(slot.root,"",8,292,188,34,20);slot.meta.color=Muted;
-                slot.progressRail=UiFactory.Box(slot.root,"Progress rail",0,240,204,6,new Color(0,0,0,.6f));slot.progress=UiFactory.Box(slot.root,"Progress",0,240,0,6,Green);
-                slot.watched=UiFactory.Box(slot.root,"Watched",150,8,44,28,Green);UiFactory.Label(slot.watched,"已看",0,0,44,28,17,TextAlignmentOptions.Center);
+                slot.artwork=UiFactory.Box(slot.root,"Artwork",list||table?8:0,list||table?12:0,layout.ArtworkWidth,layout.ArtworkHeight,view==EmbyLibraryView.Logo||view==EmbyLibraryView.Disc?Color.clear:new Color(.09f,.1f,.095f,1));
+                slot.placeholder=UiFactory.Label(slot.artwork,"",4,0,layout.ArtworkWidth-8,layout.ArtworkHeight,table?14:list?17:22,TextAlignmentOptions.Center);slot.placeholder.color=Muted;
+                var imageRect=UiFactory.Rect(slot.artwork,"Image",0,0,layout.ArtworkWidth,layout.ArtworkHeight);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.raycastTarget=false;slot.image.color=Color.clear;
+                var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.FitInParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
+                slot.label=UiFactory.Label(slot.root,"",list||table?110:8,list?8:table?14:layout.ArtworkHeight+4,table?666:list?1180:layout.Width-16,42,24);
+                if(table){
+                    slot.year=UiFactory.Label(slot.root,"",800,14,86,42,23);slot.duration=UiFactory.Label(slot.root,"",900,14,126,42,23);
+                    slot.rating=UiFactory.Label(slot.root,"",1040,14,90,42,23);slot.resume=UiFactory.Label(slot.root,"",1154,14,146,42,23);
+                }else{
+                    slot.meta=UiFactory.Label(slot.root,"",list?110:8,list?52:layout.ArtworkHeight+46,list?1180:layout.Width-16,34,20);slot.meta.color=Muted;
+                    if(list){slot.overview=UiFactory.Label(slot.root,"",110,92,1180,42,23);slot.overview.color=Muted;}
+                }
+                slot.progressRail=UiFactory.Box(slot.artwork,"Progress rail",0,layout.ArtworkHeight-6,layout.ArtworkWidth,6,new Color(0,0,0,.6f));slot.progress=UiFactory.Box(slot.artwork,"Progress",0,layout.ArtworkHeight-6,0,6,Green);
+                slot.watched=UiFactory.Box(slot.artwork,"Watched",layout.ArtworkWidth-48,4,44,28,Green);UiFactory.Label(slot.watched,"已看",0,0,44,28,17,TextAlignmentOptions.Center);
                 posterPool.Add(slot);
             }
-            return top+Mathf.CeilToInt(posterItems.Length/6f)*344;
+            return top+layout.ContentHeight(posterItems.Length);
         }
         private void UpdatePosterWall()
         {
             if(posterPool.Count==0||body==null)return;
-            int first=Mathf.Clamp(Mathf.FloorToInt((Offset-posterTop-ImagePreload)/344),0,Mathf.Max(0,Mathf.CeilToInt(posterItems.Length/6f)-1));
+            var layout=posterLayout;
+            int first=Mathf.Clamp(Mathf.FloorToInt((Offset-posterTop-ImagePreload)/layout.Pitch),0,Mathf.Max(0,Mathf.CeilToInt(posterItems.Length/(float)layout.Columns)-1));
             if(first==posterFirstRow)return;posterFirstRow=first;
             for(int i=0;i<posterPool.Count;i++){
                 var slot=posterPool[i];UnbindImage(slot.imageBinding);slot.imageBinding=null;
-                int index=first*6+i;var item=index<posterItems.Length?posterItems[index]:null;
+                int index=first*layout.Columns+i;var item=index<posterItems.Length?posterItems[index]:null;
                 slot.root.gameObject.SetActive(item!=null);if(item==null){slot.binding.Item=null;continue;}
-                slot.root.anchoredPosition=new Vector2(14+(i%6)*222,-(posterTop+(index/6)*344));
+                slot.root.anchoredPosition=new Vector2(14+(i%layout.Columns)*(layout.Width+18),-(posterTop+(index/layout.Columns)*layout.Pitch));
                 slot.binding.Item=new BrowserRow{key=(app.ActiveEmbyAccount?.id??"")+":"+item.Id,open=()=>app.OpenEmbyItem(item)};
                 slot.root.GetComponent<Button>().interactable=!string.IsNullOrEmpty(item.Id);
-                slot.label.text=DisplayName(item);slot.meta.text=ItemMeta(item);
-                bool available=!string.IsNullOrEmpty(item.ImageTags?.Primary);slot.placeholder.text=available?"Emby":item.IsBrowsable?"媒体库":"暂无海报";
-                slot.imageBinding=RegisterImage(slot.image,slot.artwork,item.Id,246,available,item,"","Primary");
-                float progress=Progress(item);slot.progressRail.gameObject.SetActive(progress>0);slot.progress.gameObject.SetActive(progress>0);slot.progress.sizeDelta=new Vector2(204*progress,6);slot.watched.gameObject.SetActive(item.UserData?.Played==true);
+                slot.label.text=DisplayName(item);if(slot.meta!=null)slot.meta.text=posterView==EmbyLibraryView.List?DetailsMeta(item)+"   ·   "+PlaybackProgress(item):ItemMeta(item);
+                if(slot.overview!=null)slot.overview.text=string.IsNullOrWhiteSpace(item.Overview)?"暂无影片简介":PlainOverview(item.Overview);
+                if(slot.year!=null){slot.year.text=item.ProductionYear>0?item.ProductionYear.ToString():"—";slot.duration.text=item.RunTimeTicks>0?TicksClock(item.RunTimeTicks):"—";slot.rating.text=item.CommunityRating>0?item.CommunityRating.ToString("0.0"):"—";slot.resume.text=PlaybackProgress(item);}
+                string type=EmbyLibraryViews.ImageType(item,posterView),tag=EmbyLibraryViews.ImageTag(item,type);
+                bool available=!string.IsNullOrEmpty(tag);slot.placeholder.text=available?"Emby":item.IsBrowsable?"媒体库":posterView==EmbyLibraryView.Table?"无图片":"暂无图片";
+                slot.imageBinding=RegisterImage(slot.image,slot.artwork,item.Id,layout.ArtworkHeight,available,item,tag,type);
+                float progress=Progress(item);slot.progressRail.gameObject.SetActive(progress>0);slot.progress.gameObject.SetActive(progress>0);slot.progress.sizeDelta=new Vector2(layout.ArtworkWidth*progress,6);slot.watched.gameObject.SetActive(item.UserData?.Played==true);
             }
             imageScheduleDirty=true;
         }
@@ -513,12 +564,13 @@ namespace VRPlayer
         }
         private static void Detach(RawImage image)
         {
-            if(image==null)return;image.texture=null;image.color=Color.clear;
+            if(image==null)return;image.texture=null;image.color=Color.clear;ImagePlaceholder(image,true);
         }
         private static void Assign(RawImage image,Texture2D texture)
         {
-            if(image==null||texture==null)return;image.texture=texture;image.color=Color.white;var fit=image.GetComponent<AspectRatioFitter>();if(fit!=null)fit.aspectRatio=texture.width/(float)texture.height;
+            if(image==null||texture==null)return;image.texture=texture;image.color=Color.white;ImagePlaceholder(image,false);var fit=image.GetComponent<AspectRatioFitter>();if(fit!=null)fit.aspectRatio=texture.width/(float)texture.height;
         }
+        private static void ImagePlaceholder(RawImage image,bool visible){var text=image.transform.parent?.Find("Text");if(text!=null)text.gameObject.SetActive(visible);}
         private IEnumerator ImageWorker(int generation)
         {
             try{
@@ -603,6 +655,7 @@ namespace VRPlayer
             var parts=new List<string>();if(item.ProductionYear>0)parts.Add(item.ProductionYear.ToString());if(item.RunTimeTicks>0)parts.Add(((long)TimeSpan.FromTicks(item.RunTimeTicks).TotalMinutes)+" 分钟");if(!string.IsNullOrEmpty(item.OfficialRating))parts.Add(item.OfficialRating);if(item.CommunityRating>0)parts.Add("评分 "+item.CommunityRating.ToString("0.0"));return string.Join("   ·   ",parts);
         }
         private static float Progress(EmbyItem item)=>item.RunTimeTicks>0?Mathf.Clamp01((item.UserData?.PlaybackPositionTicks??0)/(float)item.RunTimeTicks):Mathf.Clamp01((float)(item.UserData?.PlayedPercentage??0)/100);
+        private static string PlaybackProgress(EmbyItem item)=>item.UserData?.Played==true?"已看":item.UserData?.PlaybackPositionTicks>0?TicksClock(item.UserData.PlaybackPositionTicks):"未播放";
         private static string TicksClock(long ticks){var value=TimeSpan.FromTicks(Math.Max(0,ticks));return value.TotalHours>=1?$"{(int)value.TotalHours}:{value.Minutes:00}:{value.Seconds:00}":$"{value.Minutes:00}:{value.Seconds:00}";}
         private static string PlainOverview(string text)=>System.Net.WebUtility.HtmlDecode(System.Text.RegularExpressions.Regex.Replace(text,"<[^>]*>",""));
     }
