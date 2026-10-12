@@ -9,7 +9,7 @@ namespace VRPlayer
 {
     public sealed class BrowserRow
     {
-        public string key,label,detail,secondary;
+        public string key,label,detail,secondary,subtitle;
         public Action open,action;
         public bool selected;
     }
@@ -24,7 +24,7 @@ namespace VRPlayer
         private int first=-1;
         private bool dirty;
         private bool quickStyle;
-        private sealed class Row {public RectTransform root;public Button open,action;public TextMeshProUGUI label,detail,actionLabel;public RowBinding binding;}
+        private sealed class Row {public RectTransform root;public Button open,action;public TextMeshProUGUI label,detail,actionLabel,subtitle;public RowBinding binding;public float fontSize,labelHeight;}
         public float Offset=>body==null?0:body.anchoredPosition.y;
         public int PoolCount=>pool.Count;
         public int Count=>items.Count;
@@ -43,6 +43,8 @@ namespace VRPlayer
                 row.binding=row.root.gameObject.AddComponent<RowBinding>();
                 row.open=quickStyle?QuickUiFactory.Button(row.root,"",0,0,width-230,56,()=>row.binding.Open()):UiFactory.Button(row.root,"",0,0,width-230,56,()=>row.binding.Open());row.label=row.open.GetComponentInChildren<TextMeshProUGUI>();row.label.alignment=TextAlignmentOptions.Left;
                 row.open.gameObject.AddComponent<RowPress>().Bind(row.binding);
+                row.fontSize=row.label.fontSize;row.labelHeight=row.label.rectTransform.sizeDelta.y;
+                row.subtitle=UiFactory.Label(row.open.transform,"",12,34,width-254,26,17);row.subtitle.color=UiFactory.Muted;row.subtitle.gameObject.SetActive(false);
                 row.action=UiFactory.Button(row.root,"",width-216,0,180,56,()=>row.binding.Action());row.actionLabel=row.action.GetComponentInChildren<TextMeshProUGUI>();
                 row.action.gameObject.AddComponent<RowPress>().Bind(row.binding);
                 row.detail=UiFactory.Label(row.root,"",width-216,0,180,56,22,TextAlignmentOptions.Right);pool.Add(row);
@@ -65,6 +67,9 @@ namespace VRPlayer
                 var row=pool[i];int index=start+i;row.root.gameObject.SetActive(index<items.Count);if(index>=items.Count)continue;
                 var item=items[index];row.root.anchoredPosition=new Vector2(0,-index*RowPitch);row.binding.Item=item;
                 row.label.text=item.label;row.open.interactable=item.open!=null;
+                bool hasSubtitle=!string.IsNullOrEmpty(item.subtitle);row.subtitle.gameObject.SetActive(hasSubtitle);row.subtitle.text=item.subtitle;
+                row.label.fontSize=hasSubtitle?Mathf.Min(23,row.fontSize):row.fontSize;row.label.rectTransform.sizeDelta=new Vector2(row.label.rectTransform.sizeDelta.x,hasSubtitle?34:row.labelHeight);
+                foreach(var rect in new[]{row.root,(RectTransform)row.open.transform,(RectTransform)row.action.transform})rect.sizeDelta=new Vector2(rect.sizeDelta.x,hasSubtitle?60:56);
                 if(quickStyle){QuickUiFactory.Select(row.open,item.selected);row.detail.color=item.selected?QuickUiFactory.Blue:UiFactory.Muted;}
                 row.action.gameObject.SetActive(item.action!=null);row.actionLabel.text=item.secondary;
                 row.detail.gameObject.SetActive(item.action==null);row.detail.text=item.detail;

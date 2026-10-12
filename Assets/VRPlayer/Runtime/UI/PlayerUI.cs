@@ -197,7 +197,7 @@ namespace VRPlayer
             }
             Hide();return true;
         }
-        public void PlaybackOpened(){SurfaceRevision++;seekGesture?.Cancel();Quick?.PlaybackOpened();LastInteraction=Time.unscaledTime;}
+        public void PlaybackOpened(){SurfaceRevision++;seekGesture?.Cancel();Quick?.PlaybackOpened();if(app?.Source==FileSource.Recent)fileList?.SetOffset(0);LastInteraction=Time.unscaledTime;}
         private void Draw()
         {
             if(content==null)return;RememberFileOffset();fileRowsReady=false;embyBrowser?.ReleasePanel();UiFactory.Clear(content);detail=null;formatLabel=null;address=filter=null;fileList=null;preview=null;scanLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
@@ -211,28 +211,35 @@ namespace VRPlayer
             UiFactory.Button(content,"收藏",224,0,104,44,()=>ChangeSource(app.ShowFavorites));UiFactory.Button(content,"最近",336,0,104,44,()=>ChangeSource(app.ShowRecent));
             var emby=UiFactory.Button(content,"Emby",448,0,104,44,()=>ChangeSource(app.ShowEmby));UiFactory.SetAccent(emby,app.Source==FileSource.Emby);
             if(app.Source==FileSource.Emby){fileKey=CurrentFileKey;embyBrowser.Bind(UiFactory.Rect(content,"Emby browser",0,60,1376,content.rect.height-60));return;}
-            UiFactory.Button(content,"添加 SMB",560,0,148,44,DrawServerForm);
-            UiFactory.Button(content,"收藏此目录",720,0,232,44,()=>{if(!string.IsNullOrEmpty(app.DirectoryUri))app.AddFavorite(Uri.UnescapeDataString(app.DirectoryUri.Split('/').LastOrDefault(x=>x.Length>0)??"目录"),app.DirectoryUri);});
             undoButton=UiFactory.Button(content,"撤销移除",964,0,256,44,UndoFavorite);undoButton.gameObject.SetActive(false);
             UiFactory.Button(content,"取消",1252,0,124,44,()=>{app.CancelListing();app.SetStatus("已取消读取");});
-            if(app.Source==FileSource.Smb){scanLabel=UiFactory.Label(content,"",0,60,988,48,23);UiFactory.Button(content,"重新扫描",1002,60,180,48,app.StartDiscovery);UiFactory.Button(content,"停止扫描",1196,60,180,48,()=>{app.StopDiscovery();RefreshFileRows();});}
+            if(app.Source==FileSource.Smb){scanLabel=UiFactory.Label(content,"",0,60,790,48,23);UiFactory.Button(content,"手动添加",804,60,184,48,DrawServerForm);UiFactory.Button(content,"重新扫描",1002,60,180,48,app.StartDiscovery);UiFactory.Button(content,"停止扫描",1196,60,180,48,()=>{app.StopDiscovery();RefreshFileRows();});}
             else{string originalUri=app.DirectoryUri;address=UiFactory.Input(content,FileLibrary.DisplayAddress(originalUri),"输入本地目录或选择一个来源",0,60,1034,48,ShowKeyboard);
             UiFactory.Button(content,"打开",1046,60,102,48,()=>{query="";_ = app.Browse(FileLibrary.ParseAddress(address.text,originalUri));});UiFactory.Button(content,"上级",1160,60,102,48,UpDirectory);UiFactory.Button(content,"刷新",1274,60,102,48,app.Refresh);}
-            filter=UiFactory.Input(content,query,"搜索当前目录",0,126,864,44,ShowKeyboard);filter.onValueChanged.AddListener(value=>query=value);
-            UiFactory.Button(content,"搜索",876,126,100,44,()=>{query=filter.text;Draw();});UiFactory.Button(content,new[]{"名称排序","日期排序","大小排序"}[sort],988,126,184,44,()=>{sort=(sort+1)%3;Draw();});UiFactory.Button(content,subtitleBrowse?"字幕文件":"视频文件",1184,126,192,44,()=>{subtitleBrowse=!subtitleBrowse;Draw();});
+            filter=UiFactory.Input(content,query,"搜索当前目录",0,126,752,44,ShowKeyboard);filter.onValueChanged.AddListener(value=>query=value);
+            UiFactory.Button(content,"搜索",764,126,100,44,()=>{query=filter.text;Draw();});
+            var favorite=UiFactory.Button(content,"收藏",876,126,100,44,()=>{if(!string.IsNullOrEmpty(app.DirectoryUri))app.AddFavorite(Uri.UnescapeDataString(app.DirectoryUri.Split('/').LastOrDefault(x=>x.Length>0)??"目录"),app.DirectoryUri);});favorite.name="Favorite directory";favorite.interactable=!string.IsNullOrEmpty(app.DirectoryUri);
+            var order=UiFactory.Button(content,app.Source==FileSource.Recent?"最近播放优先":new[]{"名称排序","日期排序","大小排序"}[sort],988,126,184,44,()=>{sort=(sort+1)%3;Draw();});order.interactable=app.Source!=FileSource.Recent;var mode=UiFactory.Button(content,app.Source==FileSource.Recent?"播放历史":subtitleBrowse?"字幕文件":"视频文件",1184,126,192,44,()=>{subtitleBrowse=!subtitleBrowse;Draw();});mode.interactable=app.Source!=FileSource.Recent;
             float listHeight=content.rect.height-190;
             var viewport=UiFactory.Rect(content,"File list",0,190,1376,listHeight);fileList=viewport.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(1376,listHeight);
             fileViewKey=CurrentFileViewKey;fileQuery=query;fileKey=CurrentFileKey;fileRestorePending=true;
             fileOffset=filePositions.TryGetValue(fileViewKey,out var position)&&position.query==query?position.offset:0;
             RefreshFileRows();
         }
+        private static string RecentDescription(PlaybackRecord record)
+        {
+            if(record==null)return "";
+            string source=EmbyIdentity.TryParse(record.uri,out _,out _)?"Emby":(record.uri??"").StartsWith("smb://",StringComparison.OrdinalIgnoreCase)?"SMB":"本地";
+            string date=DateTimeOffset.TryParse(record.lastPlayed,out var time)?time.ToLocalTime().ToString("MM-dd HH:mm:ss"):"时间未知";
+            return source+" · "+date+" · 进度 "+Clock(record.position);
+        }
         private void ChangeSource(Action change){RememberFileOffset();CloseKeyboard();CancelSmbConnection();query="";fileOffset=0;fileKey="";SurfaceRevision++;change();}
         private void RefreshFileRows()
         {
             if(fileList==null||tab!="文件"||modal!="")return;
             RememberFileOffset();if(app.Loading)fileRestorePending=true;
-            IEnumerable<FileEntry> items=app.Files.Where(e=>(e.directory||(subtitleBrowse?e.IsSubtitle:e.IsVideo))&&(string.IsNullOrEmpty(query)||e.name.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0));
-            items=sort==1?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.modified):sort==2?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.size):items.OrderByDescending(e=>e.directory).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase);
+            IEnumerable<FileEntry> items=app.Files.Where(e=>(e.directory||(app.Source==FileSource.Recent?e.IsVideo:subtitleBrowse?e.IsSubtitle:e.IsVideo))&&(string.IsNullOrEmpty(query)||(e.name??"").IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0));
+            if(app.Source!=FileSource.Recent)items=sort==1?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.modified):sort==2?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.size):items.OrderByDescending(e=>e.directory).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase);
             var list=items.ToList();var rows=new List<BrowserRow>();
             if(app.Source==FileSource.Smb)rows.Add(new BrowserRow{key="saved",label="已保存的共享"});
             foreach(FileEntry item in list){
@@ -240,7 +247,7 @@ namespace VRPlayer
                 var row=new BrowserRow{key=item.uri,label=prefix+item.name,detail=item.directory?"打开":Size(item.size),open=()=>{query="";if(item.directory)_ = app.Browse(item.uri,physicalParent:app.Source==FileSource.Directory?app.DirectoryUri:null);else if(item.IsSubtitle){_ = app.LoadSubtitle(item.uri);SelectTab("字幕");}else app.OpenRecentOrFile(item);}};
                 if(app.Source==FileSource.Favorites){row.secondary="移除";row.action=()=>RemoveFavorite(item.uri);}
                 else if(app.Source==FileSource.Smb){row.secondary="编辑";row.action=()=>DrawServerForm(app.FindServer(item.uri));}
-                else if(app.Source==FileSource.Recent){row.secondary="所在目录";row.action=()=>app.OpenContainingDirectory(item.uri);}
+                else if(app.Source==FileSource.Recent){row.subtitle=RecentDescription(app.Store.Find(item.uri));row.secondary=EmbyIdentity.TryParse(item.uri,out _,out _)?"影片详情":"所在目录";row.action=()=>app.OpenContainingDirectory(item.uri);}
                 if(app.Source==FileSource.Directory&&item.uri==app.LocateFileUri)row.label="▶ "+row.label;
                 rows.Add(row);
             }
@@ -358,7 +365,7 @@ namespace VRPlayer
             UiFactory.Button(content,app.Store.Settings.sequential?"目录连播：开":"目录连播：关",330,225,310,52,()=>{app.Store.Settings.sequential=!app.Store.Settings.sequential;Draw();});
             UiFactory.Button(content,app.Store.Settings.autoHide?"自动隐藏：开":"自动隐藏：关",660,225,310,52,()=>{app.Store.Settings.autoHide=!app.Store.Settings.autoHide;Draw();});
             UiFactory.Button(content,"选择音轨 / 内嵌字幕",0,305,440,52,DrawTracks);
-            UiFactory.Button(content,"清空播放记录",0,391,310,52,()=>{app.Store.Settings.history.Clear();app.Store.Save();app.SetStatus("播放记录已清空");});
+            UiFactory.Button(content,"清空播放记录",0,391,310,52,app.ClearPlaybackHistory);
             UiFactory.Button(content,"自动加载同名 SRT："+(app.Store.Settings.autoLoadSubtitles?"开":"关"),330,391,500,52,()=>{app.SetAutoLoadSubtitles(!app.Store.Settings.autoLoadSubtitles);Draw();});
             UiFactory.Button(content,"格式："+new[]{"关闭","标签与元数据","增强识别"}[(int)app.Store.Settings.formatDetection],850,391,526,52,()=>{app.SetFormatDetectionMode((FormatDetectionMode)(((int)app.Store.Settings.formatDetection+1)%3));Draw();});
             var instructions=UiFactory.Label(content,"扳机开关简易面板；A / X 或菜单键开关完整面板；Y / B 返回。摇杆左右 ±10 秒。\n自动字幕：中文后缀 → 无后缀 → 其他语言；手动选择与关闭状态优先。\n键盘：空格播放暂停，← / → 快退快进，Tab 完整面板，Esc 返回。观看方向使用系统重置。",0,478,1376,122,24);instructions.textWrappingMode=TextWrappingModes.Normal;

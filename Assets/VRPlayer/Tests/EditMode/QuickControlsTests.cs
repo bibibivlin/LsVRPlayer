@@ -171,13 +171,17 @@ namespace VRPlayer.Tests
         }
         [Test] public void BackClosesKeyboardBeforeSmbFormAndFullPanel()
         {
+            // This inactive UI rig checks navigation, not SMB discovery coroutines.
+            LogAssert.Expect(LogType.Error,"Coroutine couldn't be started because the the game object 'Quick controls test' is inactive!");
+            Set("Source",FileSource.Smb);ui.SelectTab("文件");
             var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
-            foreach(var button in content.GetComponentsInChildren<Button>())if(button.name=="添加 SMB"){button.onClick.Invoke();break;}
+            foreach(var button in content.GetComponentsInChildren<Button>())if(button.name=="手动添加"){button.onClick.Invoke();break;}
             var modal=typeof(PlayerUI).GetField("modal",BindingFlags.Instance|BindingFlags.NonPublic);Assert.That(modal.GetValue(ui),Is.EqualTo("server"));
             var field=content.GetComponentInChildren<TMPro.TMP_InputField>();
             typeof(PlayerUI).GetMethod("ShowKeyboard",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(ui,new object[]{field});
             var keyboard=(RectTransform)typeof(PlayerUI).GetField("keyboard",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
             ui.Back();Assert.That(keyboard.gameObject.activeSelf,Is.False);Assert.That(modal.GetValue(ui),Is.EqualTo("server"));Assert.That(ui.Visible);
+            LogAssert.Expect(LogType.Error,"Coroutine couldn't be started because the the game object 'Quick controls test' is inactive!");
             ui.Back();Assert.That(modal.GetValue(ui),Is.Empty);Assert.That(ui.Visible);ui.Back();Assert.That(ui.AnyVisible,Is.False);
         }
         [Test] public void BackCancelsSmbRequestWithoutLeavingFilesPage()
@@ -430,7 +434,8 @@ namespace VRPlayer.Tests
         [Test] public void ModalListsCannotReplaceDirectoryScrollMemory()
         {
             DirectorySnapshot("smb://fixture/parent",40);FullFileList.SetOffset(1177);
-            FileButton("添加 SMB");ui.Back();Assert.That(FullFileList.Offset,Is.EqualTo(1177));
+            typeof(PlayerUI).GetMethod("DrawServerForm",BindingFlags.Instance|BindingFlags.NonPublic,null,Type.EmptyTypes,null).Invoke(ui,null);
+            ui.Back();Assert.That(FullFileList.Offset,Is.EqualTo(1177));
         }
         [Test] public void SortAndSubtitleViewsKeepIndependentPositions()
         {
@@ -583,6 +588,104 @@ namespace VRPlayer.Tests
             Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));Assert.That(app.Presenter.Settings.distance,Is.EqualTo(7));
             Assert.That(app.Presenter.Settings.projection,Is.EqualTo(Projection.Equirect360));Assert.That(app.Presenter.Settings.stereo,Is.EqualTo(StereoLayout.SideBySide));Assert.That(app.Current.formatLocked);
         }
+        private System.Collections.Generic.IReadOnlyList<BrowserRow> RecentRows=>
+            (System.Collections.Generic.IReadOnlyList<BrowserRow>)typeof(VirtualFileList).GetField("items",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(FullFileList);
+
+        [TestCase(0)][TestCase(1)][TestCase(2)] public void RecentOrderIgnoresInheritedDirectorySortingAndRefreshesRepeatedOpens(int inheritedSort)
+        {
+            store.Settings.history.Clear();
+            var a=new FileEntry{name="A.mp4",uri="file:///a.mp4",modified=999,size=999};var z=new FileEntry{name="Z.mp4",uri="file:///z.mp4",modified=1,size=1};
+            store.Touch(a,"file:///");store.Touch(z,"file:///");
+            typeof(PlayerUI).GetField("sort",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(ui,inheritedSort);
+            app.ShowRecent();Assert.That(RecentRows.Select(row=>row.key),Is.EqualTo(new[]{z.uri,a.uri}));
+            var record=store.Find(a.uri);record.lastPlayed="2000-01-01T00:00:00Z";record.position=15000;
+            store.Touch(a,"file:///");app.Notify();
+            Assert.That(app.Files.Select(file=>file.uri),Is.EqualTo(new[]{a.uri,z.uri}));
+            Assert.That(RecentRows.Select(row=>row.key),Is.EqualTo(new[]{a.uri,z.uri}));
+            Assert.That(RecentRows[0].subtitle,Does.Contain("本地").And.Contain("00:15"));
+            Assert.That(store.Settings.history.Count,Is.EqualTo(2));Assert.That(DateTimeOffset.Parse(record.lastPlayed).Year,Is.GreaterThan(2000));
+        }
+
+        [Test] public void RecentAlwaysShowsVideosAndEmbyTitlesWithoutExtensions()
+        {
+            store.Settings.history.Clear();store.Touch(new FileEntry{name="本地.mp4",uri="file:///movie.mp4"},"file:///");
+            store.Touch(new FileEntry{name="远程影片",uri="emby://account/movie"},"emby://account/main");
+            typeof(PlayerUI).GetField("subtitleBrowse",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(ui,true);
+            app.ShowRecent();Assert.That(RecentRows.Count,Is.EqualTo(2));
+            Assert.That(RecentRows[0].subtitle,Does.StartWith("Emby · "));Assert.That(RecentRows[0].secondary,Is.EqualTo("影片详情"));
+            var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+            Assert.That(content.GetComponentsInChildren<Button>().First(button=>button.name=="最近播放优先").interactable,Is.False);
+        }
+
+        [Test] public void RecentTitleAndProgressRenderTogetherAndRecycledDirectoryRowsKeepOneLine()
+        {
+            store.Settings.history.Clear();store.Touch(new FileEntry{name="测试影片 CD2",uri="emby://account/cd2"},"emby://account/main").position=11000;
+            app.ShowRecent();Canvas.ForceUpdateCanvases();FullFileList.SetOffset(0);
+            var row=FullFileList.GetComponentsInChildren<RowBinding>().First(binding=>binding.Item?.key=="emby://account/cd2");
+            var title=row.GetComponentsInChildren<TMPro.TextMeshProUGUI>().Single(label=>label.text.Contains("测试影片"));
+            var progress=row.GetComponentsInChildren<TMPro.TextMeshProUGUI>().Single(label=>label.text.Contains("进度"));
+            title.ForceMeshUpdate();progress.ForceMeshUpdate();
+            Assert.That(title.textInfo.characterInfo.Take(title.textInfo.characterCount).Any(character=>character.isVisible),Is.True);
+            Assert.That(progress.textInfo.characterInfo.Take(progress.textInfo.characterCount).Any(character=>character.isVisible),Is.True);
+            FullFileList.SetRows(new[]{new BrowserRow{key="directory",label="普通目录",open=()=>{}}});
+            Assert.That(row.GetComponentsInChildren<TMPro.TextMeshProUGUI>().Any(label=>(label.text??"").Contains("进度")),Is.False);
+            title.ForceMeshUpdate();Assert.That(title.textInfo.characterInfo.Take(title.textInfo.characterCount).Any(character=>character.isVisible),Is.True);
+        }
+
+        [Test] public void SavingProgressUpdatesVisibleRecentRowsAndClearingRemainsEmpty()
+        {
+            app.ShowRecent();backend.Snapshot.position=27000;app.SaveProgress();
+            Assert.That(RecentRows[0].subtitle,Does.Contain("00:27"));
+            app.ClearPlaybackHistory();Assert.That(store.Settings.history,Is.Empty);Assert.That(RecentRows[0].key,Is.EqualTo("empty"));
+            app.SaveProgress();Assert.That(store.Settings.history,Is.Empty);Assert.That(RecentRows[0].key,Is.EqualTo("empty"));
+        }
+
+        [Test] public void OpeningALocalRecentRowMovesItFirstAndKeepsItsStoredParent()
+        {
+            var file=new FileEntry{name="Z.mp4",uri="file:///z.mp4"};store.Touch(file,"file:///owned-parent");
+            store.Touch(new FileEntry{name="A.mp4",uri="file:///a.mp4"},"file:///");app.ShowRecent();
+            RecentRows.First(row=>row.key==file.uri).open();
+            Assert.That(app.Current.uri,Is.EqualTo(file.uri));Assert.That(app.Current.directory,Is.EqualTo("file:///owned-parent"));
+            Assert.That(RecentRows[0].key,Is.EqualTo(file.uri));Assert.That(FullFileList.Offset,Is.Zero);
+            Assert.That(new PlayerStore(path).Settings.history[0].uri,Is.EqualTo(file.uri),"A new open must persist without waiting for the periodic progress timer");
+        }
+
+        [Test] public void MissingEmbyHistoryAccountOpensLoginAndBackReturnsToRecent()
+        {
+            var uri="emby://missing/movie";store.Touch(new FileEntry{name="Emby 影片",uri=uri},"emby://missing/main");app.ShowRecent();
+            app.OpenRecentOrFile(app.Files.First(file=>file.uri==uri));
+            Assert.That(app.Source,Is.EqualTo(FileSource.Emby));Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Accounts));
+            Assert.That(app.Current.uri,Is.EqualTo("file:///generated.mp4"));
+            ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Recent));Assert.That(RecentRows[0].key,Is.EqualTo(uri));
+        }
+
+        [TestCase(false)][TestCase(true)] public async Task EmbyHistoryJumpLoadsTheStoredAccountAndDoesNotPlayAfterReturn(bool detailsOnly)
+        {
+            string accountsPath=path+".accounts";var gate=new TaskCompletionSource<bool>();
+            var accounts=new EmbyAccountStore(accountsPath,()=>"",_=>true);
+            var account=new EmbyAccount{id="history",serverUrl="http://example.test:8096",serverId="fixture-server",userId="fixture-user",accessToken="fixture-token",remember=false};
+            accounts.Upsert(account);
+            typeof(PlayerApp).GetField("embyAccounts",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(app,accounts);
+            typeof(PlayerApp).GetField("embyReports",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(app,gate.Task);
+            string uri=EmbyIdentity.Create(account.id,"cd2");store.Touch(new FileEntry{name="CD2",uri=uri},EmbyIdentity.Create(account.id,"main"));
+            try{
+                app.ShowRecent();long generation=app.Generation;
+                if(detailsOnly)app.OpenContainingDirectory(uri);else app.OpenRecentOrFile(app.Files.First(file=>file.uri==uri));
+                Assert.That(app.Source,Is.EqualTo(FileSource.Emby));Assert.That(app.ActiveEmbyAccount,Is.SameAs(account));
+                Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Details));Assert.That(app.EmbyState.selected.Id,Is.EqualTo("cd2"));
+                Assert.That(app.EmbyState.loading,Is.True);
+                var opening=(System.Threading.CancellationTokenSource)typeof(PlayerApp).GetField("embyOpening",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(app);
+                Assert.That(opening!=null,Is.EqualTo(!detailsOnly));
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Recent));gate.SetResult(true);await Task.Yield();
+                Assert.That(app.Generation,Is.EqualTo(generation));Assert.That(app.Current.uri,Is.EqualTo("file:///generated.mp4"));
+                Assert.That(JsonUtility.ToJson(store.Settings),Does.Not.Contain("fixture-token").And.Not.Contain("example.test"));
+            }finally{
+                app.CancelListing();gate.TrySetResult(true);await Task.Yield();
+                typeof(PlayerApp).GetField("embyReports",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(app,Task.CompletedTask);
+                if(File.Exists(accountsPath))File.Delete(accountsPath);
+            }
+        }
+
         private sealed class TestBackend : IMediaBackend
         {
             public MediaSnapshot Snapshot{get;private set;}=new MediaSnapshot{tracks=new[]{new MediaTrack{id="generated",type=3,supported=true,name="Generated subtitle"}}};

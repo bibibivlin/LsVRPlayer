@@ -48,6 +48,7 @@ namespace VRPlayer
         private bool embyDisposed;
         private EmbyMovieParts embyMovieParts;
         private EmbyMovieExtras embyMovieExtras;
+        private bool embyRecentReturn;
 
         private void InitializeEmby()
         {
@@ -58,6 +59,7 @@ namespace VRPlayer
 
         public void ShowEmby()
         {
+            embyRecentReturn=false;
             StopDiscovery();
             if(Source==FileSource.Emby){
                 listing?.Cancel();listing?.Dispose();listing=null;Loading=false;CancelEmbyBrowsing(false);
@@ -183,7 +185,7 @@ namespace VRPlayer
             RememberEmbyPage();_ = LoadEmbyDetails(item);
         }
 
-        private async Task LoadEmbyDetails(EmbyItem item,string directory=null)
+        private async Task LoadEmbyDetails(EmbyItem item,string directory=null,string playbackItemId=null,CancellationToken playbackToken=default)
         {
             var account=ActiveEmbyAccount;if(account==null)return;
             var state=new EmbyBrowserState{page=EmbyPage.Details,title=item.Name,selected=item,loading=true,canGoBack=true};
@@ -199,7 +201,15 @@ namespace VRPlayer
                 state.selected=detail;state.title=detail.Name;
                 state.parts=EmbyMovieParts.Create(account.id,detail,parts.Result)?.Items.ToArray()??Array.Empty<EmbyItem>();
                 state.extras=extras.Result??Array.Empty<EmbyItem>();state.loading=false;PublishEmby(state);
+                if(playbackItemId!=null&&!token.IsCancellationRequested&&!playbackToken.IsCancellationRequested&&ActiveEmbyAccount==account&&Source==FileSource.Emby){
+                    var sequence=EmbyMovieParts.FromDetails(account.id,state);
+                    var features=EmbyMovieExtras.FromDetails(account.id,state);
+                    bool isPart=sequence?.IndexOf(playbackItemId)>=0,isExtra=features?.IndexOf(playbackItemId)>=0;
+                    if(detail.Id==playbackItemId||isPart||isExtra)
+                        _ = ResolveEmbyVideo(account,playbackItemId,directory,null,false,true,isPart?sequence:null,isExtra?features:null);
+                }
             }catch(OperationCanceledException){}catch(Exception ex){FailEmby(token,ex,account);}
+            finally{if(playbackItemId!=null&&embyOpening?.Token==playbackToken){embyOpening.Dispose();embyOpening=null;}}
         }
 
         public void OpenEmbyPerson(EmbyPerson person)
@@ -244,6 +254,7 @@ namespace VRPlayer
         {
             CancelEmbyBrowsing(false);
             if(embyPages.Count>0){PublishEmby(embyPages.Pop());return;}
+            if(ReturnToRecentFromEmby())return;
             if(EmbyState.page==EmbyPage.Home)ShowEmbyAccounts();else EmbyHome();
         }
 
@@ -267,7 +278,7 @@ namespace VRPlayer
         {
             embyBrowsing?.Cancel();embyBrowsing?.Dispose();embyBrowsing=null;
             if(EmbyState.loading){EmbyState.loading=false;EmbyState.revision=++embyRevision;}
-            if(cancelPlayback)CancelEmbyPlaybackRequest();
+            if(cancelPlayback){embyRecentReturn=false;CancelEmbyPlaybackRequest();}
         }
         private void PublishEmby(EmbyBrowserState state)
         {
@@ -385,7 +396,6 @@ namespace VRPlayer
                 embyOpening.Dispose();embyOpening=null;
                 OpenVideo(entry,parent,inheritedFormat,keepPlaylist,playback);
                 CompleteEmbyOpen(parts,siblings,keepPlaylist,entry.uri,generation+1,extras);
-                Store.Save();
             }catch(OperationCanceledException){}catch(Exception ex){if(!token.IsCancellationRequested&&!embyDisposed){if(ex is EmbyAuthenticationException)FailEmby(token,ex,account);else SetStatus(EmbyClient.SafeError(ex));}}
         }
 
@@ -460,15 +470,28 @@ namespace VRPlayer
             return new FileEntry{name=item.Name,formatName=filename,uri=EmbyIdentity.Create(account.id,item.Id),size=source?.Size??0,modified=modified,metadataVerified=source?.Size>0&&modified>0};
         }
 
-        private bool OpenEmbyContainingItem(string uri)
+        private bool OpenEmbyContainingItem(string uri)=>OpenEmbyHistoryItem(uri,false);
+
+        private bool OpenEmbyHistoryItem(string uri,bool play)
         {
             if(!EmbyIdentity.TryParse(uri,out string accountId,out string itemId))return false;
+            bool fromRecent=Source==FileSource.Recent;
+            if(fromRecent)RememberBrowserLocation();
+            CancelListing();StopDiscovery();embyRecentReturn=fromRecent;
             var account=EmbyAccounts.FirstOrDefault(x=>x.id==accountId);
             if(account==null||string.IsNullOrEmpty(account.accessToken)){ShowEmbyAccounts();SetStatus("请登录此播放记录对应的 Emby 账户");return true;}
-            CancelListing();StopDiscovery();Source=FileSource.Emby;ActiveEmbyAccount=account;embyPages.Clear();
+            Source=FileSource.Emby;ActiveEmbyAccount=account;embyPages.Clear();
             var record=Store.Find(uri);
-            UI.PrepareDirectoryNavigation();
-            _ = LoadEmbyDetails(new EmbyItem{Id=itemId,Name=record?.name??"影片"},record?.directory??"");return true;
+            UI?.PrepareDirectoryNavigation();
+            CancellationToken playbackToken=default;
+            if(play){embyOpening=new CancellationTokenSource();playbackToken=embyOpening.Token;}
+            _ = LoadEmbyDetails(new EmbyItem{Id=itemId,Name=record?.name??"影片"},record?.directory??"",play?itemId:null,playbackToken);return true;
+        }
+
+        public bool ReturnToRecentFromEmby()
+        {
+            if(Source!=FileSource.Emby||!embyRecentReturn)return false;
+            CancelEmbyBrowsing();Source=FileSource.Recent;return BrowseBack();
         }
 
         private static EmbyAccount CopyEmbyAccount(EmbyAccount account)=>new EmbyAccount{

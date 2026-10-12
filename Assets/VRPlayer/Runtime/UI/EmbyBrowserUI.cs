@@ -73,7 +73,7 @@ namespace VRPlayer
             if(app==null)return false;
             if(login){ReturnFromLogin();return true;}
             if(!string.IsNullOrEmpty(removing)){closeKeyboard?.Invoke();removing="";Render(true);return true;}
-            if(app.EmbyState.page==EmbyPage.Accounts)return false;
+            if(app.EmbyState.page==EmbyPage.Accounts)return app.ReturnToRecentFromEmby();
             closeKeyboard?.Invoke();app.EmbyBack();return true;
         }
         private void ReturnFromLogin()
@@ -104,7 +104,7 @@ namespace VRPlayer
             UiFactory.Box(root,"Emby background",0,0,1376,root.rect.height,Background,true);
             if(login||state.page==EmbyPage.Accounts){if(login)DrawLogin();else DrawAccounts();}
             else{
-                DrawHeader(state.title);
+                DrawHeader(state.title,state.page!=EmbyPage.Details);
                 if(state.loading){UiFactory.Label(root,"正在读取媒体库…",28,160,1320,64,32);UiFactory.Label(root,"请稍候",28,226,1320,44,24).color=Muted;}
                 else if(!string.IsNullOrEmpty(state.error)){DrawError(state.error);}
                 else if(state.page==EmbyPage.Home)DrawHome();
@@ -128,10 +128,10 @@ namespace VRPlayer
             float height=scroll==null?root.rect.height:scroll.viewport.rect.height;
             if(imageScheduleDirty||float.IsNaN(imageOffset)||Mathf.Abs(Offset-imageOffset)>1||Mathf.Abs(height-imageViewportHeight)>1){UpdatePosterWall();ScheduleImages();}
         }
-        private void DrawHeader(string title)
+        private void DrawHeader(string title,bool showTitle=true)
         {
             Button(root,"返回",14,10,100,48,()=>{closeKeyboard?.Invoke();app.EmbyBack();});
-            var label=UiFactory.Label(root,string.IsNullOrEmpty(title)?"Emby · "+AccountName(app.ActiveEmbyAccount):title,132,8,700,50,30);label.color=Color.white;
+            if(showTitle){var label=UiFactory.Label(root,string.IsNullOrEmpty(title)?"Emby · "+AccountName(app.ActiveEmbyAccount):title,132,8,700,50,30);label.color=Color.white;}
             Button(root,"首页",852,10,120,48,()=>{closeKeyboard?.Invoke();app.EmbyHome();});
             Button(root,"账户与服务器",988,10,220,48,()=>{closeKeyboard?.Invoke();login=false;removing="";app.ShowEmbyAccounts();});
             Button(root,"刷新",1224,10,138,48,()=>app.RefreshEmby());
@@ -317,12 +317,11 @@ namespace VRPlayer
             BeginScroll(76,root.rect.height-90);
             Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
             var name=UiFactory.Label(body,DisplayName(item),290,8,1026,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
-            UiFactory.Label(body,DetailsMeta(item),290,98,1026,42,25).color=Muted;
-            float categoryY=146;
-            categoryY=CategoryRow("类型","Genre",Categories(item.GenreItems,item.Genres),categoryY);
-            categoryY=CategoryRow("标签","Tag",Categories(item.TagItems,item.Tags),categoryY);
-            categoryY=CategoryRow("制片厂","Studio",Categories(item.Studios,null),categoryY);
-            float playY=Mathf.Max(204,categoryY+4);
+            name.overflowMode=TextOverflowModes.Overflow;
+            float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,1026,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(1026,nameHeight);
+            float metaY=nameHeight+20;
+            UiFactory.Label(body,DetailsMeta(item),290,metaY,1026,42,25).color=Muted;
+            float playY=metaY+60;
             float actionsBottom=playY+56;
             if(item.IsBrowsable){Button(body,"浏览季 / 剧集",290,playY,416,56,()=>app.OpenEmbyLibrary(item),true);}
             else{
@@ -351,7 +350,11 @@ namespace VRPlayer
             UiFactory.Label(body,"简介",290,overviewY,1026,46,28);
             var description=UiFactory.Label(body,overview,290,overviewY+52,1026,100,24);description.textWrappingMode=TextWrappingModes.Normal;description.alignment=TextAlignmentOptions.TopLeft;
             float overviewHeight=Mathf.Max(100,description.GetPreferredValues(overview,1026,float.PositiveInfinity).y+12);description.rectTransform.sizeDelta=new Vector2(1026,overviewHeight);
-            float y=Mathf.Max(410,overviewY+64+overviewHeight);
+            float categoryY=overviewY+64+overviewHeight;
+            categoryY=CategoryRow("类型","Genre",Categories(item.GenreItems,item.Genres),categoryY);
+            categoryY=CategoryRow("标签","Tag",Categories(item.TagItems,item.Tags),categoryY);
+            categoryY=CategoryRow("制片厂","Studio",Categories(item.Studios,null),categoryY);
+            float y=Mathf.Max(410,categoryY);
             y=DetailVideos("额外部分",app.EmbyState.parts,y,true);
             var people=(item.People??Array.Empty<EmbyPerson>()).Where(person=>person!=null&&!string.IsNullOrWhiteSpace(person.Name)).Take(24).ToArray();
             if(people.Length>0){

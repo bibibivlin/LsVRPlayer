@@ -122,7 +122,7 @@ namespace VRPlayer
 #endif
         }
         public void SetStatus(string value){Status=value;}
-        public void Notify()=>Changed?.Invoke();
+        public void Notify(){if(Source==FileSource.Recent)UpdateRecentFiles();Changed?.Invoke();}
         public void Home()
         {
             StopDiscovery();Source=FileSource.Home;CancelListing();ClearDirectoryHistory();DirectoryUri="";
@@ -211,7 +211,7 @@ namespace VRPlayer
                 Current.formatLocked=true;Current.formatLockOrigin=FormatLockOrigin.Inherited;Current.formatCache=null;
             }
             Generation++;BeginFormatDetection(entry);
-            if(inheritedFormat!=null){FormatDescription="已继承上一部播放影片的格式；可重新识别格式";Store.Save();}
+            if(inheritedFormat!=null){FormatDescription="已继承上一部播放影片的格式；可重新识别格式";}
             if(embyPlayback!=null){
                 Current.position=embyPlayback.startPositionMs;
                 BeginEmbyPlayback(embyPlayback);
@@ -219,6 +219,7 @@ namespace VRPlayer
                 else Backend.Open(embyPlayback.url,Current.position,Generation);
             }else Backend.Open(entry.uri,Current.position,Generation);
             Backend.SelectTrack("off",3);
+            Store.Save();
             Status="正在打开："+entry.name;UI.PlaybackOpened();Notify();_ = DiscoverSubtitles(Current.directory,Generation);
         }
         public void TogglePlay(){if(Backend==null||Current==null)return;if(Backend.Snapshot.playing)Pause();else Backend.Play();}
@@ -259,11 +260,14 @@ namespace VRPlayer
             if(Store==null)return;var state=Backend?.Snapshot;
             if(Current!=null&&state!=null&&state.generation==Generation&&state.duration>0){Current.position=state.state==4?0:state.position;}
             Store.Save();viewDistanceDirty=false;
+            if(Source==FileSource.Recent)Notify();
         }
         public void AddFavorite(string name,string uri){if(Store.Settings.favorites.All(x=>x.uri!=uri))Store.Settings.favorites.Add(new Favorite{name=name,uri=uri});Store.Save();Notify();}
         public void ShowFavorites(){StopDiscovery();Source=FileSource.Favorites;ClearDirectoryHistory();CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
-        public void ShowRecent(){StopDiscovery();Source=FileSource.Recent;ClearDirectoryHistory();CancelListing();DirectoryUri="";Files=Store.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified}).ToList();SetStatus("最近播放 · 选择影片恢复进度");Notify();}
-        public void OpenRecentOrFile(FileEntry entry){var record=Store.Find(entry.uri);Open(entry,record!=null&&string.IsNullOrEmpty(DirectoryUri)?record.directory:DirectoryUri);}
+        private void UpdateRecentFiles(){Files=Store?.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified,formatName=h.formatName}).ToList()??new List<FileEntry>();}
+        public void ShowRecent(){StopDiscovery();Source=FileSource.Recent;ClearDirectoryHistory();CancelListing();DirectoryUri="";SetStatus("最近播放 · 按最近播放顺序显示，选择影片恢复进度");Notify();}
+        public void ClearPlaybackHistory(){Store.Settings.history.Clear();Store.Save();SetStatus("播放记录已清空");Notify();}
+        public void OpenRecentOrFile(FileEntry entry){if(Source==FileSource.Recent&&OpenEmbyHistoryItem(entry.uri,true))return;var record=Store.Find(entry.uri);Open(entry,record!=null&&string.IsNullOrEmpty(DirectoryUri)?record.directory:DirectoryUri);}
         public void OpenContainingDirectory(string uri)
         {
             if(OpenEmbyContainingItem(uri))return;
