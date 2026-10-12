@@ -21,7 +21,7 @@ namespace VRPlayer
         private ListScrollRect scroll;
         private Action<TMP_InputField> keyboard;
         private Action closeKeyboard,surfaceChanged;
-        private int revision=-1,imageGeneration;
+        private int revision=-1,imageGeneration,loginGeneration;
         private string viewKey="",serverAddress="",serverPort="8096",username="",password="",loginError="",removing="";
         private bool login,remember=true,busy,useHttps;
         private TMP_InputField addressField,portField,userField,passwordField;
@@ -68,6 +68,18 @@ namespace VRPlayer
             CaptureLogin();RememberOffset();CancelImages();ClearPosterWall();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
         }
         public void Suspend()=>CancelImages();
+        public bool TryBack()
+        {
+            if(app==null)return false;
+            if(login){ReturnFromLogin();return true;}
+            if(!string.IsNullOrEmpty(removing)){closeKeyboard?.Invoke();removing="";Render(true);return true;}
+            if(app.EmbyState.page==EmbyPage.Accounts)return false;
+            closeKeyboard?.Invoke();app.EmbyBack();return true;
+        }
+        private void ReturnFromLogin()
+        {
+            closeKeyboard?.Invoke();loginGeneration++;busy=false;passwordField?.SetTextWithoutNotify("");password="";login=false;loginError="";removing="";app.ShowEmbyAccounts();
+        }
         public void Block(bool blocked)
         {
             if(scroll==null)return;scroll.enabled=!blocked;if(blocked)scroll.StopMovement();
@@ -169,7 +181,7 @@ namespace VRPlayer
         private void DrawLogin()
         {
             UiFactory.Label(root,"添加 Emby 服务器 / 账户",24,8,1030,54,32);
-            Button(root,busy?"取消登录":"返回",1180,10,182,48,()=>{closeKeyboard?.Invoke();passwordField?.SetTextWithoutNotify("");password="";login=false;loginError="";app.ShowEmbyAccounts();});
+            Button(root,busy?"取消登录":"返回",1180,10,182,48,ReturnFromLogin);
             UiFactory.Label(root,"输入服务器地址，并使用该服务器已有的账户登录",24,73,1320,44,24).color=Muted;
             UiFactory.Label(root,"连接协议",24,130,224,52,26);
             var protocol=Button(root,useHttps?"HTTPS":"HTTP",258,130,190,52,()=>{CaptureLogin();closeKeyboard?.Invoke();useHttps=!useHttps;Render(true);},true);protocol.interactable=!busy;
@@ -201,12 +213,14 @@ namespace VRPlayer
             try{server=EmbyServerAddress.Build(useHttps,serverAddress,serverPort);}
             catch(ArgumentException ex){loginError=ex.Message;Render(true);return;}
             if(string.IsNullOrWhiteSpace(username)){loginError="请填写 Emby 用户名";Render(true);return;}
+            int capturedGeneration=++loginGeneration;
             busy=true;loginError="";Render(true);
             try{
                 await app.LoginEmby(server,username,password,remember);
+                if(this==null||capturedGeneration!=loginGeneration||!login)return;
                 if(app.EmbyState.page!=EmbyPage.Accounts&&app.ActiveEmbyAccount!=null){login=false;passwordField?.SetTextWithoutNotify("");password="";}
-            }catch(OperationCanceledException){}catch(Exception){loginError="登录失败，请检查服务器地址与账户";}
-            finally{busy=false;if(this!=null)Render(true);}
+            }catch(OperationCanceledException){}catch(Exception){if(this!=null&&capturedGeneration==loginGeneration&&login)loginError="登录失败，请检查服务器地址与账户";}
+            finally{if(this!=null&&capturedGeneration==loginGeneration){busy=false;Render(true);}}
         }
         private void DrawHome()
         {

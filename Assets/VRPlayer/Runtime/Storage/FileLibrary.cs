@@ -41,9 +41,9 @@ namespace VRPlayer
         public static string Parent(string location)
         {
             if(string.IsNullOrEmpty(location))return null;
-            if(location.StartsWith("content:",StringComparison.OrdinalIgnoreCase))return null; // SAF parents are navigated via the explicit directory stack.
+            if(location.StartsWith("content:",StringComparison.OrdinalIgnoreCase))return null; // SAF document IDs are opaque; directory rows record their actual parents.
             if(location.StartsWith("smb:",StringComparison.OrdinalIgnoreCase)){if(!Uri.TryCreate(location,UriKind.Absolute,out var uri))return null;string path=uri.AbsolutePath.TrimEnd('/');int slash=path.LastIndexOf('/');return slash>=0&&!string.IsNullOrEmpty(path)?uri.GetLeftPart(UriPartial.Authority)+path.Substring(0,slash)+"/":null;}
-            try{string path=location.StartsWith("file:")?new Uri(location).LocalPath:location;string parent=Directory.GetParent(path)?.FullName;return parent==null?null:new Uri(parent).AbsoluteUri;}catch{return null;}
+            try{string path=Path.GetFullPath(location.StartsWith("file:")?new Uri(location).LocalPath:location);if(path==Path.GetPathRoot(path))return null;path=path.TrimEnd(Path.DirectorySeparatorChar,Path.AltDirectorySeparatorChar);string parent=Directory.GetParent(path)?.FullName;return parent==null?null:new Uri(parent).AbsoluteUri;}catch{return null;}
         }
     }
 }

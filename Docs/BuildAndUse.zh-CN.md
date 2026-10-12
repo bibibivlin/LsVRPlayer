@@ -23,6 +23,12 @@ Emby 使用现有播放器播放原始视频并保存各项 VR 设置。分 CD �
 
 0.6 的无标签识别会分别判断 SBS/OU 和投影，最多等待 60 秒有效播放以越过片头；暂停时不消耗采样窗口。投影页会显示“继承／手动格式”“有效画面不足”或继续判断投影等原因。无标签 VR180 目前保留候选与“采用建议”，尚未通过独立真实集的自动投影验收。同类影片目录可显式开启“本目录优先 VR180”，仅在已确认 SBS 后补齐 180°；元数据和明确文件名仍优先。详见 [VR180 专项实测](VR180SbsRecognitionResults.zh-CN.md)。
 
+## 返回与目录位置
+
+左手 Y／右手 B 全局返回，编辑器键盘 Esc 使用相同逻辑：先退出虚拟键盘、二级菜单或弹窗，再沿实际访问历史返回，历史用尽后关闭面板。从本地、收藏等首页直接进入深层目录后，一次返回该首页及原滚动位置，不必逐层退到文件系统根；“上级”按钮始终进入物理父目录。返回还原那次访问的搜索、排序和视频／字幕模式，刷新和读取失败后重试也保留列表位置。切换来源会清除旧来源浏览历史，切换顶部标签保留文件历史。
+
+主面板“手动选择 SRT”先返回本次选择流程中访问的目录，再返回字幕页，进入选择前的文件历史仍保留。简易字幕浏览返回打开它的弹窗，不替换主文件来源或播放列表。长按 Y／B 或双手同时按下只返回一步；失焦、后台或手柄追踪中断后需松开再按，拖动进度中返回会取消该次拖动。
+
 ## 从源码构建
 
 需要 Unity 6000.3.23f1 及 Android Build Support（SDK、NDK、OpenJDK）。Gradle 依赖首次需要网络。
@@ -34,11 +40,13 @@ Emby 使用现有播放器播放原始视频并保存各项 VR 设置。分 CD �
 
 等待 Unity 导入与编译完成，在菜单执行 **VRPlayer → Configure Project and Open Player**，随后 **VRPlayer → Build Android APK**。产物为 `Builds/LsVRPlayer.apk`。不要把 Java 源码直接当作 Unity 脚本；修改 `Native` 后需重新运行原生构建脚本。
 
-保持原有 Demo/Sample 资源；正式 APK 只包含 Player 场景。PICO 依赖已固定提交，运行时、编辑器工具和测试程序集分离。
+项目不包含 XRI Toolkit 的 Starter Assets、Device Simulator、DemoScene 或模板 SampleScene；正式 APK 只包含 Player 场景。PICO 依赖已固定提交，运行时、编辑器工具和测试程序集分离。
 
 ## 验证工具
 
 - EditMode：Unity Test Runner 中运行 `VRPlayer.Tests`。
+- 返回与目录位置：`python Tools/Device-BackNavigationTest.py --serial <PICO_SERIAL>`，需要已安装 Development APK，以及 `Tools/Generate-RecognitionMedia.py --clips` 生成并推送到 `Movies/VRPlayerTest/Recognition` 的视频和 SRT。脚本创建独占的目录／收藏夹具，通过共享输入路径检查 Y/B、物理上级、历史返回、位置恢复和字幕入口，结束时核对原始设置、命令文件及夹具清理。
+- 简易控制：`python Tools/Device-QuickControlsTest.py --serial <PICO_SERIAL>`，使用相同 Recognition 夹具，默认完整运行 17 项。两类测试需保持焦点、有效佩戴感应与新鲜诊断；中断后完整重跑，模拟输入不替代真实按键／佩戴体验确认。最新结果和验证边界见[全局返回与简易控制验证](QuickControls.zh-CN.md#验证记录)。
 - 原生 JUnit：使用 Unity 随附的 OpenJDK 与 Gradle，从项目根目录运行以下命令；安装位置不同时调整第一行。报告输出到被忽略的 `Native/Android/build/reports/tests/testDebugUnitTest/`。
 
 ```powershell

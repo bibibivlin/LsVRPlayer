@@ -4,6 +4,12 @@
 
 完整面板关闭时，对空白处按扳机开关简易控制条；对控制条、按钮或弹窗按扳机执行对应操作。呼出面板的按压会被消费，必须松开后才能点击控件。A／X／菜单键和键盘 Tab 继续开关完整面板。
 
+左手 Y／右手 B 全局逐级返回，编辑器键盘 Esc 使用同一逻辑。每次按下只退一步，长按不重复，双手同时按下也只退一步。完整面板先关闭虚拟键盘，再关闭音轨、SMB 配置／连接／共享选择等二级界面；文件浏览沿实际访问历史返回目录或本地、收藏、最近、SMB 来源首页。收藏快捷项或地址栏直接进入深层目录后，一次返回就回到进入它的首页，不需要逐级退到文件系统根。没有浏览历史的来源页或目录关闭面板。Emby 先退出登录表单或移除确认，再按详情／人物／影片墙／媒体库的已有层级返回，账户根页关闭面板。完整面板手动选择 SRT 时，先返回选择流程中打开的目录，再返回字幕选择页，进入选择前的文件浏览历史保留。
+
+简易字幕浏览也沿实际历史返回；首次从字幕弹窗打开当前影片目录，一次返回就回到字幕弹窗。从“来源”页进入目录会先返回该来源页，“来源”按钮本身也是导航的一步；历史用尽后回到打开浏览器的弹窗或控制条。其他弹窗先关闭，随后关闭控制条。面板已隐藏时返回不改变播放状态。返回会取消正在拖动的进度条，抑制未松开的扳机；摇杆需回中后才能继续操作。失焦、应用暂停或手柄追踪中断后，Y／B 需松开再按，避免恢复时意外返回；视频暂停时仍可返回。
+
+返回历史页面时恢复那次访问的滚动位置，主文件页同时恢复搜索词、排序及视频／字幕模式；重复访问同一目录也保存每一步的独立位置。“上级”按钮始终进入物理父目录，并保留该父目录先前的搜索词及位置；按 Y／B 可撤回这次“上级”导航，回到刚才的目录。SAF 不透明 URI 的父子关系由实际目录行记录，不用浏览历史猜测物理父目录。主文件页切换来源会清除旧来源的历史，顶部标签切换保留文件浏览历史；简易浏览关闭弹窗后开始新会话。两个浏览器各最多记忆 64 个视图及历史步骤，不写入影片设置。刷新或读取失败后重试会保留位置，文件减少时限制到当前列表范围；“所在目录”的指定影片定位优先于已记忆的滚动位置。
+
 控制条背景表示进度，上半部悬停显示目标时间，点击跳转，拖动后松开提交一次。下方按钮为字幕、音量、上一部、播放／暂停、下一部、模式和倍速。打开时对齐当前视线，在前方 2 米处固定；控制条中心从原位置朝视线正前方抬高三分之一，减少手柄移动幅度。指针停留或拖动期间保持显示。启用自动隐藏后，播放且离开面板 5 秒隐藏，暂停时保留。
 
 - 音量图标悬停展开滑条；在图标、连接区域和滑条之间移动保持展开，所有指针离开后关闭。点击图标静音／恢复最近的非零播放器音量。音量与完整面板同步，不调节系统媒体音量。
@@ -19,9 +25,14 @@
 
 Unity 6000.3.23f1：Test Runner → EditMode → VRPlayer.Tests。QuickControlsTests 检查显示状态、静音／字幕恢复、输入按压消费、拖动取消、双指针和保存兼容；ViewDistanceInputTests 检查摇杆方向、范围、松杆保存、界面屏蔽、失焦与追踪取消及双手柄互斥；PanoramaZoomRenderingTests 用实际投影 Shader 渲染六种投影 × 三种立体布局 × 三档缩放 × 两眼，并检查转头中心与 1× 恒等行为。
 
+全局返回回归包含 QuickControlsTests 的弹窗／键盘／搜索／目录／字幕层级，ViewDistanceInputTests 的 Y／B 边沿、双手同时按键、生命周期恢复、拖动取消、距离保存和摇杆回中，以及 EmbyIntegrationTests 的登录取消、移除确认、页面栈与旧认证回调隔离。
+
+目录位置回归使用 QuickControlsTests 与 SubtitleBrowserPositionTests，检查实际临时父子目录、上级按钮／Y／B 返回、父目录搜索恢复、加载期间切页、二级界面、同目录刷新、失败重试、列表缩短、显式影片定位、排序与字幕模式隔离，以及简易浏览快速切换的过期请求。测试中的 SMB／SAF URI 快照用于验证 UI 状态处理，不构成真实网络或系统授权读取验收。
+
 构建 Android Development APK 后，安装到 PICO。设备需有 Generate-RecognitionMedia.py --clips 生成的 Recognition 视频和 SRT。
 
 ~~~powershell
+python Tools/Device-BackNavigationTest.py --serial <PICO_SERIAL>
 python Tools/Device-QuickControlsTest.py --serial <PICO_SERIAL>
 python Tools/Device-ImprovementsTest.py --serial <PICO_SERIAL>
 python Tools/Device-AdjacentPlaybackTest.py --serial <PICO_SERIAL>
@@ -31,7 +42,45 @@ python Tools/Device-AdjacentPlaybackTest.py --serial <PICO_SERIAL>
 
 简易面板脚本通过开发版本的 VrUiInput.Dispatch 指针驱动测试真实 uGUI 命中、按压和悬停链路，并通过 ui-stick 驱动与真实手柄共用的摇杆处理路径，属于模拟输入的真机功能检查，不等同于物理扳机或佩戴体验验收。开发入口仅在 Development／Editor 构建中存在，使用原有应用私有命令通道。测试只读取生成样片，原始结果在忽略的 Docs/Validation/，截图在忽略的 Docs/Captures/。每次结束均逐字节恢复播放器设置；临时启用 USB 常亮后恢复原值并核对，不修改 screen_off_timeout。
 
+Device-BackNavigationTest.py 使用独占的三级目录夹具，每级 40 个目录及 40 个生成 SRT，并临时配置 40 个生成目录收藏项。检查经同一 HandleControllerBack 模拟左 Y、右 B 及同帧双手输入，覆盖两层目录位置恢复、物理上级与历史返回的区别、深层地址／收藏快捷项返回来源首页、刷新、长按、追踪恢复需释放、键盘、二级界面和主／简易面板关闭。每轮持续检查应用焦点、已知佩戴状态和诊断帧更新，任何中断使整轮失败；退出时 force-stop，逐字节或按原不存在状态恢复设置、诊断及命令文件，核对独占标记后删除夹具。它不修改系统唤醒设置；物理 Y／B 绑定须另行按真实手柄确认。
+
 ## 验证记录
+
+2026-10-11 至 2026-10-12（Asia/Shanghai），按实际浏览历史修正 Y／B 返回：本地或收藏首页直接进入深层目录后，一次返回原首页及其列表位置；“上级”仍访问物理父目录，Y／B 可以撤回该导航。主列表每次访问保存搜索、排序、视频／字幕模式及位置，重复访问同一 URI 也保留独立快照；加载期间切换顶部标签、零匹配搜索、最近播放的“所在目录”以及手动 SRT 入口边界均加入回归。用户已确认真实左 Y 和右 B 按键正常，本轮历史行为按开发模拟输入的真机检查记录。
+
+Unity 6000.3.23f1 的 EditMode 全套最终 426／426 通过，0 失败、0 跳过，25.45 秒。Android ARM64 Development／IL2CPP 最终构建成功，BuildReport 85.54 秒，0 错误、8 条既有 PICO／Pipeline 包警告，构建后 Console 无错误。APK 已覆盖安装到 USB PICO 4（A8110），安装文件 SHA-256 与构建文件一致；没有修改原生插件。用户原有 ProjectSettings 差异逐字节保留，生产场景及字体与构建前一致。
+
+返回与目录实机回归同一连续运行 26／26 通过，主目录两层位置分别为 1223.40 和 1224.80 像素，深层收藏返回恢复 1165.64 像素，简易字幕目录两层分别为 1221.72 和 1224.71 像素。覆盖本地地址／收藏快捷项一次返回来源首页、物理上级与历史返回的区别、标签切换、手动 SRT 入口及内部目录、键盘／二级界面／完整及简易面板关闭、长按／双手同按、追踪恢复需释放、刷新与两个浏览器互不影响。连续记录 119 个更新的诊断帧，全部保持焦点和已知有效佩戴状态；设置、诊断和命令文件逐字节或按原不存在状态恢复，独占夹具清理通过。此前一轮启动时未佩戴、另一轮佩戴感应中断，两轮均作废并恢复，未累计到通过结果。
+
+同一最终 APK 的现有简易控制全套连续复跑 17／17 通过，211.17 秒，408 次有效守卫采样全部保持焦点和已知有效佩戴状态，诊断最大年龄 3.25 秒。覆盖暂停跳转、音量、字幕恢复、独立 SRT 浏览、换片、自动隐藏、平面距离／全景缩放及显示面板时的摇杆屏蔽。USB 常亮逐值恢复核对，screen_off_timeout 未修改；最终 force-stop 后，settings.json、Emby 账户 JSON、私有 XML 及 .bak、诊断与原有临时命令／截图文件全部按原字节或原不存在状态恢复核对。随后重新启动至本地首页，确认新鲜诊断、有效焦点／佩戴状态、主面板可见及没有影片，四项播放器设置／账户文件再次逐字节／原不存在核对通过。已检查本轮模式双眼截图，画面正常且仅包含生成样片。
+
+最终编辑器、构建与恢复记录在忽略目录 Docs/Validation/global-back-history-device-20261011/；26 项结果和连续状态记录在 Docs/Validation/back-navigation-20261011T155744Z-350f9e1da4/，17 项及连续守卫记录在 global-back-history-device-20261011/quick-guarded-20261011T160201603550Z/，此前固定报告／截图保存于该轮 prior-records/，新记录在 new-records/。本轮使用生成短视频及本地目录／SRT 夹具；真实 SMB／SAF 授权读取、Emby 服务器和长影片验收不在本轮范围，自动化不建立物理扳机或佩戴舒适度结论。
+
+最终 APK 为 Builds/LsVRPlayer.apk（148,368,084 字节），SHA-256：5d82eb10a50f830e9094be5e67fc34316d7f1bf809f78446b12c88b5632d3c1b。
+
+2026-10-11（Asia/Shanghai），追加全局返回与目录位置恢复的 Android 构建和 USB PICO 4（A8110）实机验证。Unity 6000.3.23f1 的 EditMode 全套 399／399 通过，0 失败、0 跳过，13.92 秒；包含开发输入入口的 3 项新增门控回归。Android ARM64 Development／IL2CPP 构建成功，97.51 秒，0 错误、11 条既有 PICO／Pipeline 包警告，已覆盖安装到设备。
+
+返回与目录回归同一连续运行 15／15 通过：主列表父目录分别保存／恢复 1162.44 和 1162.14 像素，Y、B、“上级”按钮均回到原位置；简易字幕列表也完成两层恢复和刷新检查。主键盘、音轨二级界面、主面板、简易弹窗及字幕来源层级按顺序返回，长按与双手同按只退一层，模拟追踪恢复需松开重按。此轮持续保持焦点和已知佩戴状态，设置、诊断和命令文件恢复及独占夹具清理均通过。
+
+同一 APK 的现有简易控制回归完整复跑 17／17 通过，覆盖进度跳转、音量、字幕恢复、上下集、自动隐藏、平面距离／全景缩放及面板显示时的摇杆屏蔽。额外连续守卫采样 409 次，211.63 秒内无焦点／佩戴中断，诊断最大年龄 3.26 秒；没有合并中断片段。USB 常亮恢复原值并核对，screen_off_timeout 未修改；最终 force-stop 后再次恢复并逐字节／按原不存在状态核对 settings.json、Emby 账户 JSON、私有 XML 及 .bak、诊断和临时命令／截图文件。设备已安装 APK 的 SHA-256 与构建文件一致；保留用户原有 ProjectSettings 改动，字体和生产场景无额外差异。
+
+原始记录保存在忽略目录 Docs/Validation/global-back-device-20261011/（构建、APK 哈希、399 项 NUnit XML、最终恢复核对）以及 Docs/Validation/back-navigation-20261011T152040Z-a68176c82c/（15 项设备结果及连续状态采样）；17 项完整回归和守卫记录在 global-back-device-20261011/quick-guarded-20261011T152334300044Z/，旧固定报告和截图保留在该轮 prior-records/，新记录在 new-records/。已检查本次生成样片的双眼模式截图，没有黑色等待画面或私密媒体信息。本轮仅使用生成短视频和本地目录夹具，未进行真实 SMB／SAF 授权读取、Emby 服务器或长影片验收。开发模拟输入的真机检查不构成物理 Y／B 或佩戴舒适度验收。
+
+APK 为 Builds/LsVRPlayer.apk（148,332,027 字节），SHA-256：edaec0c7bdf856f7c134ed8597b5f6d762f47c354daec24cd7cd70900192b567。
+
+2026-10-11（Asia/Shanghai），补充目录滚动位置恢复。Unity 6000.3.23f1 的 EditMode 全套最终 396／396 通过，0 失败、0 跳过，15.75 秒；包含新增 10 项主列表回归和 6 项简易字幕浏览回归，Unity Console 无错误。最终结果依据 NUnit XML，保存于忽略目录 Docs/Validation/directory-scroll-editmode-results.xml，MCP 作业记录为 directory-scroll-unity-tests.json；首轮 395／395 记录保留为 directory-scroll-first-unity-tests.json，之后补测了键盘显示时点“上级”的返回行为并完整复跑。真实临时目录覆盖父子导航、刷新、失败重试和快速切换；SMB／SAF 快照仅覆盖 UI 状态。本次没有重建 APK或进行设备／真实共享／授权目录读取验收。可用上述 Test Runner 复现；已连接 MCP 的编辑器也可运行：
+
+~~~powershell
+./Tools/Invoke-UnityMcp.ps1 -Tool run_tests -Arguments '{"mode":"EditMode","assembly_names":["VRPlayer.Tests"],"include_failed_tests":true}'
+~~~
+
+2026-10-11（Asia/Shanghai），新增全局 Y／B 返回与键盘 Esc。Unity 6000.3.23f1 的 EditMode 全套最终 380／380 通过，0 失败、0 跳过，8.53 秒，编译无错误；新增回归覆盖上述返回层级和输入取消。首轮 379／379 通过后补充了关闭搜索键盘时刷新列表的回归，最终结果使用完整复跑，没有合并两轮数据。原始日志与 NUnit XML 保存在忽略目录 Docs/Validation/global-back-editmode.log 和 global-back-editmode-results.xml，首轮记录使用 global-back-first-editmode 前缀保留。可从仓库根目录复现：
+
+~~~powershell
+& 'C:\Program Files\Unity\Hub\Editor\6000.3.23f1\Editor\Unity.exe' -batchmode -projectPath (Get-Location).Path -runTests -testPlatform EditMode -assemblyNames VRPlayer.Tests -testResults "$PWD\Docs\Validation\global-back-editmode-results.xml" -logFile "$PWD\Docs\Validation\global-back-editmode.log"
+~~~
+
+Y／B 映射依据项目中的 PICO SDK：左手与右手均读取 Unity XR 的 secondaryButton。此次仅完成编辑器编译及自动化回归，没有重建／安装 Android APK，也没有进行物理手柄或佩戴验收；下面 2026-10-10 的 APK／设备结论属于先前版本。头显验收需分别确认主面板键盘／SMB 二级界面／本地与共享目录、Emby 页面、简易字幕浏览及其他弹窗的逐级返回，以及按住返回、双手同按、拖动中返回和失焦／追踪恢复后的释放要求。
 
 2026-10-10（Asia/Shanghai），Unity 6000.3.23f1，Android ARM64 Development／IL2CPP，USB PICO 4（A8110）。本次完善倍速入口、面板高度、远近专用重置和隐藏界面时的摇杆调节，没有改动原生 Java／GLES 插件或依赖。
 

@@ -1,9 +1,16 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Reflection;
 using System.Threading;
+using System.Threading.Tasks;
 using NUnit.Framework;
+using TMPro;
 using UnityEngine;
+using UnityEngine.TestTools;
 
 namespace VRPlayer.Tests
 {
@@ -89,5 +96,77 @@ namespace VRPlayer.Tests
                 Assert.That(app.EmbyPendingReports,Is.Zero);
             }finally{UnityEngine.Object.DestroyImmediate(root);if(Directory.Exists(folder))Directory.Delete(folder,true);}
         }
+
+        [TestCase(false)] [TestCase(true)] public void BackFromLoginClearsPasswordAndPreservesPendingPlayback(bool busy)
+        {
+            var root=new GameObject("Emby login back regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();
+            using var authentication=new CancellationTokenSource();using var playback=new CancellationTokenSource();var authenticationToken=authentication.Token;var playbackToken=playback.Token;
+            int keyboardCloses=0;browser.Initialize(app,_=>{},()=>keyboardCloses++,()=>{});
+            var fieldRoot=new GameObject("Login password",typeof(RectTransform));fieldRoot.transform.SetParent(root.transform,false);var passwordField=fieldRoot.AddComponent<TMP_InputField>();passwordField.SetTextWithoutNotify("fixture password");
+            var parts=EmbyMovieParts.Create("account",new EmbyItem{Id="main",Type="Movie"},new[]{new EmbyItem{Id="part",Type="Movie"}});
+            try{
+                SetPrivate(app,"embyBrowsing",authentication);SetPrivate(app,"embyOpening",playback);SetPrivate(app,"embyMovieParts",parts);app.EmbyState.loading=true;
+                SetPrivate(browser,"login",true);SetPrivate(browser,"busy",busy);SetPrivate(browser,"password","fixture password");SetPrivate(browser,"passwordField",passwordField);SetPrivate(browser,"loginError","previous error");
+                Assert.That(browser.TryBack());
+                Assert.That(authenticationToken.IsCancellationRequested);Assert.That(playbackToken.IsCancellationRequested,Is.False);Assert.That(GetPrivate(app,"embyMovieParts"),Is.SameAs(parts));
+                Assert.That(passwordField.text,Is.Empty);Assert.That(GetPrivate(browser,"password"),Is.Empty);Assert.That(GetPrivate(browser,"loginError"),Is.Empty);
+                Assert.That(GetPrivate(browser,"login"),Is.False);Assert.That(GetPrivate(browser,"busy"),Is.False);Assert.That(keyboardCloses,Is.EqualTo(1));Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Accounts));
+            }finally{UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [Test] public void BackCancelsAccountRemovalConfirmationBeforeLeavingAccounts()
+        {
+            var root=new GameObject("Emby removal back regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            try{
+                SetPrivate(browser,"removing","account");Assert.That(browser.TryBack());Assert.That(GetPrivate(browser,"removing"),Is.Empty);Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Accounts));
+                Assert.That(browser.TryBack(),Is.False);
+            }finally{UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [TestCase(EmbyPage.Home)] [TestCase(EmbyPage.Library)] [TestCase(EmbyPage.Details)] [TestCase(EmbyPage.Person)]
+        public void BackFromEmbyPagesRestoresSavedPageAndKeepsPendingCdContinuation(EmbyPage page)
+        {
+            var root=new GameObject("Emby page back regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            using var browsing=new CancellationTokenSource();using var playback=new CancellationTokenSource();var browsingToken=browsing.Token;var playbackToken=playback.Token;
+            var previous=new EmbyBrowserState{page=EmbyPage.Library,title="Previous wall"};
+            try{
+                ((Stack<EmbyBrowserState>)GetPrivate(app,"embyPages")).Push(previous);app.EmbyState.page=page;app.EmbyState.loading=true;
+                SetPrivate(app,"embyBrowsing",browsing);SetPrivate(app,"embyOpening",playback);
+                Assert.That(browser.TryBack());Assert.That(app.EmbyState,Is.SameAs(previous));Assert.That(browsingToken.IsCancellationRequested);Assert.That(playbackToken.IsCancellationRequested,Is.False);
+            }finally{UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [Test] public void BackAtAccountsRootDelegatesClosingPanelWithoutChangingPlayback()
+        {
+            var root=new GameObject("Emby accounts back regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            using var playback=new CancellationTokenSource();var playbackToken=playback.Token;
+            try{
+                SetPrivate(app,"embyOpening",playback);var state=app.EmbyState;
+                Assert.That(browser.TryBack(),Is.False);Assert.That(app.EmbyState,Is.SameAs(state));Assert.That(playbackToken.IsCancellationRequested,Is.False);
+            }finally{UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [UnityTest] public IEnumerator CancelledLoginCompletionCannotOverwriteNewLoginForm()
+        {
+            var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
+            var root=new GameObject("Emby stale login back regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            try{
+                typeof(PlayerApp).GetProperty("EmbyApi").SetValue(app,new EmbyClient("back-regression"));
+                SetPrivate(browser,"login",true);SetPrivate(browser,"serverAddress","127.0.0.1");SetPrivate(browser,"serverPort",((IPEndPoint)listener.LocalEndpoint).Port.ToString());SetPrivate(browser,"username","fixture");
+                var request=(Task)typeof(EmbyBrowserUI).GetMethod("Login",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(browser,null);
+                Assert.That(request.IsCompleted,Is.False);Assert.That(GetPrivate(browser,"busy"),Is.True);
+                Assert.That(browser.TryBack());
+                // Start a new form before the cancelled request's continuation runs.
+                SetPrivate(browser,"login",true);SetPrivate(browser,"busy",true);SetPrivate(browser,"loginError","new form state");
+                float deadline=Time.realtimeSinceStartup+5;
+                while(!request.IsCompleted&&Time.realtimeSinceStartup<deadline)yield return null;
+                Assert.That(request.IsCompleted);Assert.That(request.IsFaulted,Is.False);
+                Assert.That(GetPrivate(browser,"login"),Is.True);Assert.That(GetPrivate(browser,"busy"),Is.True);Assert.That(GetPrivate(browser,"loginError"),Is.EqualTo("new form state"));
+                Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Accounts));
+            }finally{app.CancelEmbyBrowsing(false);listener.Stop();UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        private static void SetPrivate(object target,string name,object value)=>target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(target,value);
+        private static object GetPrivate(object target,string name)=>target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(target);
     }
 }

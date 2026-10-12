@@ -19,6 +19,9 @@ namespace VRPlayer
         public bool VolumeVisible=>volumeExpansion!=null&&volumeExpansion.gameObject.activeSelf;
         public string BrowserUri=>browseUri;
         public int BrowserCount=>list?.Count??0;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        public float BrowserOffset=>list?.Offset??0;
+#endif
         public bool BrowserLoading{get;private set;}
         public bool BlocksTransport=>Visible&&(Popup!=""||seek.Dragging||volume.HasOwner||distanceSlider!=null&&distanceSlider.HasOwner||speedSlider!=null&&speedSlider.HasOwner);
         public bool Interacting=>Visible&&(region.Hovered||seek.Dragging||volume.HasOwner||distanceSlider!=null&&distanceSlider.HasOwner||speedSlider!=null&&speedSlider.HasOwner);
@@ -39,9 +42,16 @@ namespace VRPlayer
         private int generation=-1,subtitleKey;
         private VirtualFileList list;
         private readonly FileLibrary library=new FileLibrary();
-        private readonly Stack<string> browseParents=new Stack<string>();
+        private readonly List<(string uri,float? offset)> browseParents=new List<(string,float?)>();
+        private readonly Dictionary<string,float> browseOffsets=new Dictionary<string,float>(StringComparer.Ordinal);
+        private readonly Queue<string> browseOffsetOrder=new Queue<string>();
+        private readonly Dictionary<string,string> browseDirectoryParents=new Dictionary<string,string>(StringComparer.Ordinal);
+        private readonly Queue<string> browseDirectoryParentOrder=new Queue<string>();
         private CancellationTokenSource browse;
         private string browseUri="";
+        private string browseOrigin="";
+        private float browseOriginOffset;
+        private bool browseRowsReady;
         private float lastInteraction;
 
         public void Initialize(PlayerUI controller,PlayerApp player,Camera camera)
@@ -100,6 +110,36 @@ namespace VRPlayer
             if(Canvas==null)return;ClosePopup();seek.Cancel();region.Clear();volumeRegion.Clear();hints.Clear();hoverBadge.gameObject.SetActive(false);volumeExpansion.gameObject.SetActive(false);Preview(false,0);Canvas.gameObject.SetActive(false);
         }
         public void PlaybackOpened(){seek?.Cancel();ClosePopup();generation=app.Generation;Touch();}
+        public bool TryBack()
+        {
+            if(!Visible||Popup=="")return false;
+            if(Popup=="files"){
+                if(browseParents.Count>0){
+                    int last=browseParents.Count-1;var previous=browseParents[last];browseParents.RemoveAt(last);_ = Browse(previous.uri,false,previous.offset);
+                }else{
+                    string origin=browseOrigin;float offset=browseOriginOffset;
+                    if(string.IsNullOrEmpty(origin))ClosePopup();else{TogglePopup(origin);list?.SetOffset(offset);}
+                }
+            }else ClosePopup();
+            Touch();return true;
+        }
+        private void BrowseUp()
+        {
+            string parent=FileLibrary.Parent(browseUri);
+            if(parent==null)browseDirectoryParents.TryGetValue(browseUri,out parent);
+            _ = Browse(parent??"");
+        }
+        private void OpenBrowserDirectory(string uri,string parent)
+        {
+            if(uri.StartsWith("content:",StringComparison.OrdinalIgnoreCase)){
+                if(!browseDirectoryParents.ContainsKey(uri)){
+                    if(browseDirectoryParentOrder.Count>=64)browseDirectoryParents.Remove(browseDirectoryParentOrder.Dequeue());
+                    browseDirectoryParentOrder.Enqueue(uri);
+                }
+                browseDirectoryParents[uri]=parent;
+            }
+            _ = Browse(uri);
+        }
         public void Touch(){lastInteraction=Time.unscaledTime;owner.LastInteraction=lastInteraction;}
         public static bool ShouldAutoHide(bool enabled,bool playing,bool interacting,float now,float last)=>enabled&&playing&&!interacting&&now-last>=5;
         private void LateUpdate()
@@ -157,13 +197,16 @@ namespace VRPlayer
         }
         public void TogglePopup(string name)
         {
-            if(!Visible)return;if(Popup==name){ClosePopup();return;}ClosePopup();Popup=name;Touch();popupRoot.gameObject.SetActive(true);
+            if(!Visible)return;if(Popup==name){ClosePopup();return;}
+            string origin=Popup;float originOffset=list?.Offset??0;ClosePopup();Popup=name;
+            if(name=="files"){browseOrigin=origin;browseOriginOffset=originOffset;}
+            Touch();popupRoot.gameObject.SetActive(true);
             popupRoot.anchoredPosition=new Vector2(name=="subtitles"||name=="files"?0:540,-40);
             if(name=="subtitles")DrawSubtitles();else if(name=="mode")DrawMode();else if(name=="advanced")DrawAdvanced();else if(name=="files")_ = Browse(app.Current?.directory??"");
         }
         public void ClosePopup()
         {
-            browse?.Cancel();browse?.Dispose();browse=null;browseParents.Clear();browseUri="";BrowserLoading=false;Popup="";list=null;
+            browse?.Cancel();browse?.Dispose();browse=null;browseParents.Clear();browseOffsets.Clear();browseOffsetOrder.Clear();browseDirectoryParents.Clear();browseDirectoryParentOrder.Clear();browseRowsReady=false;browseUri=browseOrigin="";browseOriginOffset=0;BrowserLoading=false;Popup="";list=null;
             distanceSlider=speedSlider=null;popupStatus=delayLabel=distanceLabel=speedLabel=subtitleToggle=subtitleSelection=null;
             if(popupRoot!=null){popupRoot.gameObject.SetActive(false);UiFactory.Clear(popupRoot);}
         }
@@ -257,33 +300,54 @@ namespace VRPlayer
 #endif
             entries.AddRange(app.Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}));
             entries.Add(new FileEntry{name="应用目录",uri=new Uri(Application.persistentDataPath).AbsoluteUri,directory=true});
-            foreach(var item in entries.GroupBy(e=>e.uri).Select(g=>g.First())){var entry=item;rows.Add(new BrowserRow{key=entry.uri,label=entry.name,detail="打开",open=()=>_ = Browse(entry.uri)});}return rows;
+            foreach(var item in entries.GroupBy(e=>e.uri).Select(g=>g.First())){var entry=item;rows.Add(new BrowserRow{key=entry.uri,label=entry.name,detail="打开",open=()=>OpenBrowserDirectory(entry.uri,"")});}return rows;
         }
-        public async Task Browse(string uri,bool push=true)
+        public async Task Browse(string uri,bool push=true,float? restoreOffset=null)
         {
             if(Popup!="files"||!Visible)return;
+            SaveBrowserOffset();uri=uri??"";
             browse?.Cancel();browse?.Dispose();browse=new CancellationTokenSource();var token=browse.Token;int capturedGeneration=app.Generation;
-            if(push&&!string.IsNullOrEmpty(browseUri)&&browseUri!=uri)browseParents.Push(browseUri);browseUri=uri??"";Page("选择字幕文件");Touch();
+            var request=browse;
+            if(push&&list!=null&&browseUri!=uri){
+                if(browseParents.Count>=64)browseParents.RemoveAt(0);
+                browseParents.Add((browseUri,browseRowsReady?list.Offset:(float?)null));
+            }
+            browseUri=uri;browseRowsReady=false;Page("选择字幕文件");Touch();
             QuickUiFactory.Button(popupContent,"返回字幕",0,0,220,54,()=>TogglePopup("subtitles"));
-            QuickUiFactory.Button(popupContent,"上级",242,0,180,54,()=>{string parent=browseParents.Count>0?browseParents.Pop():FileLibrary.Parent(browseUri);_ = Browse(parent??"",false);});
-            QuickUiFactory.Button(popupContent,"来源",444,0,180,54,()=>{browseParents.Clear();_ = Browse("",false);});
+            QuickUiFactory.Button(popupContent,"上级",242,0,180,54,BrowseUp);
+            QuickUiFactory.Button(popupContent,"来源",444,0,180,54,()=>_ = Browse(""));
             QuickUiFactory.Button(popupContent,"刷新",646,0,190,54,()=>_ = Browse(browseUri,false));
             UiFactory.Label(popupContent,string.IsNullOrEmpty(browseUri)?"选择一个已授权位置":browseUri,0,76,836,48,22);
             var viewport=UiFactory.Rect(popupContent,"Subtitle browser",0,142,836,472);list=viewport.gameObject.AddComponent<VirtualFileList>();list.Initialize(836,472,true);
-            BrowserLoading=false;if(string.IsNullOrEmpty(browseUri)){list.SetRows(Roots(),true);return;}
+            var requestList=list;
+            BrowserLoading=false;if(string.IsNullOrEmpty(browseUri)){SetBrowserRows(requestList,Roots(),true,restoreOffset);return;}
             BrowserLoading=true;
             list.SetRows(new[]{new BrowserRow{key="loading",label="正在读取目录…"}},true);
             try{
-                var result=await library.List(browseUri,token);
-                if(token.IsCancellationRequested||capturedGeneration!=app.Generation||Popup!="files"||!Visible)return;
+                var result=await library.List(uri,token);
+                if(token.IsCancellationRequested||browse!=request||list!=requestList||capturedGeneration!=app.Generation||Popup!="files"||!Visible)return;
                 BrowserLoading=false;
                 var rows=new List<BrowserRow>();
                 foreach(var item in (result.entries??Array.Empty<FileEntry>()).Where(e=>e.directory||e.IsSubtitle).OrderByDescending(e=>e.directory).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase)){
-                    var entry=item;rows.Add(new BrowserRow{key=entry.uri,label=entry.name,detail=entry.directory?"目录":"SRT",open=()=>{if(entry.directory)_ = Browse(entry.uri);else{_ = app.LoadSubtitle(entry.uri);TogglePopup("subtitles");}}});
+                    var entry=item;rows.Add(new BrowserRow{key=entry.uri,label=entry.name,detail=entry.directory?"目录":"SRT",open=()=>{if(entry.directory)OpenBrowserDirectory(entry.uri,uri);else{_ = app.LoadSubtitle(entry.uri);TogglePopup("subtitles");}}});
                 }
                 if(!result.ok||rows.Count==0)rows.Add(new BrowserRow{key="empty",label=result.ok?"此目录没有 SRT 文件":result.error??"目录读取失败，请重试"});
-                list.SetRows(rows,true);
-            }catch(OperationCanceledException){}catch(Exception){if(!token.IsCancellationRequested&&capturedGeneration==app.Generation&&Popup=="files"&&Visible){BrowserLoading=false;list.SetRows(new[]{new BrowserRow{key="error",label="目录读取失败，请刷新重试"}},true);}}
+                SetBrowserRows(requestList,rows,result.ok,restoreOffset);
+            }catch(OperationCanceledException){}catch(Exception){if(!token.IsCancellationRequested&&browse==request&&list==requestList&&capturedGeneration==app.Generation&&Popup=="files"&&Visible){BrowserLoading=false;requestList.SetRows(new[]{new BrowserRow{key="error",label="目录读取失败，请刷新重试"}},true);}}
+        }
+        private void SaveBrowserOffset()
+        {
+            if(!browseRowsReady||list==null)return;
+            if(!browseOffsets.ContainsKey(browseUri)){
+                if(browseOffsetOrder.Count>=64)browseOffsets.Remove(browseOffsetOrder.Dequeue());
+                browseOffsetOrder.Enqueue(browseUri);
+            }
+            browseOffsets[browseUri]=list.Offset;
+        }
+        private void SetBrowserRows(VirtualFileList target,IReadOnlyList<BrowserRow> rows,bool ready,float? restoreOffset=null)
+        {
+            target.SetRows(rows,true);browseRowsReady=ready;
+            if(ready)target.SetOffset(restoreOffset??(browseOffsets.TryGetValue(browseUri,out var offset)?offset:0));
         }
         private void OnDestroy(){browse?.Cancel();browse?.Dispose();if(Canvas!=null)Destroy(Canvas.gameObject);}
     }

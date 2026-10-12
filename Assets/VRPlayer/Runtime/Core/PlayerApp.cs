@@ -35,7 +35,13 @@ namespace VRPlayer
         public string SubtitleEncoding="Auto";
         public event Action Changed;
         private readonly FileLibrary library=new FileLibrary();
-        private readonly Stack<string> directories=new Stack<string>();
+        private sealed class BrowserLocation {public FileSource source;public string uri;public PlayerUI.FileViewState view;public long position;}
+        private readonly List<BrowserLocation> directories=new List<BrowserLocation>();
+        private long nextBrowserHistoryPosition;
+        public long BrowserHistoryPosition=>directories.Count==0?0:directories[directories.Count-1].position;
+        private readonly Dictionary<string,string> directoryParents=new Dictionary<string,string>(StringComparer.Ordinal);
+        private readonly Queue<string> directoryParentOrder=new Queue<string>();
+        private bool preserveDirectoryHistory;
         private List<FileEntry> playlist=new List<FileEntry>();
         private CancellationTokenSource listing,subtitles,subtitleListing;
         private int subtitleRevision;
@@ -107,14 +113,22 @@ namespace VRPlayer
             string picked=AndroidBridge.Api.CallStatic<string>("takeFolder");if(!string.IsNullOrEmpty(picked)&&picked!="CANCELLED"){if(picked.StartsWith("ERROR:"))SetStatus(picked.Substring(6));else{AddFavorite("授权目录",picked);_ = Browse(picked);}}
 #endif
             if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
-                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance},true));}catch{} }
+                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,fullVisible=UI.Visible,quickVisible=UI.Quick.Visible,loading=Loading,fullOffset=UI.FullOffset,fullCount=UI.FullCount,fullModal=UI.FullModal,fullQuery=UI.FullQuery,keyboardVisible=UI.KeyboardVisible,quickOffset=UI.Quick.BrowserOffset,
+#endif
+            },true));}catch{} }
         }
-        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;}
+        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            public string fullModal,fullQuery,timestampUtc;public bool keyboardVisible,fullVisible,quickVisible,loading;public int fullCount,frame;public float fullOffset,quickOffset;
+#endif
+        }
         public void SetStatus(string value){Status=value;}
         public void Notify()=>Changed?.Invoke();
         public void Home()
         {
-            StopDiscovery();Source=FileSource.Home;CancelListing();directories.Clear();DirectoryUri="";
+            StopDiscovery();Source=FileSource.Home;CancelListing();ClearDirectoryHistory();DirectoryUri="";
             Files=new List<FileEntry>();
 #if UNITY_ANDROID && !UNITY_EDITOR
             Files.Add(new FileEntry{name="设备存储",uri="file:///storage/emulated/0/",directory=true});Files.Add(new FileEntry{name="Movies 视频",uri="file:///storage/emulated/0/Movies/",directory=true});
@@ -123,17 +137,58 @@ namespace VRPlayer
 #endif
             Files.Add(new FileEntry{name="应用目录",uri=new Uri(Application.persistentDataPath).AbsoluteUri,directory=true});Status="添加目录或打开设备存储；SMB 可在服务器页配置";Notify();
         }
-        public async Task Browse(string uri,bool push=true,string locateFile="")
+        private void ClearDirectoryHistory(){if(!preserveDirectoryHistory)directories.Clear();}
+        private void RememberBrowserLocation()
         {
+            if(Source==FileSource.Emby)return;
+            if(directories.Count>=64)directories.RemoveAt(0);
+            directories.Add(new BrowserLocation{source=Source,uri=DirectoryUri,view=UI?.CaptureFileView(),position=++nextBrowserHistoryPosition});
+        }
+        public bool BrowseBack()
+        {
+            if(Source==FileSource.Emby||directories.Count==0)return false;
+            var previous=directories[directories.Count-1];directories.RemoveAt(directories.Count-1);
+            LocateFileUri="";UI?.RestoreFileView(previous.view,previous.source,previous.uri);
+            bool preserving=preserveDirectoryHistory;preserveDirectoryHistory=true;
+            try{
+                switch(previous.source){
+                    case FileSource.Directory:_ = Browse(previous.uri,false);break;
+                    case FileSource.Favorites:ShowFavorites();break;
+                    case FileSource.Recent:ShowRecent();break;
+                    case FileSource.Smb:ShowServers();break;
+                    default:Home();break;
+                }
+            }finally{preserveDirectoryHistory=preserving;}
+            return true;
+        }
+        public async Task Browse(string uri,bool push=true,string locateFile="",string physicalParent=null)
+        {
+            if(push&&(Source!=FileSource.Directory||DirectoryUri!=uri))RememberBrowserLocation();
+            if(!string.IsNullOrEmpty(physicalParent)&&physicalParent!=uri){
+                if(!directoryParents.ContainsKey(uri)){if(directoryParentOrder.Count>=64)directoryParents.Remove(directoryParentOrder.Dequeue());directoryParentOrder.Enqueue(uri);}
+                directoryParents[uri]=physicalParent;
+            }
             StopDiscovery();Source=FileSource.Directory;
             CancelListing();listing=new CancellationTokenSource();CancellationToken token=listing.Token;
-            if(push&&!string.IsNullOrEmpty(DirectoryUri)&&DirectoryUri!=uri)directories.Push(DirectoryUri);
             DirectoryUri=uri;LocateFileUri=locateFile;Loading=true;Status="正在读取目录…";Files=new List<FileEntry>();Notify();
             try{var result=await library.List(uri,token);if(token.IsCancellationRequested)return;Loading=false;if(result.ok){Files=(result.entries??Array.Empty<FileEntry>()).ToList();Status=$"{Files.Count} 项";}else Status=result.error;Notify();}
             catch(OperationCanceledException){}catch(Exception ex){if(!token.IsCancellationRequested){Loading=false;SetStatus("无法读取目录："+ex.Message);}}
         }
-        public void Up(){if(directories.Count>0){_ = Browse(directories.Pop(),false);return;}string parent=FileLibrary.Parent(DirectoryUri);if(parent!=null)_ = Browse(parent,false);else Home();}
-        public void Refresh(){switch(Source){case FileSource.Emby:RefreshEmby();break;case FileSource.Favorites:ShowFavorites();break;case FileSource.Recent:ShowRecent();break;case FileSource.Smb:ShowServers();break;case FileSource.Directory:_ = Browse(DirectoryUri,false);break;default:Home();break;}}
+        public void Up()
+        {
+            string parent=FileLibrary.Parent(DirectoryUri);
+            if(parent==null)directoryParents.TryGetValue(DirectoryUri??"",out parent);
+            if(parent!=null){_ = Browse(parent);return;}
+            if(Source==FileSource.Directory)RememberBrowserLocation();
+            bool preserving=preserveDirectoryHistory;preserveDirectoryHistory=true;
+            try{Home();}finally{preserveDirectoryHistory=preserving;}
+        }
+        public void Refresh()
+        {
+            bool preserving=preserveDirectoryHistory;preserveDirectoryHistory=true;
+            try{switch(Source){case FileSource.Emby:RefreshEmby();break;case FileSource.Favorites:ShowFavorites();break;case FileSource.Recent:ShowRecent();break;case FileSource.Smb:ShowServers();break;case FileSource.Directory:_ = Browse(DirectoryUri,false);break;default:Home();break;}}
+            finally{preserveDirectoryHistory=preserving;}
+        }
         public void CancelListing(){listing?.Cancel();listing?.Dispose();listing=null;Loading=false;CancelEmbyBrowsing();}
         public void Open(FileEntry entry,string directory=null)
         {
@@ -208,20 +263,20 @@ namespace VRPlayer
             Store.Save();viewDistanceDirty=false;
         }
         public void AddFavorite(string name,string uri){if(Store.Settings.favorites.All(x=>x.uri!=uri))Store.Settings.favorites.Add(new Favorite{name=name,uri=uri});Store.Save();Notify();}
-        public void ShowFavorites(){StopDiscovery();Source=FileSource.Favorites;directories.Clear();CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
-        public void ShowRecent(){StopDiscovery();Source=FileSource.Recent;directories.Clear();CancelListing();DirectoryUri="";Files=Store.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified}).ToList();SetStatus("最近播放 · 选择影片恢复进度");Notify();}
+        public void ShowFavorites(){StopDiscovery();Source=FileSource.Favorites;ClearDirectoryHistory();CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
+        public void ShowRecent(){StopDiscovery();Source=FileSource.Recent;ClearDirectoryHistory();CancelListing();DirectoryUri="";Files=Store.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified}).ToList();SetStatus("最近播放 · 选择影片恢复进度");Notify();}
         public void OpenRecentOrFile(FileEntry entry){var record=Store.Find(entry.uri);Open(entry,record!=null&&string.IsNullOrEmpty(DirectoryUri)?record.directory:DirectoryUri);}
         public void OpenContainingDirectory(string uri)
         {
             if(OpenEmbyContainingItem(uri))return;
             var record=Store.Find(uri);string directory=ContainingDirectory(record);
             if(string.IsNullOrEmpty(directory)){SetStatus("该记录没有可用的父目录，请重新授权或从文件来源打开");return;}
-            UI.PrepareDirectoryNavigation();directories.Clear();_ = Browse(directory,false,uri);
+            RememberBrowserLocation();UI.PrepareDirectoryNavigation();_ = Browse(directory,false,uri);
         }
         public static string ContainingDirectory(PlaybackRecord record)=>record==null?null:!string.IsNullOrEmpty(record.directory)?record.directory:FileLibrary.Parent(record.uri);
         public void ShowServers()
         {
-            StopDiscovery();Source=FileSource.Smb;directories.Clear();CancelListing();DirectoryUri="";Files=new List<FileEntry>();
+            StopDiscovery();Source=FileSource.Smb;ClearDirectoryHistory();CancelListing();DirectoryUri="";Files=new List<FileEntry>();
 #if UNITY_ANDROID && !UNITY_EDITOR
             Servers=JsonUtility.FromJson<ServerList>(AndroidBridge.Api.CallStatic<string>("listServers")).servers??Array.Empty<SmbServer>();Files=Servers.Select(s=>new FileEntry{name=string.IsNullOrEmpty(s.name)?s.host+" / "+s.share:s.name,uri="smb://"+s.id+"/",directory=true}).ToList();
 #endif

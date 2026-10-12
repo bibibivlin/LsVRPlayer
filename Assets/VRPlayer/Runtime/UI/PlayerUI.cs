@@ -26,11 +26,17 @@ namespace VRPlayer
         private TMP_InputField address,filter,keyboardTarget;
         private string tab="文件",query="";
         private int sort,subtitlePage;
-        private bool subtitleBrowse,shift;
+        private bool subtitleBrowse,subtitleFileSelection,shift;
+        private long subtitleBrowserEntry;
         private readonly Dictionary<string,Button> tabs=new Dictionary<string,Button>();
         private VirtualFileList fileList;
         private EmbyBrowserUI embyBrowser;
         private string fileKey="",modal="";
+        private string fileViewKey="",fileQuery="";
+        private bool fileRowsReady,fileRestorePending,returningDirectory;
+        private sealed class FileViewPosition {public string query;public float offset;}
+        private readonly Dictionary<string,FileViewPosition> filePositions=new Dictionary<string,FileViewPosition>();
+        private readonly Queue<string> filePositionOrder=new Queue<string>();
         private float fileOffset,undoUntil;
         private Favorite removedFavorite;private int removedIndex;
         private TextMeshProUGUI countLabel,scanLabel;
@@ -49,6 +55,13 @@ namespace VRPlayer
         private CancellationTokenSource connection;
         public bool CanDiscover=>Visible&&tab=="文件"&&modal==""&&!keyboard.gameObject.activeSelf;
         public string SelectedTab=>tab;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+        public float FullOffset=>fileList?.Offset??0;
+        public int FullCount=>fileList?.Count??0;
+        public string FullModal=>modal;
+        public string FullQuery=>query;
+        public bool KeyboardVisible=>keyboard!=null&&keyboard.gameObject.activeSelf;
+#endif
         public void Initialize(PlayerApp owner,Camera camera)
         {
             app=owner;head=camera;
@@ -76,14 +89,45 @@ namespace VRPlayer
             app.Changed+=OnAppChanged;app.DiscoveryChanged+=RefreshFileRows;Draw();Show();
         }
         private string CurrentFileKey=>$"{app.Source}|{app.DirectoryUri}|{query}|{sort}|{subtitleBrowse}";
+        private string CurrentFileViewKey=>$"{app.Source}|{app.DirectoryUri}|{sort}|{subtitleBrowse}";
+        public sealed class FileViewState {public string query;public int sort;public bool subtitles,subtitleSelection;public float offset;}
+        public FileViewState CaptureFileView()
+        {
+            var position=filePositions.TryGetValue(CurrentFileViewKey,out var saved)?saved:null;
+            string visibleQuery=fileList!=null?fileQuery:query;
+            return new FileViewState{query=visibleQuery,sort=sort,subtitles=subtitleBrowse,subtitleSelection=subtitleFileSelection,offset=fileList!=null&&fileRowsReady?fileList.Offset:position!=null&&position.query==visibleQuery?position.offset:0};
+        }
+        public void RestoreFileView(FileViewState state,FileSource source,string uri)
+        {
+            RememberFileOffset();CloseKeyboard();locatedFile="";fileKey="";
+            if(state==null)return;
+            query=state.query;sort=state.sort;subtitleBrowse=state.subtitles;subtitleFileSelection=state.subtitleSelection;
+            RememberFilePosition($"{source}|{uri}|{sort}|{subtitleBrowse}",query,state.offset);
+        }
+        private void RememberFileOffset()
+        {
+            if(fileList==null||!fileRowsReady||modal!=""||string.IsNullOrEmpty(fileViewKey))return;
+            fileOffset=fileList.Offset;
+            RememberFilePosition(fileViewKey,fileQuery,fileOffset);
+        }
+        private void RememberFilePosition(string key,string savedQuery,float offset)
+        {
+            if(!filePositions.ContainsKey(key)){if(filePositionOrder.Count>=64)filePositions.Remove(filePositionOrder.Dequeue());filePositionOrder.Enqueue(key);}
+            filePositions[key]=new FileViewPosition{query=savedQuery,offset=offset};
+        }
+        private void UpDirectory()
+        {
+            RememberFileOffset();CloseKeyboard();query="";locatedFile="";returningDirectory=true;
+            try{app.Up();}finally{returningDirectory=false;}
+        }
         private void OnAppChanged(){if(modal!=""||keyboard.gameObject.activeSelf)return;if(tab=="文件"){if(app.Source==FileSource.Emby&&embyBrowser!=null&&fileKey==CurrentFileKey)embyBrowser.Render();else if(fileList!=null&&fileKey==CurrentFileKey)RefreshFileRows();else Draw();}else if(tab=="字幕"&&subtitlePage==0)Draw();}
         public void SelectTab(string name)
         {
             if(!tabs.ContainsKey(name))return;
-            CancelSmbConnection();app.StopDiscovery();CloseKeyboard();modal="";tab=name;Draw();
+            CancelSmbConnection();app.StopDiscovery();CloseKeyboard();modal="";tab=name;if(name!="文件")subtitleFileSelection=false;Draw();
             if(CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();
         }
-        public void PrepareDirectoryNavigation(){query="";subtitleBrowse=false;fileOffset=0;fileKey="";locatedFile="";SelectTab("文件");}
+        public void PrepareDirectoryNavigation(){RememberFileOffset();query="";subtitleBrowse=subtitleFileSelection=false;fileOffset=0;fileKey="";locatedFile="";SelectTab("文件");}
         public void ShowTransport(string text){transportLabel.text=text;transportUntil=Time.unscaledTime+1.6f;transportRoot.gameObject.SetActive(true);}
         private void Update()
         {
@@ -133,10 +177,26 @@ namespace VRPlayer
         public void ShowQuick(){if(Quick==null||Visible)return;Quick.Show();SurfaceRevision++;}
         public void HideQuick(){Quick?.Hide();SurfaceRevision++;app?.Store?.Save();}
         public void ToggleQuick(){if(Visible)return;if(Quick!=null&&Quick.Visible)HideQuick();else ShowQuick();}
+        public bool Back()
+        {
+            if(!AnyVisible)return false;
+            LastInteraction=Time.unscaledTime;SurfaceRevision++;
+            if(Quick!=null&&Quick.Visible){if(!Quick.TryBack())HideQuick();return true;}
+            if(keyboard!=null&&keyboard.gameObject.activeSelf){CompleteKeyboard();return true;}
+            if(modal!=""){ReturnFromModal();return true;}
+            if(tab=="文件"){
+                if(app.Source==FileSource.Emby&&embyBrowser!=null&&embyBrowser.TryBack())return true;
+                if(subtitleFileSelection&&app.BrowserHistoryPosition<=subtitleBrowserEntry){subtitleBrowse=false;subtitlePage=0;SelectTab("字幕");return true;}
+                if(app.BrowseBack())return true;
+                if(subtitleFileSelection){subtitleBrowse=false;subtitlePage=0;SelectTab("字幕");return true;}
+            }
+            Hide();return true;
+        }
         public void PlaybackOpened(){SurfaceRevision++;seekGesture?.Cancel();Quick?.PlaybackOpened();LastInteraction=Time.unscaledTime;}
         private void Draw()
         {
-            if(content==null)return;if(fileList!=null)fileOffset=fileList.Offset;embyBrowser?.ReleasePanel();UiFactory.Clear(content);detail=null;formatLabel=null;address=filter=null;fileList=null;preview=null;scanLabel=countLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
+            if(content==null)return;RememberFileOffset();fileRowsReady=false;embyBrowser?.ReleasePanel();UiFactory.Clear(content);detail=null;formatLabel=null;address=filter=null;fileList=null;preview=null;scanLabel=countLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
+            if(returningDirectory&&filePositions.TryGetValue(CurrentFileViewKey,out var parentPosition))query=parentPosition.query;
             foreach(var pair in tabs)UiFactory.SetAccent(pair.Value,pair.Key==tab);
             if(tab=="文件")DrawFiles();else if(tab=="投影")DrawProjection();else if(tab=="字幕")DrawSubtitles();else if(tab=="设置")DrawSettings();else DrawInfo();
         }
@@ -151,26 +211,28 @@ namespace VRPlayer
             UiFactory.Button(content,"取消",1252,0,124,44,()=>{app.CancelListing();app.SetStatus("已取消读取");});
             if(app.Source==FileSource.Smb){scanLabel=UiFactory.Label(content,"",0,60,988,48,23);UiFactory.Button(content,"重新扫描",1002,60,180,48,app.StartDiscovery);UiFactory.Button(content,"停止扫描",1196,60,180,48,()=>{app.StopDiscovery();RefreshFileRows();});}
             else{address=UiFactory.Input(content,app.DirectoryUri,"输入本地目录或选择一个来源",0,60,1034,48,ShowKeyboard);
-            UiFactory.Button(content,"打开",1046,60,102,48,()=>{query="";_ = app.Browse(address.text);});UiFactory.Button(content,"上级",1160,60,102,48,()=>{query="";app.Up();});UiFactory.Button(content,"刷新",1274,60,102,48,app.Refresh);}
+            UiFactory.Button(content,"打开",1046,60,102,48,()=>{query="";_ = app.Browse(address.text);});UiFactory.Button(content,"上级",1160,60,102,48,UpDirectory);UiFactory.Button(content,"刷新",1274,60,102,48,app.Refresh);}
             filter=UiFactory.Input(content,query,"搜索当前目录",0,126,864,44,ShowKeyboard);filter.onValueChanged.AddListener(value=>query=value);
             UiFactory.Button(content,"搜索",876,126,100,44,()=>{query=filter.text;Draw();});UiFactory.Button(content,new[]{"名称排序","日期排序","大小排序"}[sort],988,126,184,44,()=>{sort=(sort+1)%3;Draw();});UiFactory.Button(content,subtitleBrowse?"字幕文件":"视频文件",1184,126,192,44,()=>{subtitleBrowse=!subtitleBrowse;Draw();});
             var viewport=UiFactory.Rect(content,"File list",0,190,1376,352);fileList=viewport.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(1376,352);
-            if(fileKey!=CurrentFileKey)fileOffset=0;fileKey=CurrentFileKey;
+            fileViewKey=CurrentFileViewKey;fileQuery=query;fileKey=CurrentFileKey;fileRestorePending=true;
+            fileOffset=filePositions.TryGetValue(fileViewKey,out var position)&&position.query==query?position.offset:0;
             countLabel=UiFactory.Label(content,"",0,556,930,44,23);
             undoButton=UiFactory.Button(content,"撤销移除",1120,556,256,44,UndoFavorite);undoButton.gameObject.SetActive(false);
-            RefreshFileRows();fileList.SetOffset(fileOffset);
+            RefreshFileRows();
         }
-        private void ChangeSource(Action change){CloseKeyboard();CancelSmbConnection();query="";fileOffset=0;fileKey="";SurfaceRevision++;change();}
+        private void ChangeSource(Action change){RememberFileOffset();CloseKeyboard();CancelSmbConnection();query="";fileOffset=0;fileKey="";SurfaceRevision++;change();}
         private void RefreshFileRows()
         {
             if(fileList==null||tab!="文件"||modal!="")return;
+            RememberFileOffset();if(app.Loading)fileRestorePending=true;
             IEnumerable<FileEntry> items=app.Files.Where(e=>(e.directory||(subtitleBrowse?e.IsSubtitle:e.IsVideo))&&(string.IsNullOrEmpty(query)||e.name.IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0));
             items=sort==1?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.modified):sort==2?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.size):items.OrderByDescending(e=>e.directory).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase);
             var list=items.ToList();var rows=new List<BrowserRow>();
             if(app.Source==FileSource.Smb)rows.Add(new BrowserRow{key="saved",label="已保存的共享"});
             foreach(FileEntry item in list){
                 string prefix=item.directory?"目录  ":item.IsSubtitle?"SRT   ":"视频  ";
-                var row=new BrowserRow{key=item.uri,label=prefix+item.name,detail=item.directory?"打开":Size(item.size),open=()=>{query="";if(item.directory)_ = app.Browse(item.uri);else if(item.IsSubtitle){_ = app.LoadSubtitle(item.uri);SelectTab("字幕");}else app.OpenRecentOrFile(item);}};
+                var row=new BrowserRow{key=item.uri,label=prefix+item.name,detail=item.directory?"打开":Size(item.size),open=()=>{query="";if(item.directory)_ = app.Browse(item.uri,physicalParent:app.Source==FileSource.Directory?app.DirectoryUri:null);else if(item.IsSubtitle){_ = app.LoadSubtitle(item.uri);SelectTab("字幕");}else app.OpenRecentOrFile(item);}};
                 if(app.Source==FileSource.Favorites){row.secondary="移除";row.action=()=>RemoveFavorite(item.uri);}
                 else if(app.Source==FileSource.Smb){row.secondary="编辑";row.action=()=>DrawServerForm(app.FindServer(item.uri));}
                 else if(app.Source==FileSource.Recent){row.secondary="所在目录";row.action=()=>app.OpenContainingDirectory(item.uri);}
@@ -187,6 +249,8 @@ namespace VRPlayer
             }
             if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label=app.Loading?"正在读取…":"没有匹配文件，可切换来源或清空搜索。"});
             fileList.SetRows(rows);if(countLabel!=null)countLabel.text=$"{list.Count} 项"+(app.Source==FileSource.Smb?$"已保存 · {app.Discovery.hosts.Length} 台发现设备":" · 扳机拖动 / 摇杆滚动");
+            if(!app.Loading&&fileRestorePending){fileList.SetOffset(fileOffset);fileRestorePending=false;}
+            fileRowsReady=!app.Loading&&rows.Any(row=>row.open!=null||row.action!=null);
             if(!app.Loading&&!string.IsNullOrEmpty(app.LocateFileUri)&&locatedFile!=app.LocateFileUri){int index=rows.FindIndex(row=>row.key==app.LocateFileUri);if(index>=0){fileList.SetOffset(index*VirtualFileList.RowPitch);fileOffset=fileList.Offset;}locatedFile=app.LocateFileUri;}
         }
         private void RemoveFavorite(string uri){var item=app.Store.RemoveFavorite(uri,out int index);if(item==null)return;removedFavorite=item;removedIndex=index;undoUntil=Time.unscaledTime+5;app.ShowFavorites();app.SetStatus("已移除收藏，可在 5 秒内撤销");}
@@ -249,7 +313,7 @@ namespace VRPlayer
             }
             UiFactory.Button(content,"关闭字幕",0,76,175,48,app.DisableSubtitles);
             UiFactory.Button(content,"恢复自动选择",796,76,270,48,app.RestoreAutomaticSubtitles);
-            UiFactory.Button(content,"手动选择 SRT",190,76,260,48,()=>{subtitleBrowse=true;SelectTab("文件");});
+            UiFactory.Button(content,"手动选择 SRT",190,76,260,48,()=>{subtitleBrowserEntry=app.BrowserHistoryPosition;subtitleBrowse=true;subtitleFileSelection=true;SelectTab("文件");});
             string[] encodings={"Auto","UTF-8","GB18030","UTF-16LE"};int encoding=Array.IndexOf(encodings,app.SubtitleEncoding);
             UiFactory.Button(content,"编码："+app.SubtitleEncoding,468,76,310,48,()=>{app.SubtitleEncoding=encodings[(encoding+1)%encodings.Length];if(app.Current!=null&&!string.IsNullOrEmpty(app.Current.subtitle)&&!app.Current.subtitle.StartsWith("track:"))_ = app.LoadSubtitle(app.Current.subtitle);Draw();});
             UiFactory.Label(content,"同目录匹配字幕",0,148,900,40,28);
@@ -292,7 +356,7 @@ namespace VRPlayer
             UiFactory.Button(content,"清空播放记录",0,391,310,52,()=>{app.Store.Settings.history.Clear();app.Store.Save();app.SetStatus("播放记录已清空");});
             UiFactory.Button(content,"自动加载同名 SRT："+(app.Store.Settings.autoLoadSubtitles?"开":"关"),330,391,500,52,()=>{app.SetAutoLoadSubtitles(!app.Store.Settings.autoLoadSubtitles);Draw();});
             UiFactory.Button(content,"格式："+new[]{"关闭","标签与元数据","增强识别"}[(int)app.Store.Settings.formatDetection],850,391,526,52,()=>{app.SetFormatDetectionMode((FormatDetectionMode)(((int)app.Store.Settings.formatDetection+1)%3));Draw();});
-            var instructions=UiFactory.Label(content,"扳机开关简易面板；A / X 或菜单键开关完整面板。摇杆上下滚动，左右 ±10 秒。\n自动字幕：中文后缀 → 无后缀 → 其他语言；手动选择与关闭状态优先。\n键盘：空格播放暂停，← / → 快退快进，Tab 完整面板，R 居中。",0,478,1376,122,24);instructions.textWrappingMode=TextWrappingModes.Normal;
+            var instructions=UiFactory.Label(content,"扳机开关简易面板；A / X 或菜单键开关完整面板；Y / B 返回。摇杆左右 ±10 秒。\n自动字幕：中文后缀 → 无后缀 → 其他语言；手动选择与关闭状态优先。\n键盘：空格播放暂停，← / → 快退快进，Tab 完整面板，Esc 返回，R 居中。",0,478,1376,122,24);instructions.textWrappingMode=TextWrappingModes.Normal;
         }
         private void DrawTracks()
         {
@@ -304,8 +368,9 @@ namespace VRPlayer
         }
         private void DrawInfo(){detail=UiFactory.Label(content,"",0,0,1376,590,25);detail.textWrappingMode=TextWrappingModes.Normal;detail.alignment=TextAlignmentOptions.TopLeft;}
         public void CancelSmbConnection(){connection?.Cancel();connection?.Dispose();connection=null;if(modal=="connecting")Draw();}
-        private void CloseKeyboard(){keyboardTarget=null;if(keyboard!=null)keyboard.gameObject.SetActive(false);fileList?.Block(false);embyBrowser?.Block(false);}
-        private void BeginModal(string name){CancelSmbConnection();app.StopDiscovery();CloseKeyboard();if(fileList!=null)fileOffset=fileList.Offset;UiFactory.Clear(content);fileList=null;preview=null;modal=name;}
+        private void CloseKeyboard(){keyboardTarget?.DeactivateInputField();keyboardTarget=null;if(keyboard!=null)keyboard.gameObject.SetActive(false);fileList?.Block(false);embyBrowser?.Block(false);}
+        private void CompleteKeyboard(){bool search=keyboardTarget==filter;CloseKeyboard();if(search)Draw();else if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Render();}
+        private void BeginModal(string name){CancelSmbConnection();app.StopDiscovery();CloseKeyboard();RememberFileOffset();fileRowsReady=false;UiFactory.Clear(content);fileList=null;preview=null;modal=name;}
         private void ReturnFromModal(){CancelSmbConnection();CloseKeyboard();Draw();if(CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         private void ConnectHost(DiscoveredSmbHost host)=>_ = EnumerateShares(new SmbServer{name=host.name,host=host.host,port=host.port});
         private async Task EnumerateShares(SmbServer server)
@@ -358,7 +423,7 @@ namespace VRPlayer
         private void UpdateKeyboardPreview(){if(keyboardPreview!=null&&keyboardTarget!=null)keyboardPreview.text=keyboardTarget.contentType==TMP_InputField.ContentType.Password?new string('•',keyboardTarget.text.Length):keyboardTarget.text;}
         private void DrawKeyboard()
         {
-            UiFactory.Clear(keyboard);keyboardPreview=UiFactory.Label(keyboard,"",20,12,1050,44,25);UpdateKeyboardPreview();UiFactory.Button(keyboard,"完成",1140,10,215,46,()=>{bool search=keyboardTarget==filter;CloseKeyboard();if(search)Draw();else if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Render();});
+            UiFactory.Clear(keyboard);keyboardPreview=UiFactory.Label(keyboard,"",20,12,1050,44,25);UpdateKeyboardPreview();UiFactory.Button(keyboard,"完成",1140,10,215,46,CompleteKeyboard);
             string[] rows={"1234567890-_=+","qwertyuiop[]\\","asdfghjkl;:'\"","zxcvbnm,./@:#"};
             for(int row=0;row<rows.Length;row++)for(int col=0;col<rows[row].Length;col++){char c=rows[row][col];string key=shift?c.ToString().ToUpperInvariant():c.ToString();UiFactory.Button(keyboard,key,20+col*100,80+row*72,91,60,()=>Insert(key));}
             UiFactory.Button(keyboard,shift?"小写":"大写",20,389,195,64,()=>{shift=!shift;DrawKeyboard();});UiFactory.Button(keyboard,"空格",235,389,580,64,()=>Insert(" "));UiFactory.Button(keyboard,"退格",835,389,245,64,()=>{if(keyboardTarget!=null&&keyboardTarget.text.Length>0)keyboardTarget.text=keyboardTarget.text.Substring(0,keyboardTarget.text.Length-1);UpdateKeyboardPreview();});UiFactory.Button(keyboard,"清空",1100,389,245,64,()=>{if(keyboardTarget!=null)keyboardTarget.text="";UpdateKeyboardPreview();});

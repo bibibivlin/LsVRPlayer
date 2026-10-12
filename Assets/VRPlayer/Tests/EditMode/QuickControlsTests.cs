@@ -1,11 +1,14 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
+using UnityEngine.TestTools;
 using UnityEngine.UI;
 
 namespace VRPlayer.Tests
@@ -15,6 +18,34 @@ namespace VRPlayer.Tests
         private GameObject root,head,events;
         private PlayerApp app;private PlayerUI ui;private PlayerStore store;private TestBackend backend;private string path;
         private void Set(string name,object value)=>typeof(PlayerApp).GetProperty(name).SetValue(app,value);
+        private VirtualFileList FullFileList=>(VirtualFileList)typeof(PlayerUI).GetField("fileList",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+        private void FileButton(string name)
+        {
+            var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+            var button=content.GetComponentsInChildren<Button>().First(candidate=>candidate.name==name);button.onClick.Invoke();
+        }
+        private async Task WaitForDirectory()
+        {
+            for(int i=0;i<200&&app.Loading;i++)await Task.Delay(5);
+            Assert.That(app.Loading,Is.False,"Directory listing did not complete");
+        }
+        private string FileFilter=>((TMPro.TMP_InputField)typeof(PlayerUI).GetField("filter",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui)).text;
+        private void ApplyFileFilter(string value)
+        {
+            var filter=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("filter",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+            filter.text=value;FileButton("搜索");
+        }
+        private static void WriteMovieRows(string folder,int count=40)
+        {
+            Directory.CreateDirectory(folder);
+            for(int i=0;i<count;i++)File.WriteAllText(Path.Combine(folder,"MovieMatch"+i.ToString("D2")+".mp4"),"");
+        }
+        private void DirectorySnapshot(string uri,int count,bool loading=false,string locate="")
+        {
+            Set("Source",FileSource.Directory);Set("DirectoryUri",uri);Set("Loading",loading);Set("LocateFileUri",locate);
+            Set("Files",Enumerable.Range(0,count).Select(index=>new FileEntry{name="Movie"+index.ToString("D3")+".mp4",uri=uri+"/movie"+index}).ToList());
+            typeof(PlayerUI).GetMethod("OnAppChanged",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(ui,null);
+        }
         [SetUp] public void Setup()
         {
             path=Path.Combine(Path.GetTempPath(),"VRPlayer-quick-"+Guid.NewGuid()+".json");store=new PlayerStore(path);store.Settings.formatDetection=FormatDetectionMode.Metadata;
@@ -44,6 +75,330 @@ namespace VRPlayer.Tests
         {
             ui.Hide();app.Open(new FileEntry{name="Other.mp4",uri="file:///other.mp4"},"");Assert.That(ui.AnyVisible,Is.False);
             ui.ShowQuick();app.Open(new FileEntry{name="Third.mp4",uri="file:///third.mp4"},"");Assert.That(ui.Quick.Visible);Assert.That(ui.Visible,Is.False);
+        }
+        [TestCase("mode")][TestCase("advanced")][TestCase("subtitles")]
+        public void BackClosesQuickPopupBeforeClosingPanel(string popup)
+        {
+            ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup(popup);int revision=ui.SurfaceRevision;
+            Assert.That(ui.Back());Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);Assert.That(ui.SurfaceRevision,Is.GreaterThan(revision));
+            Assert.That(ui.Back());Assert.That(ui.AnyVisible,Is.False);Assert.That(ui.ActiveCanvas,Is.Null);
+        }
+        [Test] public async Task BackInQuickSubtitleBrowserUsesParentsBeforeReturningToSubtitles()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-back-"+Guid.NewGuid()),child=Path.Combine(folder,"Child");Directory.CreateDirectory(child);
+            try{
+                app.Current.directory="";ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup("subtitles");ui.Quick.TogglePopup("files");
+                await ui.Quick.Browse(new Uri(folder).AbsoluteUri);await ui.Quick.Browse(new Uri(child).AbsoluteUri);
+                FileSource source=app.Source;string mainDirectory=app.DirectoryUri;string film=app.Current.uri;
+                ui.Back();Assert.That(ui.Quick.BrowserUri,Is.EqualTo(new Uri(folder).AbsoluteUri));Assert.That(ui.Quick.Popup,Is.EqualTo("files"));
+                ui.Back();Assert.That(ui.Quick.BrowserUri,Is.Empty);Assert.That(ui.Quick.Popup,Is.EqualTo("files"));
+                ui.Back();Assert.That(ui.Quick.Popup,Is.EqualTo("subtitles"));Assert.That(ui.Quick.Visible);
+                Assert.That(app.Source,Is.EqualTo(source));Assert.That(app.DirectoryUri,Is.EqualTo(mainDirectory));Assert.That(app.Current.uri,Is.EqualTo(film));
+                ui.Back();Assert.That(ui.Quick.Popup,Is.Empty);ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{ui.Quick.ClosePopup();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task BackFromQuickSmbRootReturnsToSubtitleSources()
+        {
+            app.Current.directory="";ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup("subtitles");ui.Quick.TogglePopup("files");await ui.Quick.Browse("smb://test-config/");
+            ui.Back();Assert.That(ui.Quick.Popup,Is.EqualTo("files"));Assert.That(ui.Quick.BrowserUri,Is.Empty);Assert.That(ui.Quick.Visible);
+            ui.Back();Assert.That(ui.Quick.Popup,Is.EqualTo("subtitles"));
+        }
+        [Test] public void BackClosesKeyboardBeforeSmbFormAndFullPanel()
+        {
+            var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+            foreach(var button in content.GetComponentsInChildren<Button>())if(button.name=="添加 SMB"){button.onClick.Invoke();break;}
+            var modal=typeof(PlayerUI).GetField("modal",BindingFlags.Instance|BindingFlags.NonPublic);Assert.That(modal.GetValue(ui),Is.EqualTo("server"));
+            var field=content.GetComponentInChildren<TMPro.TMP_InputField>();
+            typeof(PlayerUI).GetMethod("ShowKeyboard",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(ui,new object[]{field});
+            var keyboard=(RectTransform)typeof(PlayerUI).GetField("keyboard",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+            ui.Back();Assert.That(keyboard.gameObject.activeSelf,Is.False);Assert.That(modal.GetValue(ui),Is.EqualTo("server"));Assert.That(ui.Visible);
+            ui.Back();Assert.That(modal.GetValue(ui),Is.Empty);Assert.That(ui.Visible);ui.Back();Assert.That(ui.AnyVisible,Is.False);
+        }
+        [Test] public void BackCancelsSmbRequestWithoutLeavingFilesPage()
+        {
+            var token=new System.Threading.CancellationTokenSource();
+            typeof(PlayerUI).GetField("connection",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(ui,token);
+            typeof(PlayerUI).GetField("modal",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(ui,"connecting");
+            ui.Back();Assert.That(token.IsCancellationRequested);Assert.That(ui.Visible);Assert.That(ui.SelectedTab,Is.EqualTo("文件"));
+            Assert.That(typeof(PlayerUI).GetField("connection",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui),Is.Null);
+        }
+        [Test] public void BackFromSearchKeyboardAppliesFilterWithoutClosingFullPanel()
+        {
+            Set("Files",new System.Collections.Generic.List<FileEntry>{new FileEntry{name="Wanted.mp4",uri="file:///wanted.mp4"},new FileEntry{name="Other.mp4",uri="file:///other.mp4"}});
+            ui.SelectTab("文件");var privateFields=BindingFlags.Instance|BindingFlags.NonPublic;
+            var list=(VirtualFileList)typeof(PlayerUI).GetField("fileList",privateFields).GetValue(ui);Assert.That(list.Count,Is.EqualTo(2));
+            var filter=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("filter",privateFields).GetValue(ui);
+            typeof(PlayerUI).GetMethod("ShowKeyboard",privateFields).Invoke(ui,new object[]{filter});filter.text="Wanted";
+            ui.Back();list=(VirtualFileList)typeof(PlayerUI).GetField("fileList",privateFields).GetValue(ui);
+            Assert.That(list.Count,Is.EqualTo(1));Assert.That(ui.Visible);Assert.That(ui.SelectedTab,Is.EqualTo("文件"));
+            Assert.That(ui.BlocksScrolling,Is.False);
+        }
+        [Test] public async Task BackFromDirectoryUsesNavigationHistoryBeforeClosingPanel()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-main-back-"+Guid.NewGuid()),child=Path.Combine(folder,"Child");Directory.CreateDirectory(child);
+            try{
+                await app.Browse(new Uri(folder).AbsoluteUri);await app.Browse(new Uri(child).AbsoluteUri);ui.Back();
+                Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(folder).AbsoluteUri));Assert.That(ui.Visible);Assert.That(app.Source,Is.EqualTo(FileSource.Directory));
+                app.Home();ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task BackFromFavoriteShortcutRestoresFavoriteSearchSortSubtitleViewAndOffset()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-favorite-back-"+Guid.NewGuid());Directory.CreateDirectory(folder);
+            try{
+                for(int i=0;i<40;i++){
+                    string deep=Path.Combine(folder,"Shortcut"+i.ToString("D2"),"Deep");Directory.CreateDirectory(deep);
+                    store.Settings.favorites.Add(new Favorite{name="Shortcut "+i.ToString("D2"),uri=new Uri(deep).AbsoluteUri});
+                }
+                app.ShowFavorites();ApplyFileFilter("Shortcut");FileButton("名称排序");FileButton("视频文件");FullFileList.SetOffset(941);
+                var row=FullFileList.GetComponentsInChildren<RowBinding>().First(binding=>binding.Item?.open!=null);
+                string selected=row.Item.key;row.Press();row.Open();await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.EqualTo(selected));Assert.That(app.Source,Is.EqualTo(FileSource.Directory));
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Favorites));Assert.That(app.DirectoryUri,Is.Empty);
+                Assert.That(FileFilter,Is.EqualTo("Shortcut"));Assert.That(FullFileList.Count,Is.EqualTo(40));Assert.That(FullFileList.Offset,Is.EqualTo(941));
+                FileButton("字幕文件");FileButton("日期排序");Assert.That(ui.Visible);
+                ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task BackFromHomeShortcutReturnsToHomeWithoutVisitingPhysicalParents()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-home-back-"+Guid.NewGuid()),deep=Path.Combine(folder,"Parent","Deep");Directory.CreateDirectory(deep);
+            try{
+                app.Home();var roots=app.Files.Select(item=>item.uri).ToArray();await app.Browse(new Uri(deep).AbsoluteUri);
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Home));Assert.That(app.DirectoryUri,Is.Empty);Assert.That(app.Files.Select(item=>item.uri),Is.EqualTo(roots));Assert.That(ui.Visible);
+                ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task BackFromRecentContainingDirectoryRestoresRecentQueryAndViewport()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-recent-back-"+Guid.NewGuid()),deep=Path.Combine(folder,"Parent","Deep");Directory.CreateDirectory(deep);
+            string mediaUri=new Uri(Path.Combine(deep,"Track25.mp4")).AbsoluteUri;
+            try{
+                for(int i=0;i<40;i++){
+                    string name="Track"+i.ToString("D2")+".mp4",media=Path.Combine(deep,name);File.WriteAllText(media,"");
+                    store.Touch(new FileEntry{name=name,uri=new Uri(media).AbsoluteUri},new Uri(deep).AbsoluteUri);
+                }
+                app.ShowRecent();ApplyFileFilter("Track");Assert.That(FullFileList.Count,Is.EqualTo(40));FullFileList.SetOffset(941);
+                app.OpenContainingDirectory(mediaUri);await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(deep).AbsoluteUri));Assert.That(app.LocateFileUri,Is.EqualTo(mediaUri));Assert.That(FullFileList.Offset,Is.EqualTo(25*VirtualFileList.RowPitch));
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Recent));Assert.That(app.DirectoryUri,Is.Empty);Assert.That(app.LocateFileUri,Is.Empty);
+                Assert.That(FileFilter,Is.EqualTo("Track"));Assert.That(FullFileList.Count,Is.EqualTo(40));Assert.That(FullFileList.Offset,Is.EqualTo(941));Assert.That(ui.Visible);
+                ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task UpVisitsPhysicalParentAndBackRestoresDirectoryJustLeft()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-up-back-"+Guid.NewGuid()),deep=Path.Combine(folder,"Parent","Deep");WriteMovieRows(deep);
+            try{
+                app.Home();await app.Browse(new Uri(deep).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(739);
+                FileButton("上级");await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(Path.GetDirectoryName(deep)).AbsoluteUri));
+                ui.Back();await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(deep).AbsoluteUri));Assert.That(FileFilter,Is.EqualTo("Match"));Assert.That(FullFileList.Offset,Is.EqualTo(739));
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Home));Assert.That(ui.Visible);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task BackFromUnrelatedAddressRestoresPreviousDirectoryAcrossTabs()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-address-back-"+Guid.NewGuid()),first=Path.Combine(folder,"First","Deep"),other=Path.Combine(folder,"Other","Nested");WriteMovieRows(first);Directory.CreateDirectory(other);
+            try{
+                app.Home();await app.Browse(new Uri(first).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(813);
+                var address=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("address",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);address.text=new Uri(other).AbsoluteUri;FileButton("打开");await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(other).AbsoluteUri));ui.SelectTab("投影");ui.SelectTab("文件");
+                ui.Back();await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(first).AbsoluteUri));Assert.That(FileFilter,Is.EqualTo("Match"));Assert.That(FullFileList.Offset,Is.EqualTo(813));Assert.That(ui.Visible);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task RepeatedDirectoryVisitsRestoreEachHistoricalSearchAndOffset()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-repeat-back-"+Guid.NewGuid()),first=Path.Combine(folder,"First"),second=Path.Combine(folder,"Second"),third=Path.Combine(folder,"Third");WriteMovieRows(first);WriteMovieRows(second);Directory.CreateDirectory(third);
+            try{
+                app.Home();await app.Browse(new Uri(first).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(241);
+                await app.Browse(new Uri(second).AbsoluteUri);ApplyFileFilter("Movie");FullFileList.SetOffset(431);
+                await app.Browse(new Uri(first).AbsoluteUri);ApplyFileFilter("MovieMatch");FullFileList.SetOffset(941);
+                await app.Browse(new Uri(third).AbsoluteUri);
+                ui.Back();await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(first).AbsoluteUri));Assert.That(FileFilter,Is.EqualTo("MovieMatch"));Assert.That(FullFileList.Offset,Is.EqualTo(941));
+                ui.Back();await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(second).AbsoluteUri));Assert.That(FileFilter,Is.EqualTo("Movie"));Assert.That(FullFileList.Offset,Is.EqualTo(431));
+                ui.Back();await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(first).AbsoluteUri));Assert.That(FileFilter,Is.EqualTo("Match"));Assert.That(FullFileList.Offset,Is.EqualTo(241));
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Home));
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task RefreshKeepsDirectoryViewWithoutAddingAnotherBackStep()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-refresh-back-"+Guid.NewGuid());WriteMovieRows(folder);
+            try{
+                app.Home();await app.Browse(new Uri(folder).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(621);
+                app.Refresh();await WaitForDirectory();app.Refresh();await WaitForDirectory();
+                Assert.That(FileFilter,Is.EqualTo("Match"));Assert.That(FullFileList.Offset,Is.EqualTo(621));ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Home));Assert.That(ui.Visible);
+                ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [TestCase(FileSource.Home)][TestCase(FileSource.Favorites)][TestCase(FileSource.Recent)][TestCase(FileSource.Smb)]
+        public async Task ExplicitSourceChangeDiscardsDirectoryBackHistory(FileSource source)
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-source-back-"+Guid.NewGuid()),child=Path.Combine(folder,"Child");Directory.CreateDirectory(child);
+            try{
+                app.Home();await app.Browse(new Uri(folder).AbsoluteUri);await app.Browse(new Uri(child).AbsoluteUri);
+                switch(source){
+                    case FileSource.Home:app.Home();break;
+                    case FileSource.Favorites:app.ShowFavorites();break;
+                    case FileSource.Recent:app.ShowRecent();break;
+                    case FileSource.Smb:LogAssert.Expect(LogType.Error,new Regex("Coroutine couldn't be started.*inactive"));app.ShowServers();break;
+                }
+                Assert.That(app.Source,Is.EqualTo(source));ui.Back();Assert.That(ui.AnyVisible,Is.False);Assert.That(app.Source,Is.EqualTo(source));Assert.That(app.DirectoryUri,Is.Empty);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [TestCase(false)][TestCase(true)] public async Task BackFromFailedOrRetiredListingCancelsRequestAndKeepsRestoredRoots(bool failed)
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-listing-back-"+Guid.NewGuid());WriteMovieRows(folder,200);
+            try{
+                app.Home();var roots=app.Files.Select(item=>item.uri).ToArray();var listing=app.Browse(new Uri(failed?Path.Combine(folder,"Missing"):folder).AbsoluteUri);
+                var request=(System.Threading.CancellationTokenSource)typeof(PlayerApp).GetField("listing",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(app);var token=request.Token;
+                if(failed){await listing;Assert.That(app.Files,Is.Empty);}
+                ui.Back();await listing;
+                Assert.That(token.IsCancellationRequested);Assert.That(app.Source,Is.EqualTo(FileSource.Home));Assert.That(app.DirectoryUri,Is.Empty);Assert.That(app.Loading,Is.False);
+                Assert.That(app.Files.Select(item=>item.uri),Is.EqualTo(roots));Assert.That(ui.Visible);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task BackWithoutHistoryClosesPanelInsteadOfGuessingPhysicalParent()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-no-history-back-"+Guid.NewGuid()),deep=Path.Combine(folder,"Parent","Deep");Directory.CreateDirectory(deep);
+            try{
+                app.Home();await app.Browse(new Uri(deep).AbsoluteUri,false);ui.Back();
+                Assert.That(ui.AnyVisible,Is.False);Assert.That(app.Source,Is.EqualTo(FileSource.Directory));Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(deep).AbsoluteUri));
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public async Task SafParentMappingSupportsUpWhileBackRestoresTheChild()
+        {
+            // This simulates SAF identities in EditMode; it does not validate Android directory access.
+            const string child="content://fixture/tree/child",parent="content://fixture/tree/root";
+            try{
+                app.Home();await app.Browse(child,physicalParent:parent);app.Up();Assert.That(app.DirectoryUri,Is.EqualTo(parent));
+                app.CancelListing();ui.Back();Assert.That(app.DirectoryUri,Is.EqualTo(child));Assert.That(app.Source,Is.EqualTo(FileSource.Directory));Assert.That(ui.Visible);
+                app.CancelListing();await Task.Yield();Assert.That(app.DirectoryUri,Is.EqualTo(child));
+            }finally{app.CancelListing();}
+        }
+        [TestCase(false)][TestCase(true)]
+        public async Task ReturningToParentRestoresItsScrollPositionAfterRealListing(bool controllerBack)
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-scroll-"+Guid.NewGuid()),child=Path.Combine(folder,"Child");Directory.CreateDirectory(child);
+            try{
+                for(int i=0;i<45;i++)File.WriteAllText(Path.Combine(folder,"Movie"+i.ToString("D3")+".mp4"),"");
+                await app.Browse(new Uri(folder).AbsoluteUri);FullFileList.SetOffset(941);
+                await app.Browse(new Uri(child).AbsoluteUri);Assert.That(FullFileList.Offset,Is.Zero);
+                if(controllerBack)ui.Back();else FileButton("上级");await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(folder).AbsoluteUri));Assert.That(FullFileList.Offset,Is.EqualTo(941));
+                Assert.That(FullFileList.PoolCount,Is.LessThanOrEqualTo(8));
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [TestCase(false)][TestCase(true)] public async Task ReturningToFilteredParentRestoresSearchAndPosition(bool keyboardOpen)
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-filter-scroll-"+Guid.NewGuid());Directory.CreateDirectory(folder);
+            try{
+                for(int i=0;i<35;i++)Directory.CreateDirectory(Path.Combine(folder,"Match"+i.ToString("D2")));
+                for(int i=0;i<15;i++)Directory.CreateDirectory(Path.Combine(folder,"Other"+i.ToString("D2")));
+                await app.Browse(new Uri(folder).AbsoluteUri);
+                var filter=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("filter",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);filter.text="Match";FileButton("搜索");FullFileList.SetOffset(861);
+                var row=FullFileList.GetComponentsInChildren<RowBinding>().First(binding=>binding.Item?.open!=null);row.Press();row.Open();await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.Not.EqualTo(new Uri(folder).AbsoluteUri));
+                if(keyboardOpen){
+                    var address=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("address",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+                    typeof(PlayerUI).GetMethod("ShowKeyboard",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(ui,new object[]{address});FileButton("上级");
+                }else ui.Back();
+                await WaitForDirectory();
+                Assert.That(FullFileList.Count,Is.EqualTo(35));Assert.That(FullFileList.Offset,Is.EqualTo(861));
+                filter=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("filter",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);Assert.That(filter.text,Is.EqualTo("Match"));
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public void LoadingPlaceholderAndTabChangesCannotOverwriteRememberedScroll()
+        {
+            DirectorySnapshot("smb://fixture/parent",50);FullFileList.SetOffset(1103);
+            DirectorySnapshot("smb://fixture/child",20);FullFileList.SetOffset(239);
+            DirectorySnapshot("smb://fixture/parent",0,true);Assert.That(FullFileList.Offset,Is.Zero);
+            ui.SelectTab("投影");ui.SelectTab("文件");DirectorySnapshot("smb://fixture/parent",0,true);
+            DirectorySnapshot("smb://fixture/parent",50);Assert.That(FullFileList.Offset,Is.EqualTo(1103));
+            DirectorySnapshot("smb://fixture/child",20);Assert.That(FullFileList.Offset,Is.EqualTo(239));
+        }
+        [Test] public void RestoringAnEarlierVisitAcrossLoadingTabChangesKeepsItsOwnOffset()
+        {
+            // Simulate listing callbacks so this regression does not depend on worker completion timing.
+            const string first="file:///fixture/repeated",other="file:///fixture/other",third="file:///fixture/third";
+            DirectorySnapshot(first,40);ApplyFileFilter("Movie");FullFileList.SetOffset(241);var earlier=ui.CaptureFileView();
+            DirectorySnapshot(other,40);DirectorySnapshot(first,40);FullFileList.SetOffset(941);DirectorySnapshot(third,40);
+            ui.RestoreFileView(earlier,FileSource.Directory,first);DirectorySnapshot(first,0,true);
+            Assert.That(FullFileList.Offset,Is.Zero);ui.SelectTab("投影");ui.SelectTab("文件");
+            DirectorySnapshot(first,40);Assert.That(FileFilter,Is.EqualTo("Movie"));Assert.That(FullFileList.Offset,Is.EqualTo(241));
+        }
+        [Test] public async Task BackRestoresACompletedSearchWithNoMatches()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-empty-search-back-"+Guid.NewGuid()),first=Path.Combine(folder,"First"),other=Path.Combine(folder,"Other");WriteMovieRows(first);Directory.CreateDirectory(other);
+            try{
+                app.Home();await app.Browse(new Uri(first).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(941);
+                ApplyFileFilter("DoesNotExist");Assert.That(FullFileList.Count,Is.EqualTo(1));Assert.That(FullFileList.Offset,Is.Zero);
+                var address=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("address",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);address.text=new Uri(other).AbsoluteUri;FileButton("打开");await WaitForDirectory();
+                ui.Back();await WaitForDirectory();Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(first).AbsoluteUri));Assert.That(app.Files.Count,Is.EqualTo(40));
+                Assert.That(FileFilter,Is.EqualTo("DoesNotExist"));Assert.That(FullFileList.Count,Is.EqualTo(1));Assert.That(FullFileList.Offset,Is.Zero);Assert.That(ui.Visible);
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Home));
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [Test] public void RefreshAndTemporaryReadFailureKeepTheDirectoryPosition()
+        {
+            DirectorySnapshot("content://fixture/tree/parent",40);FullFileList.SetOffset(1029);
+            DirectorySnapshot("content://fixture/tree/parent",0,true);DirectorySnapshot("content://fixture/tree/parent",0);
+            DirectorySnapshot("content://fixture/tree/parent",0,true);DirectorySnapshot("content://fixture/tree/parent",40);
+            Assert.That(FullFileList.Offset,Is.EqualTo(1029));
+        }
+        [Test] public void RestoredPositionClampsWhenDirectoryHasFewerFiles()
+        {
+            DirectorySnapshot("file:///fixture/parent",40);FullFileList.SetOffset(1700);DirectorySnapshot("file:///fixture/child",10);
+            DirectorySnapshot("file:///fixture/parent",8);Assert.That(FullFileList.Offset,Is.EqualTo(8*VirtualFileList.RowPitch-352));
+        }
+        [Test] public void FileLocationOverridesCachedPositionAndLaterUpdatesPreserveUserScroll()
+        {
+            const string uri="file:///fixture/parent";DirectorySnapshot(uri,40);FullFileList.SetOffset(900);DirectorySnapshot("file:///fixture/other",10);
+            ui.PrepareDirectoryNavigation();DirectorySnapshot(uri,40,locate:uri+"/movie30");Assert.That(FullFileList.Offset,Is.EqualTo(30*VirtualFileList.RowPitch));
+            FullFileList.SetOffset(1200);DirectorySnapshot(uri,40,locate:uri+"/movie30");Assert.That(FullFileList.Offset,Is.EqualTo(1200));
+        }
+        [Test] public void ModalListsCannotReplaceDirectoryScrollMemory()
+        {
+            DirectorySnapshot("smb://fixture/parent",40);FullFileList.SetOffset(1177);
+            FileButton("添加 SMB");ui.Back();Assert.That(FullFileList.Offset,Is.EqualTo(1177));
+        }
+        [Test] public void SortAndSubtitleViewsKeepIndependentPositions()
+        {
+            DirectorySnapshot("file:///fixture/parent",40);FullFileList.SetOffset(1221);
+            FileButton("名称排序");Assert.That(FullFileList.Offset,Is.Zero);FullFileList.SetOffset(547);
+            FileButton("视频文件");Assert.That(FullFileList.Offset,Is.Zero);FileButton("字幕文件");Assert.That(FullFileList.Offset,Is.EqualTo(547));
+            FileButton("日期排序");Assert.That(FullFileList.Offset,Is.Zero);FileButton("大小排序");Assert.That(FullFileList.Offset,Is.EqualTo(1221));
+        }
+        [Test] public void BackFromManualSubtitleSourcesRestoresSubtitlePage()
+        {
+            app.Home();ui.SelectTab("字幕");var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+            foreach(var button in content.GetComponentsInChildren<Button>())if(button.name=="手动选择 SRT"){button.onClick.Invoke();break;}
+            Assert.That(ui.SelectedTab,Is.EqualTo("文件"));ui.Back();Assert.That(ui.SelectedTab,Is.EqualTo("字幕"));Assert.That(ui.Visible);
+            ui.Back();Assert.That(ui.AnyVisible,Is.False);
+        }
+        [TestCase(false)][TestCase(true)] public async Task ManualSubtitleBackReturnsToEntryWithoutConsumingExistingFileHistory(bool browseInside)
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-subtitle-entry-back-"+Guid.NewGuid()),first=Path.Combine(folder,"First"),second=Path.Combine(first,"Second"),third=Path.Combine(second,"Third");WriteMovieRows(first);Directory.CreateDirectory(third);
+            try{
+                app.Home();await app.Browse(new Uri(first).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(739);await app.Browse(new Uri(second).AbsoluteUri);
+                ui.SelectTab("字幕");FileButton("手动选择 SRT");Assert.That(ui.SelectedTab,Is.EqualTo("文件"));
+                if(browseInside){
+                    await app.Browse(new Uri(third).AbsoluteUri);ui.Back();await WaitForDirectory();
+                    Assert.That(ui.SelectedTab,Is.EqualTo("文件"));Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(second).AbsoluteUri));Assert.That(ui.Visible);
+                }
+                ui.Back();Assert.That(ui.SelectedTab,Is.EqualTo("字幕"));Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(second).AbsoluteUri));Assert.That(ui.Visible);
+                ui.SelectTab("文件");ui.Back();await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(first).AbsoluteUri));Assert.That(FileFilter,Is.EqualTo("Match"));Assert.That(FullFileList.Offset,Is.EqualTo(739));
+                ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Home));Assert.That(ui.Visible);ui.Back();Assert.That(ui.AnyVisible,Is.False);
+            }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [TestCase("投影")][TestCase("字幕")][TestCase("设置")][TestCase("信息")]
+        public void BackFromTopLevelTabClosesFullPanel(string selected)
+        {
+            ui.SelectTab(selected);ui.Back();Assert.That(ui.AnyVisible,Is.False);
+        }
+        [Test] public void BackWhileHiddenPreservesPlaybackAndVisibility()
+        {
+            ui.Hide();string film=app.Current.uri;Assert.That(ui.Back(),Is.False);Assert.That(ui.AnyVisible,Is.False);Assert.That(app.Current.uri,Is.EqualTo(film));Assert.That(backend.seeks,Is.Zero);
         }
         [Test] public void MutingRemembersVolumeAcrossSettingsReload()
         {

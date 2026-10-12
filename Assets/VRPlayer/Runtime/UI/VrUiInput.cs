@@ -15,6 +15,10 @@ namespace VRPlayer
         private readonly List<RaycastResult> hits=new List<RaycastResult>();
         private readonly PointerEventData[] pointers=new PointerEventData[3];
         private readonly bool[] held=new bool[3],menuHeld=new bool[2];
+        private readonly UnityEngine.XR.InputDevice[] controllers=new UnityEngine.XR.InputDevice[2];
+        private readonly Vector3[] controllerPositions=new Vector3[2];
+        private readonly Quaternion[] controllerRotations=new Quaternion[2];
+        private readonly bool[] controllerValid=new bool[2],backPressed=new bool[2];
         private readonly LineRenderer[] rays=new LineRenderer[2];
         private readonly Transform[] dots=new Transform[2];
         private Material rayMaterial;
@@ -22,6 +26,7 @@ namespace VRPlayer
         private readonly Vector2[] stickAxes=new Vector2[2];
         private readonly bool[] stickValid=new bool[2];
         private readonly TriggerPressGate triggerGate=new TriggerPressGate();
+        private readonly TriggerPressGate backGate=new TriggerPressGate();
         private int surfaceRevision=-1;
         private Canvas activeCanvas;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -29,14 +34,17 @@ namespace VRPlayer
         private readonly string[] diagnosticTargets=new string[3];
         private readonly float[] diagnosticValues={.5f,.5f,.5f};
         private readonly bool[] diagnosticPressed=new bool[3];
+        private readonly bool[] diagnosticBackPressed=new bool[2],diagnosticBackValid=new bool[2];
         public void SetDiagnosticPointer(int index,string target,float fraction,bool pressed)
         {
             if(index<0||index>=3)return;diagnosticInput=true;diagnosticTargets[index]=target;diagnosticValues[index]=Mathf.Clamp01(fraction);diagnosticPressed[index]=pressed;
         }
         public void SetDiagnosticStick(int index,Vector2 axis){if(index<0||index>=2)return;diagnosticInput=true;stickAxes[index]=Vector2.ClampMagnitude(axis,1);stickValid[index]=true;}
-        public void ResetDiagnosticInput(){diagnosticInput=false;for(int i=0;i<3;i++){diagnosticTargets[i]=null;diagnosticPressed[i]=false;}for(int i=0;i<2;i++){stickAxes[i]=Vector2.zero;stickValid[i]=false;}CancelAllPointers();}
+        public void SetDiagnosticBack(int index,bool pressed,bool valid){if(index<0||index>2)return;diagnosticInput=true;for(int hand=0;hand<2;hand++)if(index==2||hand==index){diagnosticBackPressed[hand]=pressed;diagnosticBackValid[hand]=valid;}}
+        public void ResetDiagnosticInput(){diagnosticInput=false;for(int i=0;i<3;i++){diagnosticTargets[i]=null;diagnosticPressed[i]=false;}for(int i=0;i<2;i++){stickAxes[i]=Vector2.zero;stickValid[i]=false;diagnosticBackPressed[i]=diagnosticBackValid[i]=false;}backGate.Suppress();CancelAllPointers();}
         private void ProcessDiagnosticInput()
         {
+            if(HandleControllerBack(diagnosticBackPressed[0],diagnosticBackValid[0],diagnosticBackPressed[1],diagnosticBackValid[1]))return;
             foreach(var line in rays)line.enabled=false;foreach(var dot in dots)dot.gameObject.SetActive(false);
             for(int index=0;index<3;index++){
                 Vector2 point=new Vector2(-500,-500);Canvas targetCanvas=app.UI.ActiveCanvas;
@@ -62,28 +70,37 @@ namespace VRPlayer
         public override bool IsModuleSupported()=>true;
         public override bool ShouldActivateModule()=>enabled&&gameObject.activeInHierarchy;
         // Unity may stop Process immediately on focus loss; suppress before its next input tick.
-        private void OnApplicationFocus(bool focused){if(!focused)CancelAllPointers();}
-        private void OnApplicationPause(bool paused){if(paused)CancelAllPointers();}
+        private void OnApplicationFocus(bool focused){if(!focused){backGate.Suppress();CancelAllPointers();}}
+        private void OnApplicationPause(bool paused){if(paused){backGate.Suppress();CancelAllPointers();}}
         public override void Process()
         {
             if(app==null)return;
             if(surfaceRevision!=app.UI.SurfaceRevision||activeCanvas!=app.UI.ActiveCanvas){CancelAllPointers();surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;}
-            if(!app.HasFocus){CancelAllPointers();foreach(var line in rays)line.enabled=false;foreach(var dot in dots)dot.gameObject.SetActive(false);return;}
+            if(!app.HasFocus){backGate.Suppress();CancelAllPointers();foreach(var line in rays)line.enabled=false;foreach(var dot in dots)dot.gameObject.SetActive(false);return;}
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            if(diagnosticInput){ProcessDiagnosticInput();return;}
+            if(diagnosticInput){if(Keyboard.current!=null&&Keyboard.current.escapeKey.wasPressedThisFrame)HandleKeyboardShortcut(Key.Escape,false);else ProcessDiagnosticInput();return;}
 #endif
-            bool hasController=false;
+            bool hasController=false,togglePanel=false;
             for(int hand=0;hand<2;hand++){
-                UnityEngine.XR.InputDevice device=InputDevices.GetDeviceAtXRNode(hand==0?XRNode.LeftHand:XRNode.RightHand);
-                Vector3 position=Vector3.zero;Quaternion rotation=Quaternion.identity;
-                bool valid=device.isValid&&device.TryGetFeatureValue(CommonUsages.devicePosition,out position)&&device.TryGetFeatureValue(CommonUsages.deviceRotation,out rotation);
+                var device=controllers[hand]=InputDevices.GetDeviceAtXRNode(hand==0?XRNode.LeftHand:XRNode.RightHand);
+                bool valid=device.isValid&&device.TryGetFeatureValue(CommonUsages.devicePosition,out controllerPositions[hand])&&device.TryGetFeatureValue(CommonUsages.deviceRotation,out controllerRotations[hand]);
                 if(device.TryGetFeatureValue(CommonUsages.isTracked,out bool tracked)&&!tracked)valid=false;
+                controllerValid[hand]=valid;
                 stickValid[hand]=valid&&device.TryGetFeatureValue(CommonUsages.primary2DAxis,out stickAxes[hand]);
+                device.TryGetFeatureValue(CommonUsages.secondaryButton,out backPressed[hand]);
+                device.TryGetFeatureValue(CommonUsages.primaryButton,out bool primary);device.TryGetFeatureValue(CommonUsages.menuButton,out bool menu);bool toggle=primary||menu;
+                if(valid&&toggle&&!menuHeld[hand])togglePanel=true;menuHeld[hand]=toggle;
+            }
+            // Sample both hands before changing surfaces so simultaneous Y/B presses return once.
+            if(HandleControllerBack(backPressed[0],controllerValid[0],backPressed[1],controllerValid[1]))return;
+            if(Keyboard.current!=null&&Keyboard.current.escapeKey.wasPressedThisFrame){HandleKeyboardShortcut(Key.Escape,false);return;}
+            if(togglePanel){app.UI.Toggle();CancelAllPointers();surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;}
+            for(int hand=0;hand<2;hand++){
+                var device=controllers[hand];bool valid=controllerValid[hand];
                 if(!valid){rays[hand].enabled=false;dots[hand].gameObject.SetActive(false);CancelPointer(pointers[hand]);held[hand]=false;triggerGate.Suppress(hand);continue;}
                 hasController=true;
-                device.TryGetFeatureValue(CommonUsages.primaryButton,out bool primary);device.TryGetFeatureValue(CommonUsages.menuButton,out bool menu);bool toggle=primary||menu;
-                if(toggle&&!menuHeld[hand]){app.UI.Toggle();CancelAllPointers();surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;}menuHeld[hand]=toggle;
-                Transform origin=head.transform.parent;Vector3 world=origin!=null?origin.TransformPoint(position):position;Quaternion worldRotation=origin!=null?origin.rotation*rotation:rotation;
+                Transform origin=head.transform.parent;Vector3 position=controllerPositions[hand];Quaternion rotation=controllerRotations[hand];
+                Vector3 world=origin!=null?origin.TransformPoint(position):position;Quaternion worldRotation=origin!=null?origin.rotation*rotation:rotation;
                 Canvas targetCanvas=app.UI.ActiveCanvas;
                 Ray ray=new Ray(world,worldRotation*Vector3.forward);float distance=2;bool intersects=targetCanvas!=null&&new Plane(targetCanvas.transform.forward,targetCanvas.transform.position).Raycast(ray,out distance);
                 // The UI lies on one plane. Project the controller intersection for uGUI's GraphicRaycaster.
@@ -101,6 +118,20 @@ namespace VRPlayer
             ProcessStickControls(typing,Time.unscaledTime,Time.unscaledDeltaTime);
             if(eventSystem.currentSelectedGameObject!=null)ExecuteEvents.Execute(eventSystem.currentSelectedGameObject,GetBaseEventData(),ExecuteEvents.updateSelectedHandler);
             ProcessKeyboard(typing);
+        }
+        private bool HandleControllerBack(bool leftPressed,bool leftValid,bool rightPressed,bool rightValid)
+        {
+            bool left=BackPressed(0,leftPressed,leftValid),right=BackPressed(1,rightPressed,rightValid);
+            if(!left&&!right)return false;
+            HandleBack();return true;
+        }
+        private bool BackPressed(int hand,bool pressed,bool valid){if(!valid){backGate.Suppress(hand);return false;}return backGate.Update(hand,pressed);}
+        private void HandleBack()
+        {
+            if(!app.HasFocus){backGate.Suppress();return;}
+            CancelAllPointers();eventSystem?.SetSelectedGameObject(null);app.UI.Back();
+            surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;
+            foreach(var line in rays)if(line!=null)line.enabled=false;foreach(var dot in dots)if(dot!=null)dot.gameObject.SetActive(false);
         }
         private void ProcessStickControls(bool typing,float now,float deltaTime)
         {
@@ -123,6 +154,7 @@ namespace VRPlayer
         }
         private void HandleKeyboardShortcut(Key key,bool typing)
         {
+            if(key==Key.Escape){HandleBack();return;}
             if(typing||!app.HasFocus)return;
             if(key==Key.Tab){app.UI.Toggle();return;}
             if(app.UI.BlocksTransport)return;

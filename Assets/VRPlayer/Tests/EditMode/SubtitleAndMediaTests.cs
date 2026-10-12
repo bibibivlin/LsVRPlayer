@@ -54,6 +54,12 @@ namespace VRPlayer.Tests
             var view=new ViewSettings{stereo=StereoLayout.SideBySide,half=false};Assert.That(view.Aspect(3840,1080),Is.EqualTo(16f/9f).Within(.001));view.half=true;Assert.That(view.Aspect(1920,1080),Is.EqualTo(16f/9f).Within(.001));view.stereo=StereoLayout.TopBottom;view.half=false;Assert.That(view.Aspect(1920,2160),Is.EqualTo(16f/9f).Within(.001));
         }
         [Test] public void SmbParentPreservesServerAndEscapedSegments()=>Assert.That(FileLibrary.Parent("smb://test/Chinese%20Movies/film.mp4"),Is.EqualTo("smb://test/Chinese%20Movies/"));
+        [TestCase(false)][TestCase(true)] public void DirectoryParentIgnoresTrailingSeparator(bool trailing)
+        {
+            string parent=Path.Combine(Path.GetTempPath(),"Parent"),child=Path.Combine(parent,"Child");string uri=new Uri(child).AbsoluteUri+(trailing?"/":"");
+            Assert.That(FileLibrary.Parent(uri),Is.EqualTo(new Uri(parent).AbsoluteUri));
+        }
+        [Test] public void FileSystemRootHasNoParent()=>Assert.That(FileLibrary.Parent(new Uri(Path.GetPathRoot(Path.GetFullPath("."))).AbsoluteUri),Is.Null);
         [Test] public void CorruptedHistoryDoesNotPreventStartup()
         {
             string root=Path.Combine(Path.GetTempPath(),"vrplayer-tests-"+Guid.NewGuid());Directory.CreateDirectory(root);string path=Path.Combine(root,"settings.json");

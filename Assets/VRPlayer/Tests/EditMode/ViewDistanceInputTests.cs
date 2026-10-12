@@ -13,6 +13,10 @@ namespace VRPlayer.Tests
         private PlayerApp app;private PlayerUI ui;private VrUiInput input;private PlayerStore store;private TestBackend backend;private string path;
         private const BindingFlags Private=BindingFlags.Instance|BindingFlags.NonPublic;
         private void Set(string name,object value)=>typeof(PlayerApp).GetProperty(name).SetValue(app,value);
+        private bool ControllerBack(bool leftPressed,bool rightPressed,bool leftValid=true,bool rightValid=true)
+            =>(bool)typeof(VrUiInput).GetMethod("HandleControllerBack",Private).Invoke(input,new object[]{leftPressed,leftValid,rightPressed,rightValid});
+        private bool ControllerBack(int hand,bool pressed,bool valid=true)
+            =>ControllerBack(hand==0&&pressed,hand==1&&pressed,hand!=0||valid,hand!=1||valid);
         private void Tick(Vector2 left,float elapsed=.25f,bool valid=true,bool typing=false)
         {
             var axes=(Vector2[])typeof(VrUiInput).GetField("stickAxes",Private).GetValue(input);axes[0]=left;
@@ -108,6 +112,111 @@ namespace VRPlayer.Tests
         [Test] public void NoFilmOrFocusedTextPreventsDistanceAdjustment()
         {
             Tick(Vector2.up,typing:true);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Tick(Vector2.zero);Set("Current",null);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+        }
+        [Test] public void SimultaneousControllerBackPressesCloseOnlyOneLayer()
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");
+            Assert.That(ControllerBack(true,true));Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);
+            Assert.That(ControllerBack(true,true),Is.False);Assert.That(ui.Quick.Visible);
+            Assert.That(ControllerBack(false,false),Is.False);
+            Assert.That(ControllerBack(false,true));Assert.That(ui.AnyVisible,Is.False);
+        }
+        [Test] public void DiagnosticSimultaneousBackUsesThePhysicalGateBeforeStickInput()
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");input.SetDiagnosticStick(0,Vector2.right);input.SetDiagnosticBack(2,true,true);
+            typeof(VrUiInput).GetMethod("ProcessDiagnosticInput",Private).Invoke(input,null);
+            Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);Assert.That(backend.seeks,Is.Zero);
+            Assert.That(ControllerBack(true,true),Is.False);Assert.That(ui.Quick.Visible);
+            Assert.That(ControllerBack(false,false),Is.False);Assert.That(ControllerBack(false,true));Assert.That(ui.AnyVisible,Is.False);
+        }
+        [Test] public void DiagnosticInputResetClearsBackAndRequiresRelease()
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");input.SetDiagnosticBack(2,true,true);input.ResetDiagnosticInput();
+            var pressed=(bool[])typeof(VrUiInput).GetField("diagnosticBackPressed",Private).GetValue(input);
+            var valid=(bool[])typeof(VrUiInput).GetField("diagnosticBackValid",Private).GetValue(input);
+            Assert.That(pressed,Is.All.False);Assert.That(valid,Is.All.False);
+            Assert.That(ControllerBack(true,true),Is.False);Assert.That(ui.Quick.Popup,Is.EqualTo("mode"));
+            Assert.That(ControllerBack(false,false),Is.False);Assert.That(ControllerBack(true,true));Assert.That(ui.Quick.Popup,Is.Empty);
+        }
+        [Test] public void DiagnosticBackCannotReturnWithoutApplicationFocus()
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");Set("HasFocus",false);input.SetDiagnosticBack(2,true,true);
+            typeof(VrUiInput).GetMethod("ProcessDiagnosticInput",Private).Invoke(input,null);
+            Assert.That(ui.Quick.Popup,Is.EqualTo("mode"));Set("HasFocus",true);
+            Assert.That(ControllerBack(true,true),Is.False);Assert.That(ControllerBack(false,false),Is.False);
+            Assert.That(ControllerBack(true,true));Assert.That(ui.Quick.Popup,Is.Empty);
+        }
+        [TestCase(0)][TestCase(1)]
+        public void HeldControllerBackRequiresReleaseBeforeClosingTheNextLayer(int hand)
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");
+            Assert.That(ControllerBack(hand,true));Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);
+            for(int i=0;i<3;i++)Assert.That(ControllerBack(hand,true),Is.False);
+            Assert.That(ui.Quick.Visible);Assert.That(ControllerBack(hand,false),Is.False);
+            Assert.That(ControllerBack(hand,true));Assert.That(ui.AnyVisible,Is.False);
+        }
+        [TestCase("OnApplicationFocus",false,0)][TestCase("OnApplicationFocus",false,1)]
+        [TestCase("OnApplicationPause",true,0)][TestCase("OnApplicationPause",true,1)]
+        public void LifecycleRecoveryRequiresControllerBackRelease(string message,bool interrupted,int hand)
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");Set("HasFocus",false);
+            typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{interrupted});
+            Set("HasFocus",true);typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{!interrupted});
+            Assert.That(ControllerBack(hand,true),Is.False);Assert.That(ui.Quick.Popup,Is.EqualTo("mode"));
+            Assert.That(ControllerBack(hand,false),Is.False);Assert.That(ControllerBack(hand,true));
+            Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);
+        }
+        [TestCase(0)][TestCase(1)]
+        public void TrackingRecoveryRequiresControllerBackRelease(int hand)
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");
+            Assert.That(ControllerBack(hand,true,false),Is.False);Assert.That(ControllerBack(hand,true),Is.False);
+            Assert.That(ui.Quick.Popup,Is.EqualTo("mode"));Assert.That(ControllerBack(hand,false),Is.False);
+            Assert.That(ControllerBack(hand,true));Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);
+        }
+        [Test] public void EscapeStillReturnsWhenTypingBlocksTransportShortcuts()
+        {
+            ui.ShowQuick();ui.Quick.TogglePopup("mode");
+            var shortcut=typeof(VrUiInput).GetMethod("HandleKeyboardShortcut",Private);
+            shortcut.Invoke(input,new object[]{UnityEngine.InputSystem.Key.RightArrow,true});Assert.That(backend.seeks,Is.Zero);
+            shortcut.Invoke(input,new object[]{UnityEngine.InputSystem.Key.Escape,true});Assert.That(ui.Quick.Popup,Is.Empty);Assert.That(ui.Quick.Visible);
+            Set("HasFocus",false);shortcut.Invoke(input,new object[]{UnityEngine.InputSystem.Key.Escape,true});Assert.That(ui.Quick.Visible);
+        }
+        [TestCase(false)][TestCase(true)]
+        public void ControllerBackCancelsOwnedFullAndQuickSeeksWithoutCommitting(bool quick)
+        {
+            if(quick)ui.ShowQuick();else{ui.Show();ui.SelectTab("投影");}
+            var fullSeek=quick?null:ui.Canvas.GetComponentInChildren<SeekGesture>(true);
+            var quickSeek=quick?ui.Quick.Canvas.GetComponentInChildren<QuickSeekSurface>(true):null;
+            var target=quick?quickSeek.gameObject:fullSeek.gameObject;
+            var pointer=((PointerEventData[])typeof(VrUiInput).GetField("pointers",Private).GetValue(input))[0];
+            pointer.pointerPress=pointer.pointerDrag=target;pointer.eligibleForClick=true;pointer.dragging=true;
+            ExecuteEvents.Execute(target,pointer,ExecuteEvents.pointerDownHandler);
+            Assert.That(quick?quickSeek.Dragging:fullSeek.Dragging);
+            Assert.That(ControllerBack(true,false));Assert.That(ui.AnyVisible,Is.False);
+            Assert.That(quick?quickSeek.Dragging:fullSeek.Dragging,Is.False);Assert.That(backend.seeks,Is.Zero);
+            Assert.That(pointer.pointerPress,Is.Null);Assert.That(pointer.pointerDrag,Is.Null);Assert.That(pointer.dragging,Is.False);Assert.That(pointer.eligibleForClick,Is.False);
+            if(quick)quickSeek.OnPointerUp(pointer);else fullSeek.OnPointerUp(pointer);
+            Assert.That(backend.seeks,Is.Zero);
+        }
+        [TestCase(Projection.Flat)][TestCase(Projection.Equirect360)]
+        public void ControllerBackPersistsDistanceGestureAndRequiresNeutralBeforeResuming(Projection projection)
+        {
+            app.Presenter.Settings.projection=projection;Tick(Vector2.up);
+            float before=projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom;
+            Assert.That(projection==Projection.Flat?Saved().distance:Saved().panoramaZoom,Is.EqualTo(projection==Projection.Flat?3.5f:1));
+            Assert.That(ControllerBack(true,false));Assert.That(ui.AnyVisible,Is.False);
+            Assert.That(projection==Projection.Flat?Saved().distance:Saved().panoramaZoom,Is.EqualTo(before));
+            Tick(Vector2.up);Assert.That(projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom,Is.EqualTo(before));
+            Tick(Vector2.zero);Tick(Vector2.up);
+            Assert.That(projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom,Is.EqualTo(projection==Projection.Flat?2.5f:1.25f));
+            Assert.That(app.Current.formatLocked,Is.False);
+        }
+        [Test] public void ClosingQuickPanelWithControllerBackRequiresNeutralBeforeHiddenDistanceAdjustment()
+        {
+            ui.ShowQuick();Tick(Vector2.up);Assert.That(ControllerBack(true,false));Assert.That(ui.AnyVisible,Is.False);
+            Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+            Tick(Vector2.zero);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
         }
         private sealed class TestBackend : IMediaBackend
         {
