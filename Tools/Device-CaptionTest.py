@@ -62,7 +62,6 @@ try:
     command('subtitle', uri='file:///sdcard/Movies/VRPlayerTest/Baseline.2D.chs.srt')
     command('seek', position=2000)
     wait(status, lambda r: '你好' in r['caption'])
-    command('recenter', flag=True)
     command('menu', flag=False)
     for distance in [.1, .3, 1, 3, 6]:
         command('caption-settings', distance=distance, size=42, offset=-.75, preset=1)

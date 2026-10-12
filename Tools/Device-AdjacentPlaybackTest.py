@@ -151,7 +151,6 @@ try:
         wait(status, lambda r: r['stereo'] == 'SideBySide')
         command('tab', name='投影')
         command('menu', flag=True)
-        command('recenter', flag=True)
         time.sleep(1)
         capture = ROOT / 'Docs/Captures/vr180-projection.png'
         capture.parent.mkdir(parents=True, exist_ok=True)

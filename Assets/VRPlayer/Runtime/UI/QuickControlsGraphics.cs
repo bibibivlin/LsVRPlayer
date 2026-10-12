@@ -26,7 +26,7 @@ namespace VRPlayer
             for(int i=1;i<=36;i++)vh.AddTriangle(0,i,i==36?1:i+1);
         }
     }
-    public enum QuickIcon { Subtitle, Volume, Muted, Previous, Play, Pause, Next, Mode, Speed }
+    public enum QuickIcon { Subtitle, Volume, Muted, Previous, Play, Pause, Next, Mode, Speed, Close }
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class QuickIconGraphic : MaskableGraphic
     {
@@ -48,6 +48,7 @@ namespace VRPlayer
         {
             vh.Clear();mesh=vh;
             switch(icon){
+                case QuickIcon.Close:Line(7,7,25,25,3);Line(7,25,25,7,3);break;
                 case QuickIcon.Play:Triangle(Point(9,3),Point(9,29),Point(29,16));break;
                 case QuickIcon.Pause:Line(10,4,10,28,6);Line(23,4,23,28,6);break;
                 case QuickIcon.Previous:Line(5,5,5,27,3);Triangle(Point(26,5),Point(26,27),Point(9,16));break;

@@ -71,6 +71,72 @@ namespace VRPlayer.Tests
             ui.ShowQuick();Assert.That(ui.Quick.Visible,Is.False);ui.Hide();ui.ShowQuick();Assert.That(ui.Visible,Is.False);Assert.That(ui.AnyVisible);Assert.That(ui.ActiveCanvas,Is.SameAs(ui.Quick.Canvas));
             ui.Show();Assert.That(ui.Visible);Assert.That(ui.Quick.Visible,Is.False);Assert.That(ui.ActiveCanvas,Is.SameAs(ui.Canvas));
         }
+        [TestCase("")][TestCase("subtitles")][TestCase("mode")][TestCase("advanced")]
+        public void FloatingCloseStopsPlaybackAndReturnsToFilePage(string popup)
+        {
+            DirectorySnapshot("smb://generated/Video/",40);FullFileList.SetOffset(640);
+            ui.SelectTab("设置");ui.Hide();ui.ShowQuick();if(popup!="")ui.Quick.TogglePopup(popup);
+            var surface=ui.Quick.Canvas.GetComponentInChildren<QuickSeekSurface>(true);
+            var pointer=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-100};surface.OnPointerDown(pointer);
+            int generation=app.Generation,revision=ui.SurfaceRevision;backend.Snapshot.position=42000;
+            var record=app.Current;
+            var close=ui.Quick.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Stop and open files");
+            close.onClick.Invoke();surface.OnPointerUp(pointer);
+            Assert.That(backend.stops,Is.EqualTo(1));Assert.That(backend.seeks,Is.Zero);Assert.That(app.Current,Is.Null);
+            Assert.That(app.Generation,Is.GreaterThan(generation));Assert.That(ui.SurfaceRevision,Is.GreaterThan(revision));
+            Assert.That(ui.Visible);Assert.That(ui.Quick.Visible,Is.False);Assert.That(ui.Quick.Popup,Is.Empty);
+            Assert.That(ui.ActiveCanvas,Is.SameAs(ui.Canvas));Assert.That(ui.SelectedTab,Is.EqualTo("文件"));
+            Assert.That(app.DirectoryUri,Is.EqualTo("smb://generated/Video/"));Assert.That(FullFileList.Offset,Is.EqualTo(640).Within(.1f));
+            Assert.That(new PlayerStore(path).Find(record.uri).position,Is.EqualTo(42000));
+        }
+        [Test] public void FloatingCloseCancelsSubtitleBrowsingAndPendingStorageRetry()
+        {
+            ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup("files");
+            var browseToken=((System.Threading.CancellationTokenSource)typeof(QuickControlsUI).GetField("browse",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui.Quick)).Token;
+            var pending=new System.Threading.CancellationTokenSource();var storageToken=pending.Token;
+            typeof(PlayerApp).GetField("storageAccess",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(app,pending);
+            ui.Quick.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Stop and open files").onClick.Invoke();
+            Assert.That(browseToken.IsCancellationRequested);Assert.That(storageToken.IsCancellationRequested);
+            Assert.That(ui.Quick.BrowserLoading,Is.False);Assert.That(ui.Quick.BrowserUri,Is.Empty);Assert.That(ui.Visible);
+        }
+        [TestCase("smb://config/Video/%E4%B8%AD%E6%96%87%20%E6%97%A5%E6%9C%AC%E8%AA%9E/","smb://config/Video/中文 日本語/")]
+        [TestCase("smb://config/Video/100%25/%252F/%2F/%23/%3F/%2B/","smb://config/Video/100%25/%252F/%2F/%23/%3F/%2B/")]
+        [TestCase("file:///C:/%E8%A7%86%E9%A2%91/%ED%95%9C%EA%B8%80/","file:///C:/视频/한글/")]
+        [TestCase("content://documents/tree/primary%3A%E8%A7%86%E9%A2%91","content://documents/tree/primary%3A%E8%A7%86%E9%A2%91")]
+        public void ReadableAddressPreservesOriginalIdentityAndReservedEscapes(string original,string displayed)
+        {
+            Assert.That(FileLibrary.DisplayAddress(original),Is.EqualTo(displayed));
+            Assert.That(FileLibrary.ParseAddress(displayed,original),Is.EqualTo(original));
+        }
+        [Test] public void EditedUnicodeAddressEscapesNewCharactersOnce()
+        {
+            string original="smb://config/Video/%E4%B8%AD%E6%96%87/100%25/%252F/";
+            string display=FileLibrary.DisplayAddress(original);
+            Assert.That(FileLibrary.ParseAddress(display+"日本語/",original),Is.EqualTo(original+"%E6%97%A5%E6%9C%AC%E8%AA%9E/"));
+        }
+        [Test] public async Task DisplayingAndOpeningChineseDirectoryDoesNotChangeHistoryIdentity()
+        {
+            string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-中文 日本語 100%25 #+"+Guid.NewGuid());Directory.CreateDirectory(folder);
+            try{
+                string original=new Uri(folder).AbsoluteUri;await app.Browse(original);
+                var address=(TMPro.TMP_InputField)typeof(PlayerUI).GetField("address",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+                Assert.That(address.text,Does.Contain("中文 日本語"));Assert.That(app.DirectoryUri,Is.EqualTo(original));
+                long history=app.BrowserHistoryPosition;FileButton("打开");await WaitForDirectory();
+                Assert.That(app.DirectoryUri,Is.EqualTo(original));Assert.That(app.BrowserHistoryPosition,Is.EqualTo(history));
+            }finally{Directory.Delete(folder,true);}
+        }
+        [TestCase("file:///storage/emulated/0/Movies/",true)][TestCase("/sdcard/Movies/",true)]
+        [TestCase("smb://config/Movies/",false)][TestCase("content://documents/tree/primary%3AMovies",false)]
+        [TestCase("file:///data/user/0/player/files/",false)][TestCase("/sdcard-other/Movies/",false)]
+        public void StoragePermissionRequestsOnlyApplyToSharedLocalStorage(string uri,bool shared)
+        {
+            Assert.That(FileLibrary.IsSharedStorage(uri),Is.EqualTo(shared));
+        }
+        [Test] public void CancelledStorageWaitCannotRequestOrRetryAccess()
+        {
+            using var cancelled=new System.Threading.CancellationTokenSource();cancelled.Cancel();
+            Assert.That(async()=>await FileLibrary.TryRequestReadPermission("file:///storage/emulated/0/Movies/",cancelled.Token),Throws.InstanceOf<OperationCanceledException>());
+        }
         [Test] public void OpeningAnotherFilmPreservesHiddenOrQuickSurface()
         {
             ui.Hide();app.Open(new FileEntry{name="Other.mp4",uri="file:///other.mp4"},"");Assert.That(ui.AnyVisible,Is.False);
@@ -285,7 +351,8 @@ namespace VRPlayer.Tests
                 await app.Browse(new Uri(child).AbsoluteUri);Assert.That(FullFileList.Offset,Is.Zero);
                 if(controllerBack)ui.Back();else FileButton("上级");await WaitForDirectory();
                 Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(folder).AbsoluteUri));Assert.That(FullFileList.Offset,Is.EqualTo(941));
-                Assert.That(FullFileList.PoolCount,Is.LessThanOrEqualTo(8));
+                float viewportHeight=FullFileList.GetComponent<ListScrollRect>().viewport.rect.height;
+                Assert.That(FullFileList.PoolCount,Is.LessThanOrEqualTo(Mathf.CeilToInt(viewportHeight/VirtualFileList.RowPitch)+2));
             }finally{app.CancelListing();Directory.Delete(folder,true);}
         }
         [TestCase(false)][TestCase(true)] public async Task ReturningToFilteredParentRestoresSearchAndPosition(bool keyboardOpen)
@@ -348,12 +415,16 @@ namespace VRPlayer.Tests
         [Test] public void RestoredPositionClampsWhenDirectoryHasFewerFiles()
         {
             DirectorySnapshot("file:///fixture/parent",40);FullFileList.SetOffset(1700);DirectorySnapshot("file:///fixture/child",10);
-            DirectorySnapshot("file:///fixture/parent",8);Assert.That(FullFileList.Offset,Is.EqualTo(8*VirtualFileList.RowPitch-352));
+            DirectorySnapshot("file:///fixture/parent",8);
+            float viewportHeight=FullFileList.GetComponent<ListScrollRect>().viewport.rect.height;
+            Assert.That(FullFileList.Offset,Is.EqualTo(Mathf.Max(0,8*VirtualFileList.RowPitch-viewportHeight)));
         }
         [Test] public void FileLocationOverridesCachedPositionAndLaterUpdatesPreserveUserScroll()
         {
             const string uri="file:///fixture/parent";DirectorySnapshot(uri,40);FullFileList.SetOffset(900);DirectorySnapshot("file:///fixture/other",10);
-            ui.PrepareDirectoryNavigation();DirectorySnapshot(uri,40,locate:uri+"/movie30");Assert.That(FullFileList.Offset,Is.EqualTo(30*VirtualFileList.RowPitch));
+            ui.PrepareDirectoryNavigation();DirectorySnapshot(uri,40,locate:uri+"/movie30");
+            float viewportHeight=FullFileList.GetComponent<ListScrollRect>().viewport.rect.height;
+            Assert.That(FullFileList.Offset,Is.EqualTo(Mathf.Min(30*VirtualFileList.RowPitch,40*VirtualFileList.RowPitch-viewportHeight)));
             FullFileList.SetOffset(1200);DirectorySnapshot(uri,40,locate:uri+"/movie30");Assert.That(FullFileList.Offset,Is.EqualTo(1200));
         }
         [Test] public void ModalListsCannotReplaceDirectoryScrollMemory()
@@ -515,10 +586,10 @@ namespace VRPlayer.Tests
         private sealed class TestBackend : IMediaBackend
         {
             public MediaSnapshot Snapshot{get;private set;}=new MediaSnapshot{tracks=new[]{new MediaTrack{id="generated",type=3,supported=true,name="Generated subtitle"}}};
-            public float volume;public string track;public int seeks;
+            public float volume;public string track;public int seeks,stops;
             public Texture Texture=>null;public bool RequiresGammaConversion=>false;public int RenderedFrames=>0;
             public void Open(string uri,long position,int generation)=>Snapshot=new MediaSnapshot{generation=generation,duration=120000,position=position};
-            public void Tick(){}public void Play(){}public void Pause(){}public void Stop(){}public void Seek(long value){Snapshot.position=value;seeks++;}
+            public void Tick(){}public void Play(){}public void Pause(){}public void Stop(){stops++;Snapshot.playing=false;}public void Seek(long value){Snapshot.position=value;seeks++;}
             public void SetVolume(float value)=>volume=value;public void SetSpeed(float value){}public void SetRepeat(bool value){}public void SelectTrack(string id,int type){if(type==3)track=id;}
             public void Dispose(){}
         }

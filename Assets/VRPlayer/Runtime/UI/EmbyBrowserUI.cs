@@ -101,7 +101,7 @@ namespace VRPlayer
             CaptureLogin();RememberOffset();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id}.Select(value=>(value?.Length??0)+":"+(value??"")));
             float offset=pageOffsets.TryGetValue(key,out var remembered)?remembered:0;viewKey=key;revision=state.revision;
             CancelImages();ClearPosterWall();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
-            UiFactory.Box(root,"Emby background",0,0,1376,550,Background,true);
+            UiFactory.Box(root,"Emby background",0,0,1376,root.rect.height,Background,true);
             if(login||state.page==EmbyPage.Accounts){if(login)DrawLogin();else DrawAccounts();}
             else{
                 DrawHeader(state.title);
@@ -146,7 +146,7 @@ namespace VRPlayer
         {
             UiFactory.Label(root,"Emby · 服务器与账户",24,8,1010,52,32);
             if(!string.IsNullOrEmpty(app.ActiveEmbyAccount?.accessToken))Button(root,"返回媒体库",1120,10,242,48,()=>{login=false;app.EmbyHome();});
-            BeginScroll(76,392);
+            BeginScroll(76,root.rect.height-158);
             var saved=app.EmbyAccounts??Array.Empty<EmbyAccount>();
             float errorHeight=string.IsNullOrEmpty(app.EmbyState.error)?0:68;
             if(errorHeight>0){var error=UiFactory.Label(body,app.EmbyState.error,18,0,1300,58,24);error.textWrappingMode=TextWrappingModes.Normal;}
@@ -175,8 +175,8 @@ namespace VRPlayer
                 }
                 FinishScroll(errorHeight+index*108);
             }
-            Button(root,"添加服务器 / 账户",24,486,600,54,()=>{login=true;useHttps=false;serverPort="8096";serverAddress=username=password=loginError="";remember=true;Render(true);},true);
-            UiFactory.Label(root,"切换账户后显示该账户可访问的媒体库",644,486,704,54,23,TextAlignmentOptions.Right).color=Muted;
+            Button(root,"添加服务器 / 账户",24,root.rect.height-64,600,54,()=>{login=true;useHttps=false;serverPort="8096";serverAddress=username=password=loginError="";remember=true;Render(true);},true);
+            UiFactory.Label(root,"切换账户后显示该账户可访问的媒体库",644,root.rect.height-64,704,54,23,TextAlignmentOptions.Right).color=Muted;
         }
         private void DrawLogin()
         {
@@ -224,7 +224,7 @@ namespace VRPlayer
         }
         private void DrawHome()
         {
-            BeginScroll(76,460);var state=app.EmbyState;float y=0;
+            BeginScroll(76,root.rect.height-90);var state=app.EmbyState;float y=0;
             y=SectionTitle("我的媒体",y);
             var views=state.views??Array.Empty<EmbyItem>();
             if(views.Length==0){UiFactory.Label(body,"此账户没有可访问的媒体库",18,y,1300,58,26).color=Muted;y+=78;}
@@ -260,10 +260,9 @@ namespace VRPlayer
             var search=UiFactory.Input(root,state.search??"","搜索当前影片列表",14,78,1040,48,keyboard);
             Button(root,"搜索",1070,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
             Button(root,"清空",1224,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");});
-            BeginScroll(142,326);var items=state.items??Array.Empty<EmbyItem>();
+            BeginScroll(142,root.rect.height-156);var items=state.items??Array.Empty<EmbyItem>();
             if(items.Length==0){UiFactory.Label(body,string.IsNullOrEmpty(state.search)?"此媒体库暂无影片":"未找到匹配的影片",18,80,1290,68,30).color=Muted;FinishScroll(260);}
             else{BuildPosterWall(items,0);FinishScroll(Mathf.CeilToInt(items.Length/6f)*344);}
-            UiFactory.Label(root,$"共 {items.Length} 项  ·  摇杆上下滚动浏览全部影片",24,486,1328,54,23).color=Muted;
         }
         private void PosterCard(EmbyItem item,float x,float y)
         {
@@ -315,7 +314,7 @@ namespace VRPlayer
         private void DrawDetails()
         {
             var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,"无法读取影片详情",24,170,1300,66,30);return;}
-            BeginScroll(76,460);
+            BeginScroll(76,root.rect.height-90);
             Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
             var name=UiFactory.Label(body,DisplayName(item),290,8,1026,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
             UiFactory.Label(body,DetailsMeta(item),290,98,1026,42,25).color=Muted;
@@ -391,7 +390,7 @@ namespace VRPlayer
         private void DrawPerson()
         {
             var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,"无法读取人物详情",24,170,1300,66,30);return;}
-            BeginScroll(76,460);Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
+            BeginScroll(76,root.rect.height-90);Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
             var name=UiFactory.Label(body,item.Name??"未命名人物",290,8,1026,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
             float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,1026,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(1026,nameHeight);
             float y=PersonLine("演员与主创",nameHeight+28);

@@ -49,7 +49,7 @@ def memory():
 try:
     command('repeat',flag=False)
     for name,width in [('Performance.4K60.HEVC.mp4',3840),('Performance.8K30.HEVC.mp4',7680)]:
-        initial=open_media(name);command('recenter',flag=True);command('menu',flag=False);time.sleep(4)
+        initial=open_media(name);command('menu',flag=False);time.sleep(4)
         value=status();assert value['snapshot']['width']==width and value['frames']>initial['frames']+30 and not value['snapshot']['error'],value
         adb('shell','screencap','-p','/sdcard/vrplayer-screen.png');adb('pull','/sdcard/vrplayer-screen.png',str(ROOT/'Docs/Captures'/('device-'+name+'.png')))
         record(name,initial=initial,diagnostic=value,pssKB=memory())

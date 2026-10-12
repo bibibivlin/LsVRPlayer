@@ -16,12 +16,7 @@ namespace VRPlayer
             material=new Material(Shader.Find("VRPlayer/VideoProjection")){name="Video projection material"};
             var quad=new GameObject("Cinema Screen",typeof(MeshFilter),typeof(MeshRenderer));quad.transform.SetParent(transform,false);quad.GetComponent<MeshRenderer>().sharedMaterial=material;screen=quad.transform;
             var globe=GameObject.CreatePrimitive(PrimitiveType.Sphere);globe.name="Immersive Video";globe.transform.SetParent(transform,false);Destroy(globe.GetComponent<Collider>());globe.GetComponent<MeshRenderer>().sharedMaterial=material;sphere=globe.transform;sphere.localScale=Vector3.one*60;
-            Recenter(false);
-        }
-        public void Recenter(bool lying)
-        {
-            if(cameraTransform==null)return;
-            viewingRotation=lying?cameraTransform.rotation:Quaternion.Euler(0,cameraTransform.eulerAngles.y,0);
+            viewingRotation=Quaternion.Euler(0,cameraTransform.eulerAngles.y,0);
         }
         public void UpdateVideo(Texture texture,bool gamma,int width,int height,float pixelRatio)
         {

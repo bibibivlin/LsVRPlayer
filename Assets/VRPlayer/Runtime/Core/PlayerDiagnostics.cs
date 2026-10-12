@@ -35,7 +35,6 @@ namespace VRPlayer
                     case "stop":app.Stop();break;
                     case "repeat":app.Store.Settings.loop=command.flag;app.Backend?.SetRepeat(command.flag);break;
                     case "sequential":app.Store.Settings.sequential=command.flag;break;
-                    case "recenter":app.Recenter(command.flag);break;
                     case "play":app.Backend?.Play();break;
                     case "subtitle":_ = app.LoadSubtitle(command.uri);break;
                     case "projection":app.ChangeFormat(view=>{view.projection=(Projection)command.projection;view.stereo=(StereoLayout)command.stereo;});break;

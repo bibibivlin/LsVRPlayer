@@ -118,7 +118,7 @@ try:
             state=wait_for(status, lambda x: x['subtitle'].endswith(name) and '你好' in x['caption'])
             assert len(state['subtitleCandidates'])==3, state
             record('Chinese subtitle '+name, state)
-        command('menu', flag=False);command('recenter', flag=True);command('menu', flag=False)
+        command('menu', flag=False)
         capture('device-subtitles.png')
         state=seek(22000)
         state=wait_for(status, lambda x: '片尾' in x['caption'])
@@ -128,7 +128,7 @@ try:
         record('Local HEVC MKV hardware decoding', state)
     if args.section in ['all','stereo']:
         for name in ['Stereo.180.SBS.mp4','Stereo.360.OU.mp4']:
-            state=open_media(name);command('pause');command('eyes',flag=False);command('recenter',flag=True);command('menu',flag=False);time.sleep(2)
+            state=open_media(name);command('pause');command('eyes',flag=False);command('menu',flag=False);time.sleep(2)
             path=capture('device-'+name+'.png');counts=stereo_assert(path)
             record(name+' separates left red / right blue', {'counts':counts, 'state':state})
             command('eyes',flag=True);time.sleep(1)

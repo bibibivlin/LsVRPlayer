@@ -150,7 +150,6 @@ namespace VRPlayer
             if(Keyboard.current.spaceKey.wasPressedThisFrame)HandleKeyboardShortcut(Key.Space,typing);
             if(Keyboard.current.leftArrowKey.wasPressedThisFrame)HandleKeyboardShortcut(Key.LeftArrow,typing);
             if(Keyboard.current.rightArrowKey.wasPressedThisFrame)HandleKeyboardShortcut(Key.RightArrow,typing);
-            if(Keyboard.current.rKey.wasPressedThisFrame)HandleKeyboardShortcut(Key.R,typing);
         }
         private void HandleKeyboardShortcut(Key key,bool typing)
         {
@@ -158,7 +157,7 @@ namespace VRPlayer
             if(typing||!app.HasFocus)return;
             if(key==Key.Tab){app.UI.Toggle();return;}
             if(app.UI.BlocksTransport)return;
-            if(key==Key.Space)app.TogglePlay();else if(key==Key.LeftArrow)app.Skip(-10);else if(key==Key.RightArrow)app.Skip(10);else if(key==Key.R)app.Recenter(false);
+            if(key==Key.Space)app.TogglePlay();else if(key==Key.LeftArrow)app.Skip(-10);else if(key==Key.RightArrow)app.Skip(10);
         }
         public static bool IsTyping(GameObject selected){var field=selected!=null?selected.GetComponent<TMP_InputField>():null;return field!=null&&field.isActiveAndEnabled&&field.isFocused;}
         private void Dispatch(int index,Vector2 position,bool pressed,Vector2 scroll,bool usable)

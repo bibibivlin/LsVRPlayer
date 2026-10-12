@@ -286,7 +286,6 @@ class BackNavigationRun:
                   and state.get("snapshot", {}).get("generation", 0) > 0, "generated playback ready")
         self.command("pause")
         self.wait(self.read_status, lambda state: state.get("snapshot", {}).get("playing") is False, "generated playback paused")
-        self.command("recenter", flag=True)
         self.command("ui-input-reset")
         self.release_back()
 

@@ -92,6 +92,9 @@ namespace VRPlayer
                 button.gameObject.AddComponent<QuickHoverLabel>().Change=(id,enter)=>Hint(id,enter,anchor,label);
             }
             var volumeAnchor=(RectTransform)volumeRoot.GetComponentInChildren<Button>().transform;volumeRoot.gameObject.AddComponent<QuickHoverLabel>().Change=(id,enter)=>Hint(id,enter,volumeAnchor,"音量");
+            var close=QuickUiFactory.IconButton(rect,"Stop and open files",QuickIcon.Close,676,1144,owner.StopAndShowFiles);
+            var closeColors=close.colors;closeColors.normalColor=QuickUiFactory.Background;closeColors.selectedColor=QuickUiFactory.Background;closeColors.disabledColor=QuickUiFactory.Background;close.colors=closeColors;
+            close.gameObject.AddComponent<QuickHoverLabel>().Change=(id,enter)=>Hint(id,enter,(RectTransform)close.transform,"停止并返回");
             popupRoot=QuickUiFactory.Box(rect,"Quick popup",0,40,900,820,QuickUiFactory.Background);popupRoot.gameObject.SetActive(false);
             root.SetActive(false);
         }
@@ -292,7 +295,7 @@ namespace VRPlayer
                 using var unity=new AndroidJavaClass("com.unity3d.player.UnityPlayer");using var activity=unity.GetStatic<AndroidJavaObject>("currentActivity");
                 using var resolver=activity.Call<AndroidJavaObject>("getContentResolver");using var permissions=resolver.Call<AndroidJavaObject>("getPersistedUriPermissions");
                 for(int i=0;i<permissions.Call<int>("size");i++){using var permission=permissions.Call<AndroidJavaObject>("get",i);if(!permission.Call<bool>("isReadPermission"))continue;using var uri=permission.Call<AndroidJavaObject>("getUri");entries.Add(new FileEntry{name="已授权目录 "+(i+1),uri=uri.Call<string>("toString"),directory=true});}
-            }catch{app.SetStatus("授权目录列表读取失败，可在完整面板重新授权");}
+            }catch{app.SetStatus("已保存的目录授权无法读取，请检查系统权限");}
             try{var saved=JsonUtility.FromJson<ServerList>(AndroidBridge.Api.CallStatic<string>("listServers"));foreach(var server in saved.servers??Array.Empty<SmbServer>())entries.Add(new FileEntry{name=server.name,uri="smb://"+server.id+"/",directory=true});}catch{app.SetStatus("共享列表读取失败，可在完整面板重新配置");}
 #else
             entries.Add(new FileEntry{name="测试视频",uri=new Uri(Path.GetFullPath("TestMedia")).AbsoluteUri,directory=true});
@@ -317,7 +320,7 @@ namespace VRPlayer
             QuickUiFactory.Button(popupContent,"上级",242,0,180,54,BrowseUp);
             QuickUiFactory.Button(popupContent,"来源",444,0,180,54,()=>_ = Browse(""));
             QuickUiFactory.Button(popupContent,"刷新",646,0,190,54,()=>_ = Browse(browseUri,false));
-            UiFactory.Label(popupContent,string.IsNullOrEmpty(browseUri)?"选择一个已授权位置":browseUri,0,76,836,48,22);
+            UiFactory.Label(popupContent,string.IsNullOrEmpty(browseUri)?"选择一个来源":FileLibrary.DisplayAddress(browseUri),0,76,836,48,22);
             var viewport=UiFactory.Rect(popupContent,"Subtitle browser",0,142,836,472);list=viewport.gameObject.AddComponent<VirtualFileList>();list.Initialize(836,472,true);
             var requestList=list;
             BrowserLoading=false;if(string.IsNullOrEmpty(browseUri)){SetBrowserRows(requestList,Roots(),true,restoreOffset);return;}

@@ -358,7 +358,6 @@ try:
     command("open", uri=MEDIA + "Unmarked-A.mp4", name="Unmarked-A.mp4")
     wait(status, lambda item: item["snapshot"]["state"] == 3 and item["snapshot"]["generation"] > 0)
     command("pause")
-    command("recenter", flag=True)
     command("menu", flag=False)
     if args.section != "distance":
         run_panels()

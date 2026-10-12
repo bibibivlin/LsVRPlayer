@@ -43,7 +43,7 @@ namespace VRPlayer
         private readonly Queue<string> directoryParentOrder=new Queue<string>();
         private bool preserveDirectoryHistory;
         private List<FileEntry> playlist=new List<FileEntry>();
-        private CancellationTokenSource listing,subtitles,subtitleListing;
+        private CancellationTokenSource listing,subtitles,subtitleListing,storageAccess;
         private int subtitleRevision;
         private readonly RelativeSeekTarget seekTarget=new RelativeSeekTarget();
         public string LocateFileUri{get;private set;}="";
@@ -102,16 +102,13 @@ namespace VRPlayer
             if(Current!=null&&state.generation==Generation){
                 if(state.state!=previousState){previousState=state.state;if(state.state==3)SetStatus("媒体已准备好");else if(state.state==2)SetStatus("正在缓冲…");else if(state.state==4)SetStatus("播放完成");}
                 if(!tracksRestored&&state.state==3&&state.tracks!=null&&state.tracks.Length>0){tracksRestored=true;if(Current.audio!="auto"&&state.tracks.Any(t=>t.type==1&&t.id==Current.audio))Backend.SelectTrack(Current.audio,1);if(Current.subtitle.StartsWith("track:")&&state.tracks.Any(t=>t.type==3&&t.id==Current.subtitle.Substring(6)))Backend.SelectTrack(Current.subtitle.Substring(6),3);}
-                if(state.HasError&&lastError!=state.error){lastError=state.error;SetStatus("播放失败："+state.error+"。可点重试或选择其他文件。");}
+                if(state.HasError&&lastError!=state.error){lastError=state.error;SetStatus("播放失败："+state.error+"。可点重试或选择其他文件。");_ = RetryWithStoragePermission(Current.uri,Generation);}
                 if(!state.HasError&&state.state==4&&!ended){ended=true;if(Store.Settings.sequential&&!Store.Settings.loop)Next(1,false);}
                 if(Time.unscaledTime>=saveAt){saveAt=Time.unscaledTime+5;SaveProgress();}
                 caption.SetText(subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
             }else caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
             caption.Position(headCamera,Presenter.transform,Store.Settings);
             InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);PresenceKnown=head.TryGetFeatureValue(CommonUsages.userPresence,out bool present);if(PresenceKnown){if(wasPresent&&!present)Pause();wasPresent=present;}
-#if UNITY_ANDROID && !UNITY_EDITOR
-            string picked=AndroidBridge.Api.CallStatic<string>("takeFolder");if(!string.IsNullOrEmpty(picked)&&picked!="CANCELLED"){if(picked.StartsWith("ERROR:"))SetStatus(picked.Substring(6));else{AddFavorite("授权目录",picked);_ = Browse(picked);}}
-#endif
             if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
                 uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -196,6 +193,7 @@ namespace VRPlayer
         }
         private void OpenVideo(FileEntry entry,string directory,ViewSettings inheritedFormat,bool keepPlaylist,EmbyPlayback embyPlayback=null)
         {
+            CancelStorageAccess();
             if(TryOpenEmby(entry,directory,inheritedFormat,keepPlaylist,embyPlayback))return;
             if(entry.directory){_ = Browse(entry.uri);return;}if(entry.IsSubtitle){_ = LoadSubtitle(entry.uri);return;}
             if(Backend==null){SetStatus("播放内核不可用");return;}
@@ -236,7 +234,7 @@ namespace VRPlayer
             OpenVideo(playlist[next],Current.directory,inheritFormat||InheritEmbyPartFormat(playlist[next].uri)?Presenter.Settings.Copy():null,true);
         }
         public void Retry(){if(Current==null)return;var record=Current;Open(new FileEntry{uri=record.uri,name=record.name,size=record.size,modified=record.modified},record.directory);}
-        public void Stop(){CancelEmbyPlaybackRequest();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;CancelFormatDetection();Backend?.Stop();Current=null;subtitleDocument=null;CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
+        public void Stop(){CancelEmbyPlaybackRequest();CancelStorageAccess();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;CancelFormatDetection();Backend?.Stop();Current=null;subtitleDocument=null;CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
         public bool CanNavigateAdjacent(int delta){if(Current==null||delta==0)return false;int index=playlist.FindIndex(x=>x.uri==Current.uri);return index>=0&&index+delta>=0&&index+delta<playlist.Count&&AllowEmbyAdjacent(playlist[index+delta].uri,false);}
         public void SetVolume(float value){value=Mathf.Clamp01(value);Store.Settings.volume=value;if(value>0)Store.Settings.lastAudibleVolume=value;Backend?.SetVolume(value);}
         public void ToggleMute(){SetVolume(Store.Settings.volume>0?0:Store.Settings.lastAudibleVolume);Store.Save();}
@@ -305,26 +303,16 @@ namespace VRPlayer
             AndroidBridge.Api.CallStatic("removeServer",id);ShowServers();
 #endif
         }
-        public void RequestStorage()
+        private void CancelStorageAccess(){storageAccess?.Cancel();storageAccess?.Dispose();storageAccess=null;}
+        private async Task RetryWithStoragePermission(string uri,int generation)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
-            const string permission="android.permission.READ_EXTERNAL_STORAGE";
-            if(UnityEngine.Android.Permission.HasUserAuthorizedPermission(permission)){Refresh();return;}
-            var callbacks=new UnityEngine.Android.PermissionCallbacks();callbacks.PermissionGranted+=_=>Refresh();callbacks.PermissionDenied+=_=>SetStatus("未授予存储权限，可改用“授权目录”");UnityEngine.Android.Permission.RequestUserPermission(permission,callbacks);
-#else
-            SetStatus("编辑器可直接访问本机文件");
-#endif
+            if(!FileLibrary.IsSharedStorage(uri))return;
+            CancelStorageAccess();storageAccess=new CancellationTokenSource();var token=storageAccess.Token;
+            try{if(await FileLibrary.TryRequestReadPermission(uri,token)&&!token.IsCancellationRequested&&Generation==generation&&Current?.uri==uri)Retry();}
+            catch(OperationCanceledException){}
         }
-        public void PickFolder(){
-#if UNITY_ANDROID && !UNITY_EDITOR
-            AndroidBridge.Api.CallStatic("pickFolder");
-#else
-            SetStatus("在地址栏输入本机目录，然后选择打开");
-#endif
-        }
-        public void Recenter(bool lying){Presenter.Recenter(lying);UI.Show();SetStatus(lying?"观看方向已对齐当前视线，可躺卧观看":"观看方向已重新居中");}
         private void OnApplicationPause(bool paused){HasFocus=!paused;if(paused){StopDiscovery();UI?.CancelSmbConnection();Pause();}else if(Source==FileSource.Smb&&UI!=null&&UI.CanDiscover)StartDiscovery();}
         private void OnApplicationFocus(bool focused){HasFocus=focused;if(!focused)Pause();}
-        private void OnDestroy(){SaveProgress();DisposeEmby();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
+        private void OnDestroy(){SaveProgress();DisposeEmby();CancelStorageAccess();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
     }
 }

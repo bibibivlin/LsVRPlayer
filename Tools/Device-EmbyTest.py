@@ -320,7 +320,6 @@ class Device:
     def capture(self, name):
         self.command("menu", flag=True)
         self.command("tab", name="文件")
-        self.command("recenter", flag=False)
         time.sleep(1)
         target = ROOT / "Docs/Captures" / ("emby-" + self.run_id + "-" + name + ".png")
         target.parent.mkdir(parents=True, exist_ok=True)

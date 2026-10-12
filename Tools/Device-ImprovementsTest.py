@@ -92,7 +92,6 @@ def capture(name):
     destination = ROOT / 'Docs/Captures' / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     command('menu', flag=True)
-    command('recenter', flag=True)
     adb('shell', 'screencap', '-p', '/sdcard/vrplayer-improvements.png')
     adb('pull', '/sdcard/vrplayer-improvements.png', str(destination))
 
