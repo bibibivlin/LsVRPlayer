@@ -616,7 +616,7 @@ namespace VRPlayer.Tests
             Assert.That(new PlayerStore(path).GetEmbyLibraryView("fixture","movies"),Is.EqualTo(view));
             var fields=BindingFlags.Instance|BindingFlags.NonPublic;
             var scroll=(ListScrollRect)typeof(EmbyBrowserUI).GetField("scroll",fields).GetValue(browser);var body=(RectTransform)typeof(EmbyBrowserUI).GetField("body",fields).GetValue(browser);
-            var layout=EmbyLibraryViews.Layout(view);
+            var layout=EmbyLibraryViews.Layout(view,scroll.viewport.rect.width);
             Assert.That(body.GetComponentsInChildren<RowBinding>(true).Length,Is.EqualTo(layout.PoolSize(205,scroll.viewport.rect.height,180)));
             var first=body.GetComponentsInChildren<RowBinding>().First();first.Press();
             typeof(EmbyBrowserUI).GetMethod("SetOffset",fields).Invoke(browser,new object[]{body.rect.height});

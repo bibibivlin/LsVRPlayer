@@ -31,6 +31,10 @@ output = validation / ("quick-controls-device.json" if args.section == "all" els
 report = {"checks": [], "passed": False, "section": args.section, "input": "development pointer and stick drivers through VrUiInput",
           "limitations": ["Physical controller feel and binocular comfort require wearing the headset."]}
 awake = threading.Event()
+monitor_stop = threading.Event()
+monitor_error = None
+monitor_thread = None
+report["continuousPresence"] = {"samples": 0, "passed": False}
 backup_created = False
 backup_missing = False
 usb_awake_original = None
@@ -44,6 +48,7 @@ def wait(read, predicate, timeout=30):
     until = time.monotonic() + timeout
     last = None
     while time.monotonic() < until:
+        check_health()
         try:
             value = read()
             last = value
@@ -61,6 +66,7 @@ def wait(read, predicate, timeout=30):
 
 
 def command(action, **fields):
+    check_health()
     local = ROOT / "TestMedia/quick-command.json"
     local.parent.mkdir(parents=True, exist_ok=True)
     local.write_text(json.dumps({"action": action, **fields}, ensure_ascii=False), encoding="utf-8")
@@ -73,7 +79,40 @@ def command(action, **fields):
 
 
 def status():
+    check_health()
     return json.loads(adb("shell", "cat", EXTERNAL + "playback-diagnostics.json"))
+
+
+def check_health():
+    if monitor_error:
+        raise AssertionError(monitor_error)
+
+
+def monitor_presence():
+    global monitor_error
+    sample = None
+    changed_at = time.monotonic()
+    while not monitor_stop.wait(.4):
+        try:
+            state = json.loads(adb("shell", "cat", EXTERNAL + "playback-diagnostics.json"))
+            stamp = (state.get("timestampUtc"), state.get("frame"))
+            if not stamp[0] or not isinstance(stamp[1], int):
+                raise AssertionError("APK lacks diagnostic timestamp/frame fields")
+            if not all(state.get(key) is True for key in ("hasFocus", "presenceKnown", "userPresent")):
+                raise AssertionError("Application focus or headset presence interrupted the run")
+            if stamp != sample:
+                sample = stamp
+                changed_at = time.monotonic()
+            if time.monotonic() - changed_at > 6:
+                raise AssertionError("Playback diagnostics stopped updating")
+            report["continuousPresence"]["samples"] += 1
+        except (json.JSONDecodeError, subprocess.CalledProcessError):
+            if time.monotonic() - changed_at > 6:
+                monitor_error = "Playback diagnostics could not be read continuously"
+                return
+        except Exception as error:
+            monitor_error = str(error)
+            return
 
 
 def pointer(name="", pressed=False, value=.5, index=0):
@@ -359,16 +398,28 @@ try:
     wait(status, lambda item: item["snapshot"]["state"] == 3 and item["snapshot"]["generation"] > 0)
     command("pause")
     command("menu", flag=False)
+    state = status()
+    assert all(state.get(key) is True for key in ("hasFocus", "presenceKnown", "userPresent")), "Keep the headset worn and the application focused"
+    monitor_thread = threading.Thread(target=monitor_presence, daemon=True)
+    monitor_thread.start()
     if args.section != "distance":
         run_panels()
     if args.section != "panels":
         run_distance()
     command("ui-input-reset")
+    check_health()
     report["passed"] = True
 except Exception as error:
     report["error"] = str(error)
     raise
 finally:
+    monitor_stop.set()
+    if monitor_thread is not None:
+        monitor_thread.join(timeout=3)
+    report["continuousPresence"]["passed"] = monitor_thread is not None and monitor_error is None and report["continuousPresence"]["samples"] > 0
+    if monitor_error:
+        report["passed"] = False
+        report["continuousPresence"]["error"] = monitor_error
     awake.set()
     adb("shell", "am", "force-stop", PACKAGE, check=False)
     report["settingsRestored"] = False
@@ -410,3 +461,5 @@ finally:
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     if restoration_errors:
         raise RuntimeError("; ".join(restoration_errors))
+    if monitor_error:
+        raise RuntimeError(monitor_error)

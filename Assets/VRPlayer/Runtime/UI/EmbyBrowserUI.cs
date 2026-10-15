@@ -13,11 +13,18 @@ namespace VRPlayer
     // Uses the player's Canvas and input paths; only the media browser is replaced.
     public sealed class EmbyBrowserUI : MonoBehaviour
     {
-        private static readonly Color Background=new Color(.12f,.12f,.12f,1),Card=new Color(.17f,.17f,.17f,1),Green=new Color(.32f,.71f,.29f,1),Muted=new Color(.67f,.69f,.68f,1);
+        private static readonly Color Background=UiTheme.Background,Card=UiTheme.Surface,Green=UiTheme.Accent,Muted=UiTheme.Muted;
         private const int MaxImageBytes=2*1024*1024,MaxTextures=48,MaxTextureBytes=24*1024*1024;
         private const float ImagePreload=180;
         private PlayerApp app;
         private RectTransform root,body;
+        private float Width=>root==null?1376:root.rect.width;
+        private float BodyWidth=>Width-52;
+        private ListScrollRect castScroll;private RectTransform castBody;private QuickPointerRegion castRegion;
+        private EmbyPerson[] castPeople=Array.Empty<EmbyPerson>();private readonly List<CastSlot> castPool=new List<CastSlot>();private int castFirst=-1;
+        private sealed class CastSlot{public RectTransform root,art;public RawImage image;public TextMeshProUGUI name,role,placeholder;public RowBinding binding;public ImageBinding imageBinding;}
+        public bool BlocksInput=>root!=null&&(viewMenu!=null||login||!string.IsNullOrEmpty(removing));
+        public bool CastHovered=>castScroll!=null&&castScroll.enabled&&castRegion.Hovered&&!castScroll.HasDragOwner;
         private RectTransform viewMenu;
         private bool externallyBlocked;
         private ListScrollRect scroll;
@@ -70,7 +77,7 @@ namespace VRPlayer
         }
         public void ReleasePanel()
         {
-            CaptureLogin();RememberOffset();CloseViewMenu();CancelImages();ClearPosterWall();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
+            CaptureLogin();RememberOffset();CloseViewMenu();CancelImages();ClearPosterWall();ClearCast();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
         }
         public void Suspend(){CloseViewMenu();CancelImages();}
         public bool TryBack()
@@ -106,12 +113,12 @@ namespace VRPlayer
             if(!force&&revision==state.revision)return;
             CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
             float offset=pageOffsets.TryGetValue(key,out var remembered)?remembered:0;viewKey=key;revision=state.revision;
-            CancelImages();ClearPosterWall();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
-            UiFactory.Box(root,"Emby background",0,0,1376,root.rect.height,Background,true);
+            CancelImages();ClearPosterWall();ClearCast();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
+            UiFactory.Box(root,"Emby input surface",0,0,Width,root.rect.height,Color.clear,true);
             if(login||state.page==EmbyPage.Accounts){if(login)DrawLogin();else DrawAccounts();}
             else{
                 DrawHeader(state.title,state.page!=EmbyPage.Details);
-                if(state.loading){UiFactory.Label(root,"正在读取媒体库…",28,160,1320,64,32);UiFactory.Label(root,"请稍候",28,226,1320,44,24).color=Muted;}
+                if(state.loading){UiFactory.Label(root,"正在读取媒体库…",28,160,Width-56,64,32);UiFactory.Label(root,"请稍候",28,226,Width-56,44,24).color=Muted;}
                 else if(!string.IsNullOrEmpty(state.error)){DrawError(state.error);}
                 else if(state.page==EmbyPage.Home)DrawHome();
                 else if(state.page==EmbyPage.Library)DrawLibrary();
@@ -132,81 +139,84 @@ namespace VRPlayer
         {
             if(root==null||!root.gameObject.activeInHierarchy)return;
             float height=scroll==null?root.rect.height:scroll.viewport.rect.height;
+            UpdateCast();
             if(imageScheduleDirty||float.IsNaN(imageOffset)||Mathf.Abs(Offset-imageOffset)>1||Mathf.Abs(height-imageViewportHeight)>1){UpdatePosterWall();ScheduleImages();}
         }
         private void DrawHeader(string title,bool showTitle=true)
         {
-            Button(root,"返回",14,10,100,48,()=>{closeKeyboard?.Invoke();app.EmbyBack();});
-            if(showTitle){var label=UiFactory.Label(root,string.IsNullOrEmpty(title)?"Emby · "+AccountName(app.ActiveEmbyAccount):title,132,8,700,50,30);label.color=Color.white;}
-            Button(root,"首页",852,10,120,48,()=>{closeKeyboard?.Invoke();app.EmbyHome();});
-            Button(root,"账户与服务器",988,10,220,48,()=>{closeKeyboard?.Invoke();login=false;removing="";app.ShowEmbyAccounts();});
-            Button(root,"刷新",1224,10,138,48,()=>app.RefreshEmby());
+            UiFactory.IconButton(root,"返回",QuickIcon.Back,0,0,()=>{closeKeyboard?.Invoke();app.EmbyBack();});
+            if(showTitle){var label=UiFactory.Label(root,string.IsNullOrEmpty(title)?"Emby · "+AccountName(app.ActiveEmbyAccount):title,80,0,Width-476,64,30);label.color=Color.white;}
+            UiFactory.IconButton(root,"首页",QuickIcon.Home,Width-380,0,()=>{closeKeyboard?.Invoke();app.EmbyHome();});
+            Button(root,"账户与服务器",Width-300,0,220,64,()=>{closeKeyboard?.Invoke();login=false;removing="";app.ShowEmbyAccounts();});
+            UiFactory.IconButton(root,"刷新",QuickIcon.Refresh,Width-64,0,()=>app.RefreshEmby());
         }
         private void DrawError(string message)
         {
-            var text=UiFactory.Label(root,message,28,150,1300,120,28);text.textWrappingMode=TextWrappingModes.Normal;text.alignment=TextAlignmentOptions.TopLeft;
+            var text=UiFactory.Label(root,message,28,150,Width-56,120,28);text.textWrappingMode=TextWrappingModes.Normal;text.alignment=TextAlignmentOptions.TopLeft;
             Button(root,"重试",28,298,240,56,()=>app.RefreshEmby(),true);
             Button(root,"更换账户",286,298,280,56,()=>{closeKeyboard?.Invoke();login=false;app.ShowEmbyAccounts();});
         }
         private void DrawAccounts()
         {
-            UiFactory.Label(root,"Emby · 服务器与账户",24,8,1010,52,32);
-            if(!string.IsNullOrEmpty(app.ActiveEmbyAccount?.accessToken))Button(root,"返回媒体库",1120,10,242,48,()=>{login=false;app.EmbyHome();});
+            UiFactory.Label(root,"Emby · 服务器与账户",24,8,Width-280,52,32);
+            if(!string.IsNullOrEmpty(app.ActiveEmbyAccount?.accessToken))Button(root,"返回媒体库",Width-256,10,242,54,()=>{login=false;app.EmbyHome();});
             BeginScroll(76,root.rect.height-158);
             var saved=app.EmbyAccounts??Array.Empty<EmbyAccount>();
             float errorHeight=string.IsNullOrEmpty(app.EmbyState.error)?0:68;
-            if(errorHeight>0){var error=UiFactory.Label(body,app.EmbyState.error,18,0,1300,58,24);error.textWrappingMode=TextWrappingModes.Normal;}
+            if(errorHeight>0){var error=UiFactory.Label(body,app.EmbyState.error,18,0,BodyWidth-36,58,24);error.textWrappingMode=TextWrappingModes.Normal;}
             if(saved.Count==0){
-                UiFactory.Label(body,"连接你的 Emby 媒体库",18,55,1300,66,36);
-                UiFactory.Label(body,"使用已有的 Emby 账户登录，可添加多个服务器和账户。",18,131,1300,60,25).color=Muted;
+                UiFactory.Label(body,"连接你的 Emby 媒体库",18,55,BodyWidth-36,66,36);
+                UiFactory.Label(body,"使用已有的 Emby 账户登录，可添加多个服务器和账户。",18,131,BodyWidth-36,60,25).color=Muted;
                 FinishScroll(260);
             }else{
                 int index=0;foreach(var account in saved){
-                    var selected=account;float y=errorHeight+index++*108;
-                    var card=UiFactory.Box(body,"Server account",10,y,1320,96,Card);
+                    var selected=account;float y=errorHeight+index++*120;
                     bool active=selected.id==app.ActiveEmbyAccount?.id;
-                    if(active)UiFactory.Box(card,"Active",0,0,6,96,Green);
-                    var open=Button(card,"",14,0,1000,96,()=>{
+                    float cardWidth=BodyWidth-28;
+                    var card=UiFactory.RoundedBox(body,"Server account",14,y,cardWidth,104,active?UiTheme.SelectedMuted:UiTheme.Elevated,false,14,SurfaceTreatment.Control);
+                    card.GetComponent<RoundedPanelGraphic>().Selected=active;
+                    var open=Button(card,"",0,0,cardWidth-208,104,()=>{
                         removing="";
                         if(string.IsNullOrEmpty(selected.accessToken)){login=true;EmbyServerAddress.Parse(selected.serverUrl,out useHttps,out serverAddress,out serverPort);username=selected.username;password="";loginError="";remember=selected.remember;Render(true);}
                         else{login=false;app.SelectEmbyAccount(selected.id);}
                     });
+                    open.targetGraphic.color=Color.white;var colors=open.colors;colors.normalColor=colors.selectedColor=Color.clear;colors.highlightedColor=UiTheme.Elevated;colors.pressedColor=UiTheme.SelectedMuted;UiFactory.SetColorsImmediate(open,colors);
+                    var surface=(RoundedPanelGraphic)open.targetGraphic;surface.shadow=0;surface.border=0;
                     UiFactory.Clear(open.transform);
-                    UiFactory.Label(open.transform,AccountName(selected)+(active?"  ·  当前":""),16,7,958,40,28);
-                    UiFactory.Label(open.transform,(selected.username??"")+"  ·  "+SafeServer(selected.serverUrl),16,49,958,36,22).color=Muted;
-                    Button(card,removing==selected.id?"确认移除":"移除",1040,24,256,48,()=>{
+                    UiFactory.Label(open.transform,AccountName(selected)+(active?"  ·  当前":""),24,12,cardWidth-256,40,28).color=active?Green:UiTheme.Text;
+                    UiFactory.Label(open.transform,(selected.username??"")+"  ·  "+SafeServer(selected.serverUrl),24,52,cardWidth-256,40,22).color=active?UiTheme.Text:Muted;
+                    Button(card,removing==selected.id?"确认移除":"移除",cardWidth-192,24,168,56,()=>{
                         if(removing!=selected.id){removing=selected.id;Render(true);return;}
                         removing="";app.RemoveEmbyAccount(selected.id);Render(true);
                     });
                 }
-                FinishScroll(errorHeight+index*108);
+                FinishScroll(errorHeight+index*120);
             }
             Button(root,"添加服务器 / 账户",24,root.rect.height-64,600,54,()=>{login=true;useHttps=false;serverPort="8096";serverAddress=username=password=loginError="";remember=true;Render(true);},true);
-            UiFactory.Label(root,"切换账户后显示该账户可访问的媒体库",644,root.rect.height-64,704,54,23,TextAlignmentOptions.Right).color=Muted;
+            UiFactory.Label(root,"切换账户后显示该账户可访问的媒体库",644,root.rect.height-64,Width-668,54,23,TextAlignmentOptions.Right).color=Muted;
         }
         private void DrawLogin()
         {
-            UiFactory.Label(root,"添加 Emby 服务器 / 账户",24,8,1030,54,32);
-            Button(root,busy?"取消登录":"返回",1180,10,182,48,ReturnFromLogin);
-            UiFactory.Label(root,"输入服务器地址，并使用该服务器已有的账户登录",24,73,1320,44,24).color=Muted;
+            UiFactory.Label(root,"添加 Emby 服务器 / 账户",24,8,Width-250,54,32);
+            Button(root,busy?"取消登录":"返回",Width-196,10,182,54,ReturnFromLogin);
+            UiFactory.Label(root,"输入服务器地址，并使用该服务器已有的账户登录",24,73,Width-48,44,24).color=Muted;
             UiFactory.Label(root,"连接协议",24,130,224,52,26);
             var protocol=Button(root,useHttps?"HTTPS":"HTTP",258,130,190,52,()=>{CaptureLogin();closeKeyboard?.Invoke();useHttps=!useHttps;Render(true);},true);protocol.interactable=!busy;
-            UiFactory.Label(root,"点击按钮切换 HTTP / HTTPS",468,130,894,52,24).color=Muted;
-            UiFactory.Label(root,"地址 / IP",24,194,224,52,26);
-            addressField=UiFactory.Input(root,serverAddress,"IP 地址或域名",258,194,788,52,keyboard);addressField.name="Emby server address";
-            UiFactory.Label(root,"端口",1062,194,86,52,26);
-            portField=UiFactory.Input(root,serverPort,"8096",1164,194,198,52,keyboard);portField.name="Emby server port";portField.characterLimit=5;
-            UiFactory.Label(root,"用户名",24,258,224,52,26);
-            userField=UiFactory.Input(root,username,"Emby 用户名",258,258,1104,52,keyboard);
-            UiFactory.Label(root,"密码",24,322,224,52,26);
-            passwordField=UiFactory.Input(root,password,"账户密码",258,322,1104,52,keyboard,true);
+            UiFactory.Label(root,"点击按钮切换 HTTP / HTTPS",468,130,Width-492,52,24).color=Muted;
+            UiFactory.Label(root,"地址 / IP",24,194,224,58,26);
+            addressField=UiFactory.Input(root,serverAddress,"IP 地址或域名",258,194,Width-588,58,keyboard);addressField.name="Emby server address";
+            UiFactory.Label(root,"端口",Width-314,194,86,58,26);
+            portField=UiFactory.Input(root,serverPort,"8096",Width-212,194,198,58,keyboard);portField.name="Emby server port";portField.characterLimit=5;
+            UiFactory.Label(root,"用户名",24,270,224,58,26);
+            userField=UiFactory.Input(root,username,"Emby 用户名",258,270,Width-272,58,keyboard);
+            UiFactory.Label(root,"密码",24,346,224,58,26);
+            passwordField=UiFactory.Input(root,password,"账户密码",258,346,Width-272,58,keyboard,true);
             addressField.interactable=portField.interactable=userField.interactable=passwordField.interactable=!busy;
-            var keep=Button(root,remember?"记住登录：开":"记住登录：关",24,390,350,48,null,remember);keep.interactable=!busy;
-            keep.onClick.AddListener(()=>{remember=!remember;keep.GetComponentInChildren<TextMeshProUGUI>().text=remember?"记住登录：开":"记住登录：关";Paint(keep,remember);});
-            UiFactory.Label(root,"可在账户列表切换或移除登录",398,390,948,48,23).color=Muted;
+            var keep=UiFactory.ToggleRow(root,"记住登录","记住登录",()=>remember,24,422,350,value=>remember=value,64);keep.interactable=!busy;
+            UiFactory.Label(root,"可在账户列表切换或移除登录",398,422,Width-422,58,23).color=Muted;
             string error=string.IsNullOrEmpty(loginError)?app.EmbyState.error:loginError;
-            var errorText=UiFactory.Label(root,busy?"正在登录…":error??"",24,442,1328,36,22);errorText.textWrappingMode=TextWrappingModes.Normal;
-            var submit=Button(root,busy?"正在连接…":"登录并打开媒体库",24,486,1338,54,()=>{CaptureLogin();closeKeyboard?.Invoke();_ = Login();},true);submit.interactable=!busy;
+            var errorText=UiFactory.Label(root,busy?"正在登录…":error??"",24,496,Width-48,60,22);errorText.textWrappingMode=TextWrappingModes.Normal;
+            var submit=Button(root,busy?"正在连接…":"登录并打开媒体库",24,578,Width-48,64,()=>{CaptureLogin();closeKeyboard?.Invoke();_ = Login();},true);submit.interactable=!busy;
         }
         private void CaptureLogin()
         {
@@ -233,45 +243,49 @@ namespace VRPlayer
             BeginScroll(76,root.rect.height-90);var state=app.EmbyState;float y=0;
             y=SectionTitle("我的媒体",y);
             var views=state.views??Array.Empty<EmbyItem>();
-            if(views.Length==0){UiFactory.Label(body,"此账户没有可访问的媒体库",18,y,1300,58,26).color=Muted;y+=78;}
+            if(views.Length==0){UiFactory.Label(body,"此账户没有可访问的媒体库",18,y,BodyWidth-36,58,26).color=Muted;y+=78;}
             else{
-                for(int i=0;i<views.Length;i++)LibraryCard(views[i],14+(i%4)*332,y+(i/4)*182);
-                y+=Mathf.CeilToInt(views.Length/4f)*182+16;
+                int columns=Mathf.Max(1,Mathf.FloorToInt((BodyWidth-28+18)/318));
+                float width=(BodyWidth-28-(columns-1)*18)/columns,pitch=width*9f/16+88;
+                for(int i=0;i<views.Length;i++)LibraryCard(views[i],14+(i%columns)*(width+18),y+(i/columns)*pitch,width);
+                y+=Mathf.CeilToInt(views.Length/(float)columns)*pitch+16;
             }
-            y=HomePosters("继续播放",state.resume,y,"暂无未看完的影片，播放进度会同步到 Emby");
+            y=HomePosters("继续播放",state.resume,y,"暂无未看完的影片，播放进度会同步到 Emby",true);
             y=HomePosters("最新加入",state.latest,y,"媒体库中暂无可显示的影片");
             FinishScroll(y+12);
         }
         private float SectionTitle(string title,float y)
         {
             UiFactory.Box(body,"Section accent",14,y+9,4,28,Green);
-            UiFactory.Label(body,title,30,y,1288,48,30);return y+58;
+            UiFactory.Label(body,title,30,y,BodyWidth-44,48,30);return y+58;
         }
-        private float HomePosters(string title,EmbyItem[] items,float y,string empty)
+        private float HomePosters(string title,EmbyItem[] items,float y,string empty,bool thumbnails=false)
         {
             y=SectionTitle(title,y);items=items??Array.Empty<EmbyItem>();
-            if(items.Length==0){UiFactory.Label(body,empty,18,y,1300,48,24).color=Muted;return y+78;}
-            int count=Math.Min(12,items.Length);for(int i=0;i<count;i++)PosterCard(items[i],14+(i%6)*222,y+(i/6)*344);
-            return y+Mathf.CeilToInt(count/6f)*344+18;
+            if(items.Length==0){UiFactory.Label(body,empty,18,y,BodyWidth-36,48,24).color=Muted;return y+78;}
+            var layout=EmbyLibraryViews.HomeLayout(BodyWidth,thumbnails);
+            int count=Math.Min(12,items.Length);for(int i=0;i<count;i++)PosterCard(items[i],14+(i%layout.Columns)*(layout.Width+18),y+(i/layout.Columns)*layout.Pitch,layout,thumbnails);
+            return y+layout.ContentHeight(count)+18;
         }
-        private void LibraryCard(EmbyItem item,float x,float y)
+        private void LibraryCard(EmbyItem item,float x,float y,float width)
         {
-            var captured=item;var card=Button(body,"",x,y,314,166,()=>app.OpenEmbyLibrary(captured));UiFactory.Clear(card.transform);
-            Image(card.transform,item.Id,0,0,314,122,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
-            UiFactory.Label(card.transform,item.Name??"媒体库",12,126,290,40,25);
+            float artHeight=width*9f/16;
+            var captured=item;var card=Button(body,"",x,y,width,artHeight+64,()=>app.OpenEmbyLibrary(captured));UiFactory.Clear(card.transform);card.name="Emby library "+item.Id;
+            Image(card.transform,item.Id,0,0,width,artHeight,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
+            UiFactory.Label(card.transform,item.Name??"媒体库",12,artHeight+8,width-24,44,25);
         }
         private void DrawLibrary()
         {
             var state=app.EmbyState;
-            var search=UiFactory.Input(root,state.search??"","搜索当前影片列表",14,78,744,48,keyboard);
-            Button(root,"搜索",774,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
-            Button(root,"清空",928,78,138,48,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");});
-            var selector=Button(root,"视图 · "+EmbyLibraryViews.Label(LibraryView),1082,78,280,48,ToggleViewMenu);selector.name="Emby view selector";
-            selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,48);
-            var left=UiFactory.Box(selector.transform,"Chevron left",253,23,12,3,Muted);left.pivot=new Vector2(.5f,.5f);left.localRotation=Quaternion.Euler(0,0,-45);
-            var right=UiFactory.Box(selector.transform,"Chevron right",261,23,12,3,Muted);right.pivot=new Vector2(.5f,.5f);right.localRotation=Quaternion.Euler(0,0,45);
-            BeginScroll(142,root.rect.height-156);var items=state.items??Array.Empty<EmbyItem>();
-            if(items.Length==0){UiFactory.Label(body,string.IsNullOrEmpty(state.search)?"此媒体库暂无影片":"未找到匹配的影片",18,80,1290,68,30).color=Muted;FinishScroll(260);}
+            var search=UiFactory.Input(root,state.search??"","搜索当前影片列表",0,80,Width-456,64,keyboard);
+            UiFactory.IconButton(root,"搜索",QuickIcon.Search,Width-440,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
+            UiFactory.IconButton(root,"清空",QuickIcon.Close,Width-360,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");},tooltip:"清空搜索");
+            var selector=Button(root,"视图 · "+EmbyLibraryViews.Label(LibraryView),Width-280,80,280,64,ToggleViewMenu);selector.name="Emby view selector";
+            selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,64);
+            var left=UiFactory.Box(selector.transform,"Chevron left",253,32,12,3,Muted);left.pivot=new Vector2(.5f,.5f);left.localRotation=Quaternion.Euler(0,0,-45);
+            var right=UiFactory.Box(selector.transform,"Chevron right",261,32,12,3,Muted);right.pivot=new Vector2(.5f,.5f);right.localRotation=Quaternion.Euler(0,0,45);
+            BeginScroll(160,root.rect.height-160);var items=state.items??Array.Empty<EmbyItem>();
+            if(items.Length==0){UiFactory.Label(body,string.IsNullOrEmpty(state.search)?"此媒体库暂无影片":"未找到匹配的影片",18,80,BodyWidth-36,68,30).color=Muted;FinishScroll(260);}
             else{float top=LibraryView==EmbyLibraryView.Table?TableHeader():0;FinishScroll(BuildPosterWall(items,top,LibraryView));}
         }
         private string ViewLibraryId=>!string.IsNullOrEmpty(app.EmbyState.viewLibraryId)?app.EmbyState.viewLibraryId:app.EmbyState.parent?.Id??"all-movies";
@@ -279,12 +293,12 @@ namespace VRPlayer
         private void ToggleViewMenu()
         {
             closeKeyboard?.Invoke();if(viewMenu!=null){CloseViewMenu();return;}
-            viewMenu=UiFactory.Box(root,"Emby view menu",0,0,1376,root.rect.height,Color.clear,true);
+            viewMenu=UiFactory.Box(root,"Emby view menu",0,0,Width,root.rect.height,Color.clear,true);
             var outside=viewMenu.gameObject.AddComponent<Button>();outside.onClick.AddListener(CloseViewMenu);
-            var panel=UiFactory.Box(viewMenu,"Options",1082,134,280,390,Background,true);
+            var panel=UiFactory.Box(viewMenu,"Options",Width-294,148,280,460,Background,true);
             var openedMenu=viewMenu;var state=app.EmbyState;string accountId=app.ActiveEmbyAccount?.id,libraryId=ViewLibraryId;
             foreach(EmbyLibraryView view in Enum.GetValues(typeof(EmbyLibraryView))){
-                var selected=view;Button(panel,(LibraryView==view?"✓ ":"")+EmbyLibraryViews.Label(view),8,8+(int)view*54,264,48,()=>{
+                var selected=view;Button(panel,(LibraryView==view?"✓ ":"")+EmbyLibraryViews.Label(view),8,8+(int)view*64,264,58,()=>{
                     if(viewMenu!=openedMenu||app.Source!=FileSource.Emby||app.EmbyState!=state||app.ActiveEmbyAccount?.id!=accountId)return;
                     app.Store?.SetEmbyLibraryView(accountId,libraryId,selected);Render(true);
                 },LibraryView==view);
@@ -299,38 +313,44 @@ namespace VRPlayer
         }
         private float TableHeader()
         {
-            foreach(var column in new[]{new{title="名称",x=124f,w=666f},new{title="年份",x=814f,w=86f},new{title="时长",x=914f,w=126f},new{title="评分",x=1054f,w=90f},new{title="进度",x=1168f,w=146f}})
+            foreach(var column in new[]{new{title="名称",x=124f,w=BodyWidth-648},new{title="年份",x=BodyWidth-530,w=86f},new{title="时长",x=BodyWidth-430,w=126f},new{title="评分",x=BodyWidth-290,w=90f},new{title="进度",x=BodyWidth-176,w=146f}})
                 UiFactory.Label(body,column.title,column.x,0,column.w,42,23).color=Muted;
             return 50;
         }
-        private void PosterCard(EmbyItem item,float x,float y)
+        private void PosterCard(EmbyItem item,float x,float y,EmbyWallLayout layout,bool thumbnails)
         {
-            var captured=item;var card=Button(body,"",x,y,204,326,()=>app.OpenEmbyItem(captured));UiFactory.Clear(card.transform);
-            Image(card.transform,item.Id,0,0,204,246,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
-            var name=UiFactory.Label(card.transform,DisplayName(item),8,250,188,42,24);name.alignment=TextAlignmentOptions.Left;
-            UiFactory.Label(card.transform,ItemMeta(item),8,292,188,34,20).color=Muted;
-            float progress=Progress(item);if(progress>0){UiFactory.Box(card.transform,"Progress rail",0,240,204,6,new Color(0,0,0,.6f));UiFactory.Box(card.transform,"Progress",0,240,204*progress,6,Green);}
-            if(item.UserData?.Played==true){UiFactory.Box(card.transform,"Watched",150,8,44,28,Green);UiFactory.Label(card.transform,"已看",150,8,44,28,17,TextAlignmentOptions.Center);}
+            float width=layout.Width,artHeight=layout.ArtworkHeight;
+            var captured=item;var card=Button(body,"",x,y,width,layout.CardHeight,()=>app.OpenEmbyItem(captured));UiFactory.Clear(card.transform);card.name=(thumbnails?"Emby resume ":"Emby latest ")+item.Id;
+            string type=EmbyLibraryViews.ImageType(item,thumbnails?EmbyLibraryView.Thumb:EmbyLibraryView.Poster),tag=EmbyLibraryViews.ImageTag(item,type);
+            Image(card.transform,item.Id,0,0,width,artHeight,!string.IsNullOrEmpty(tag),item,tag,type);
+            bool episode=thumbnails&&item.Type=="Episode"&&!string.IsNullOrEmpty(item.SeriesName);
+            var name=UiFactory.Label(card.transform,episode?item.SeriesName:DisplayName(item),8,artHeight+4,width-16,42,24);name.alignment=TextAlignmentOptions.MidlineLeft;
+            string meta=episode?$"S{item.ParentIndexNumber}:E{item.IndexNumber} · {item.Name}":ItemMeta(item);
+            UiFactory.Label(card.transform,meta,8,artHeight+46,width-16,34,20).color=Muted;
+            float progress=Progress(item);if(progress>0){UiFactory.Box(card.transform,"Progress rail",0,artHeight-6,width,6,new Color(0,0,0,.6f));UiFactory.Box(card.transform,"Progress",0,artHeight-6,width*progress,6,Green);}
+            if(item.UserData?.Played==true){UiFactory.Box(card.transform,"Watched",width-52,8,44,28,Green);UiFactory.Label(card.transform,"已看",width-52,8,44,28,17,TextAlignmentOptions.Center);}
         }
         private float BuildPosterWall(EmbyItem[] items,float top,EmbyLibraryView view=EmbyLibraryView.Poster)
         {
-            posterItems=items??Array.Empty<EmbyItem>();posterTop=top;posterFirstRow=int.MinValue;posterView=view;posterLayout=EmbyLibraryViews.Layout(view);
+            posterItems=items??Array.Empty<EmbyItem>();posterTop=top;posterFirstRow=int.MinValue;posterView=view;posterLayout=EmbyLibraryViews.Layout(view,BodyWidth);
             var layout=posterLayout;bool list=view==EmbyLibraryView.List,table=view==EmbyLibraryView.Table;
             int count=layout.PoolSize(posterItems.Length,scroll.viewport.rect.height,ImagePreload);
             for(int i=0;i<count;i++){
                 var slot=new PosterSlot();var card=Button(body,"",14,top,layout.Width,layout.CardHeight,null);UiFactory.Clear(card.transform);slot.root=(RectTransform)card.transform;
                 slot.binding=slot.root.gameObject.AddComponent<RowBinding>();slot.root.gameObject.AddComponent<RowPress>().Bind(slot.binding);card.onClick.AddListener(slot.binding.Open);
-                slot.artwork=UiFactory.Box(slot.root,"Artwork",list||table?8:0,list||table?12:0,layout.ArtworkWidth,layout.ArtworkHeight,view==EmbyLibraryView.Logo||view==EmbyLibraryView.Disc?Color.clear:new Color(.09f,.1f,.095f,1));
-                slot.placeholder=UiFactory.Label(slot.artwork,"",4,0,layout.ArtworkWidth-8,layout.ArtworkHeight,table?14:list?17:22,TextAlignmentOptions.Center);slot.placeholder.color=Muted;
+                bool alphaArtwork=view==EmbyLibraryView.Logo||view==EmbyLibraryView.Disc;
+                slot.artwork=UiFactory.RoundedBox(slot.root,"Artwork",list||table?8:0,list||table?12:0,layout.ArtworkWidth,layout.ArtworkHeight,alphaArtwork?Color.clear:UiTheme.Elevated,false,12);
+                if(!alphaArtwork)slot.artwork.gameObject.AddComponent<Mask>().showMaskGraphic=true;
+                slot.placeholder=UiFactory.Label(slot.artwork,"",4,0,layout.ArtworkWidth-8,layout.ArtworkHeight,table?14:list?17:22,TextAlignmentOptions.Center);slot.placeholder.name="Text";slot.placeholder.color=Muted;
                 var imageRect=UiFactory.Rect(slot.artwork,"Image",0,0,layout.ArtworkWidth,layout.ArtworkHeight);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.raycastTarget=false;slot.image.color=Color.clear;
-                var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.FitInParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
-                slot.label=UiFactory.Label(slot.root,"",list||table?110:8,list?8:table?14:layout.ArtworkHeight+4,table?666:list?1180:layout.Width-16,42,24);
+                var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=alphaArtwork?AspectRatioFitter.AspectMode.FitInParent:AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
+                slot.label=UiFactory.Label(slot.root,"",list||table?110:8,list?8:table?14:layout.ArtworkHeight+4,table?layout.Width-634:list?layout.Width-126:layout.Width-16,42,24);
                 if(table){
-                    slot.year=UiFactory.Label(slot.root,"",800,14,86,42,23);slot.duration=UiFactory.Label(slot.root,"",900,14,126,42,23);
-                    slot.rating=UiFactory.Label(slot.root,"",1040,14,90,42,23);slot.resume=UiFactory.Label(slot.root,"",1154,14,146,42,23);
+                    slot.year=UiFactory.Label(slot.root,"",layout.Width-544,14,86,42,23);slot.duration=UiFactory.Label(slot.root,"",layout.Width-444,14,126,42,23);
+                    slot.rating=UiFactory.Label(slot.root,"",layout.Width-304,14,90,42,23);slot.resume=UiFactory.Label(slot.root,"",layout.Width-190,14,146,42,23);
                 }else{
-                    slot.meta=UiFactory.Label(slot.root,"",list?110:8,list?52:layout.ArtworkHeight+46,list?1180:layout.Width-16,34,20);slot.meta.color=Muted;
-                    if(list){slot.overview=UiFactory.Label(slot.root,"",110,92,1180,42,23);slot.overview.color=Muted;}
+                    slot.meta=UiFactory.Label(slot.root,"",list?110:8,list?52:layout.ArtworkHeight+46,list?layout.Width-126:layout.Width-16,34,20);slot.meta.color=Muted;
+                    if(list){slot.overview=UiFactory.Label(slot.root,"",110,92,layout.Width-126,42,23);slot.overview.color=Muted;}
                 }
                 slot.progressRail=UiFactory.Box(slot.artwork,"Progress rail",0,layout.ArtworkHeight-6,layout.ArtworkWidth,6,new Color(0,0,0,.6f));slot.progress=UiFactory.Box(slot.artwork,"Progress",0,layout.ArtworkHeight-6,0,6,Green);
                 slot.watched=UiFactory.Box(slot.artwork,"Watched",layout.ArtworkWidth-48,4,44,28,Green);UiFactory.Label(slot.watched,"已看",0,0,44,28,17,TextAlignmentOptions.Center);
@@ -362,64 +382,102 @@ namespace VRPlayer
             imageScheduleDirty=true;
         }
         private void ClearPosterWall(){posterPool.Clear();posterItems=Array.Empty<EmbyItem>();posterFirstRow=int.MinValue;}
+        private void ClearCast()
+        {
+            castRegion?.Clear();castPool.Clear();castPeople=Array.Empty<EmbyPerson>();castScroll=null;castBody=null;castRegion=null;castFirst=-1;
+        }
+        private void BuildCast(EmbyPerson[] people,float top)
+        {
+            castPeople=people;
+            var host=UiFactory.Rect(body,"Cast horizontal list",14,top,BodyWidth-28,286);
+            castRegion=host.gameObject.AddComponent<QuickPointerRegion>();
+            castScroll=host.gameObject.AddComponent<ListScrollRect>();castScroll.horizontal=true;castScroll.vertical=false;castScroll.movementType=ScrollRect.MovementType.Clamped;castScroll.scrollSensitivity=64;
+            var viewport=UiFactory.Box(host,"Cast viewport",0,0,BodyWidth-28,264,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();castScroll.viewport=viewport;
+            castBody=UiFactory.Rect(viewport,"Cast cards",0,0,Mathf.Max(viewport.rect.width,people.Length*216-16),264);castScroll.content=castBody;
+            var rail=UiFactory.Box(host,"Cast scrollbar",0,276,BodyWidth-28,10,UiTheme.Rail,true);var scrollbar=rail.gameObject.AddComponent<Scrollbar>();
+            var handle=UiFactory.Box(rail,"Handle",0,0,BodyWidth-28,10,Green,true);handle.anchorMin=Vector2.zero;handle.anchorMax=Vector2.one;handle.offsetMin=handle.offsetMax=Vector2.zero;
+            scrollbar.handleRect=handle;scrollbar.targetGraphic=handle.GetComponent<Image>();scrollbar.direction=Scrollbar.Direction.LeftToRight;castScroll.horizontalScrollbar=scrollbar;
+            int count=Mathf.Min(people.Length,Mathf.CeilToInt(viewport.rect.width/216)+2);
+            for(int i=0;i<count;i++){
+                var slot=new CastSlot();var button=Button(castBody,"",0,0,200,264,null);button.name="Cast";UiFactory.Clear(button.transform);slot.root=(RectTransform)button.transform;
+                slot.binding=slot.root.gameObject.AddComponent<RowBinding>();slot.root.gameObject.AddComponent<RowPress>().Bind(slot.binding);button.onClick.AddListener(slot.binding.Open);
+                slot.art=UiFactory.RoundedBox(slot.root,"Portrait",28,8,144,180,UiTheme.Elevated);
+                slot.placeholder=UiFactory.Label(slot.art,"暂无头像",0,0,144,180,23,TextAlignmentOptions.Center);slot.placeholder.color=Muted;
+                var imageRect=UiFactory.Rect(slot.art,"Image",0,0,144,180);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.color=Color.clear;slot.image.raycastTarget=false;
+                var fitter=imageRect.gameObject.AddComponent<AspectRatioFitter>();fitter.aspectMode=AspectRatioFitter.AspectMode.FitInParent;fitter.aspectRatio=.8f;
+                slot.name=UiFactory.Label(slot.root,"",12,192,176,40,25);slot.role=UiFactory.Label(slot.root,"",12,228,176,36,23);slot.role.color=Muted;castPool.Add(slot);
+            }
+            castScroll.onValueChanged.AddListener(_=>UpdateCast());UpdateCast();
+        }
+        public void ScrollCast(int direction){if(CastHovered)MoveCast(direction);}
+        private void MoveCast(int direction)
+        {
+            if(castScroll==null||!castScroll.enabled||castScroll.HasDragOwner)return;castScroll.StopMovement();float offset=Mathf.Clamp(-castBody.anchoredPosition.x+Mathf.Sign(direction)*216,0,Mathf.Max(0,castBody.rect.width-castScroll.viewport.rect.width));
+            castBody.anchoredPosition=new Vector2(-offset,0);UpdateCast();
+        }
+        private void UpdateCast()
+        {
+            if(castBody==null||castPool.Count==0)return;
+            int first=Mathf.Max(0,Mathf.FloorToInt(-castBody.anchoredPosition.x/216));if(first==castFirst)return;castFirst=first;
+            for(int i=0;i<castPool.Count;i++){
+                var slot=castPool[i];UnbindImage(slot.imageBinding);slot.imageBinding=null;int index=first+i;
+                slot.root.gameObject.SetActive(index<castPeople.Length);slot.binding.Item=null;if(index>=castPeople.Length)continue;
+                var person=castPeople[index];slot.root.anchoredPosition=new Vector2(index*216,0);slot.name.text=person.Name;slot.role.text=string.IsNullOrEmpty(person.Role)?person.Type:person.Role;
+                slot.placeholder.gameObject.SetActive(true);slot.root.GetComponent<Button>().interactable=!string.IsNullOrEmpty(person.Id);
+                slot.binding.Item=new BrowserRow{key=(app.ActiveEmbyAccount?.id??"")+":"+person.Id,open=()=>{closeKeyboard?.Invoke();app.OpenEmbyPerson(person);}};
+                slot.imageBinding=RegisterImage(slot.image,slot.art,person.Id,180,!string.IsNullOrEmpty(person.PrimaryImageTag),null,person.PrimaryImageTag,"Primary");
+            }
+            imageScheduleDirty=true;
+        }
         private void DrawDetails()
         {
-            var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,"无法读取影片详情",24,170,1300,66,30);return;}
+            var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,"无法读取影片详情",24,170,Width-48,66,30);return;}
             BeginScroll(76,root.rect.height-90);
             Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
-            var name=UiFactory.Label(body,DisplayName(item),290,8,1026,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
+            var name=UiFactory.Label(body,DisplayName(item),290,8,BodyWidth-304,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
             name.overflowMode=TextOverflowModes.Overflow;
-            float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,1026,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(1026,nameHeight);
+            float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,BodyWidth-304,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(BodyWidth-304,nameHeight);
             float metaY=nameHeight+20;
-            UiFactory.Label(body,DetailsMeta(item),290,metaY,1026,42,25).color=Muted;
+            UiFactory.Label(body,DetailsMeta(item),290,metaY,BodyWidth-304,42,25).color=Muted;
             float playY=metaY+60;
             float actionsBottom=playY+56;
-            if(item.IsBrowsable){Button(body,"浏览季 / 剧集",290,playY,416,56,()=>app.OpenEmbyLibrary(item),true);}
+            if(item.IsBrowsable){Button(body,"浏览季 / 剧集",290,playY,280,56,()=>app.OpenEmbyLibrary(item),true);}
             else{
                 var last=app.EmbyMovieResume;
                 long currentTicks=app.EmbyPartProgress(item)?.PositionTicks??item.UserData?.PlaybackPositionTicks??0;
                 if(last!=null){
                     int cd=Array.FindIndex(app.EmbyState.parts,part=>part.Id==last.Item.Id)+1;
-                    var label=UiFactory.Label(body,(last.HasLastPlayed?"上次播放":"已保存进度")+"：CD"+cd+" · "+DisplayName(last.Item),290,playY,1026,42,25);label.color=Muted;
+                    var label=UiFactory.Label(body,(last.HasLastPlayed?"上次播放":"已保存进度")+"：CD"+cd+" · "+DisplayName(last.Item),290,playY,BodyWidth-304,42,25);label.color=Muted;
                     float primaryY=playY+48;
-                    Button(body,(last.PositionTicks>0?"继续播放":"播放上次部分")+" · CD"+cd+(last.PositionTicks>0?" · "+TicksClock(last.PositionTicks):""),290,primaryY,650,56,()=>app.ContinueEmbyMovie(),true);
+                    Button(body,(last.PositionTicks>0?"继续播放":"播放上次部分")+" · CD"+cd+(last.PositionTicks>0?" · "+TicksClock(last.PositionTicks):""),290,primaryY,Mathf.Min(416,BodyWidth-304),56,()=>app.ContinueEmbyMovie(),true);
                     actionsBottom=primaryY+56;
                     if(last.Item.Id!=item.Id){
                         float secondaryY=primaryY+68;
-                        if(currentTicks>0)Button(body,"仅继续 CD1 · "+TicksClock(currentTicks),290,secondaryY,440,48,()=>app.PlayEmby(item,true));
-                        Button(body,"CD1 从头播放",currentTicks>0?750:290,secondaryY,360,48,()=>app.PlayEmby(item,false));
-                        actionsBottom=secondaryY+48;
-                    }else Button(body,"从头播放",962,primaryY,350,56,()=>app.PlayEmby(item,false));
+                        if(currentTicks>0)Button(body,"仅继续 CD1 · "+TicksClock(currentTicks),290,secondaryY,360,48,()=>app.PlayEmby(item,true));
+                        Button(body,"CD1 从头播放",290,secondaryY+(currentTicks>0?64:0),280,56,()=>app.PlayEmby(item,false));
+                        actionsBottom=secondaryY+(currentTicks>0?120:56);
+                    }else {Button(body,"从头播放",290,primaryY+76,256,56,()=>app.PlayEmby(item,false));actionsBottom=primaryY+132;}
                 }else{
-                    Button(body,currentTicks>0?"继续播放 · "+TicksClock(currentTicks):"播放",290,playY,416,56,()=>app.PlayEmby(item,true),true);
-                    if(currentTicks>0)Button(body,"从头播放",728,playY,260,56,()=>app.PlayEmby(item,false));
+                    float primaryWidth=currentTicks>0?320:248;
+                    Button(body,currentTicks>0?"继续播放 · "+TicksClock(currentTicks):"播放",290,playY,primaryWidth,56,()=>app.PlayEmby(item,true),true);
+                    if(currentTicks>0)Button(body,"从头播放",290+primaryWidth+16,playY,224,56,()=>app.PlayEmby(item,false));
                 }
             }
             string overview=string.IsNullOrWhiteSpace(item.Overview)?"暂无影片简介":PlainOverview(item.Overview);
             if(overview.Length>10000)overview=overview.Substring(0,10000)+"…";
             float overviewY=actionsBottom+22;
-            UiFactory.Label(body,"简介",290,overviewY,1026,46,28);
-            var description=UiFactory.Label(body,overview,290,overviewY+52,1026,100,24);description.textWrappingMode=TextWrappingModes.Normal;description.alignment=TextAlignmentOptions.TopLeft;
-            float overviewHeight=Mathf.Max(100,description.GetPreferredValues(overview,1026,float.PositiveInfinity).y+12);description.rectTransform.sizeDelta=new Vector2(1026,overviewHeight);
+            UiFactory.Label(body,"简介",290,overviewY,BodyWidth-304,46,28);
+            var description=UiFactory.Label(body,overview,290,overviewY+52,BodyWidth-304,100,24);description.textWrappingMode=TextWrappingModes.Normal;description.alignment=TextAlignmentOptions.TopLeft;
+            float overviewHeight=Mathf.Max(100,description.GetPreferredValues(overview,BodyWidth-304,float.PositiveInfinity).y+12);description.rectTransform.sizeDelta=new Vector2(BodyWidth-304,overviewHeight);
             float categoryY=overviewY+64+overviewHeight;
             categoryY=CategoryRow("类型","Genre",Categories(item.GenreItems,item.Genres),categoryY);
             categoryY=CategoryRow("标签","Tag",Categories(item.TagItems,item.Tags),categoryY);
             categoryY=CategoryRow("制片厂","Studio",Categories(item.Studios,null),categoryY);
             float y=Mathf.Max(410,categoryY);
-            y=DetailVideos("额外部分",app.EmbyState.parts,y,true);
-            var people=(item.People??Array.Empty<EmbyPerson>()).Where(person=>person!=null&&!string.IsNullOrWhiteSpace(person.Name)).Take(24).ToArray();
-            if(people.Length>0){
-                y=SectionTitle("演员与主创",y+16);
-                for(int i=0;i<people.Length;i++){
-                    var person=people[i];float x=14+(i%6)*222,py=y+(i/6)*258;
-                    var card=Button(body,"",x,py,204,248,()=>{closeKeyboard?.Invoke();app.OpenEmbyPerson(person);});card.name="Cast";card.interactable=!string.IsNullOrEmpty(person.Id);UiFactory.Clear(card.transform);
-                    Image(card.transform,person.Id,32,8,140,170,!string.IsNullOrEmpty(person.PrimaryImageTag),null,person.PrimaryImageTag);
-                    UiFactory.Label(card.transform,person.Name,8,179,188,34,23);
-                    UiFactory.Label(card.transform,string.IsNullOrEmpty(person.Role)?person.Type:person.Role,8,213,188,34,20).color=Muted;
-                }
-                y+=Mathf.CeilToInt(people.Length/6f)*258;
-            }
-            y=DetailVideos("附加篇",app.EmbyState.extras,y,false);
+            y=DetailVideos("影片片段",app.EmbyState.parts,y,true);
+            var people=(item.People??Array.Empty<EmbyPerson>()).Where(person=>person!=null&&!string.IsNullOrWhiteSpace(person.Name)).ToArray();
+            if(people.Length>0){float heading=y+16;y=SectionTitle("演员与主创",heading)+22;BuildCast(people,y);UiFactory.IconButton(body,"←",QuickIcon.Back,BodyWidth-158,heading,()=>MoveCast(-1),tooltip:"向左浏览演员与主创");UiFactory.IconButton(body,"→",QuickIcon.Forward,BodyWidth-78,heading,()=>MoveCast(1),tooltip:"向右浏览演员与主创");y+=306;}
+            y=DetailVideos("花絮与预告",app.EmbyState.extras,y,false);
             FinishScroll(y+20);
         }
         private static List<KeyValuePair<string,string>> Categories(EmbyNamedItem[] named,string[] names)
@@ -435,7 +493,7 @@ namespace VRPlayer
             var label=UiFactory.Label(body,title,290,y,106,44,23);label.color=Muted;float x=410,rowY=y;
             foreach(var entry in entries){
                 var value=entry;float width=Mathf.Clamp(label.GetPreferredValues(value.Key,float.PositiveInfinity,44).x+28,90,400);
-                if(x+width>1316){x=410;rowY+=54;}
+                width=Mathf.Min(width,BodyWidth-424);if(x+width>BodyWidth-14){x=410;rowY+=54;}
                 var button=Button(body,value.Key,x,rowY,width,44,()=>{closeKeyboard?.Invoke();app.OpenEmbyCategory(kind,value.Key,value.Value);});button.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;
                 x+=width+12;
             }
@@ -443,28 +501,28 @@ namespace VRPlayer
         }
         private void DrawPerson()
         {
-            var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,"无法读取人物详情",24,170,1300,66,30);return;}
+            var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,"无法读取人物详情",24,170,Width-48,66,30);return;}
             BeginScroll(76,root.rect.height-90);Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
-            var name=UiFactory.Label(body,item.Name??"未命名人物",290,8,1026,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
-            float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,1026,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(1026,nameHeight);
+            var name=UiFactory.Label(body,item.Name??"未命名人物",290,8,BodyWidth-304,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
+            float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,BodyWidth-304,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(BodyWidth-304,nameHeight);
             float y=PersonLine("演员与主创",nameHeight+28);
             if(!string.IsNullOrWhiteSpace(item.PremiereDate))y=PersonLine("出生日期 · "+DateText(item.PremiereDate),y);
             var locations=(item.ProductionLocations??Array.Empty<string>()).Where(location=>!string.IsNullOrWhiteSpace(location)).Distinct().ToArray();
             if(locations.Length>0)y=PersonLine("出生地 · "+string.Join(" / ",locations),y);
             if(!string.IsNullOrWhiteSpace(item.EndDate))y=PersonLine("逝世日期 · "+DateText(item.EndDate),y);
-            y+=16;UiFactory.Label(body,"简介",290,y,1026,46,28);y+=52;
+            y+=16;UiFactory.Label(body,"简介",290,y,BodyWidth-304,46,28);y+=52;
             string overview=string.IsNullOrWhiteSpace(item.Overview)?"暂无人物简介":PlainOverview(item.Overview);if(overview.Length>10000)overview=overview.Substring(0,10000)+"…";
-            var description=UiFactory.Label(body,overview,290,y,1026,100,24);description.textWrappingMode=TextWrappingModes.Normal;description.alignment=TextAlignmentOptions.TopLeft;
-            float height=Mathf.Max(100,description.GetPreferredValues(overview,1026,float.PositiveInfinity).y+12);description.rectTransform.sizeDelta=new Vector2(1026,height);
+            var description=UiFactory.Label(body,overview,290,y,BodyWidth-304,100,24);description.textWrappingMode=TextWrappingModes.Normal;description.alignment=TextAlignmentOptions.TopLeft;
+            float height=Mathf.Max(100,description.GetPreferredValues(overview,BodyWidth-304,float.PositiveInfinity).y+12);description.rectTransform.sizeDelta=new Vector2(BodyWidth-304,height);
             y=Mathf.Max(410,y+height+24);var items=app.EmbyState.items??Array.Empty<EmbyItem>();y=SectionTitle($"出演作品 · {items.Length}",y+16);
-            if(items.Length==0){UiFactory.Label(body,"暂无可显示的出演作品",18,y,1300,58,26).color=Muted;y+=78;}
+            if(items.Length==0){UiFactory.Label(body,"暂无可显示的出演作品",18,y,BodyWidth-36,58,26).color=Muted;y+=78;}
             else y=BuildPosterWall(items,y);
             FinishScroll(y+20);
         }
         private float PersonLine(string text,float y)
         {
-            var label=UiFactory.Label(body,text,290,y,1026,40,24);label.color=Muted;label.textWrappingMode=TextWrappingModes.Normal;label.alignment=TextAlignmentOptions.TopLeft;
-            float height=Mathf.Max(40,label.GetPreferredValues(text,1026,float.PositiveInfinity).y+8);label.rectTransform.sizeDelta=new Vector2(1026,height);return y+height+8;
+            var label=UiFactory.Label(body,text,290,y,BodyWidth-304,40,24);label.color=Muted;label.textWrappingMode=TextWrappingModes.Normal;label.alignment=TextAlignmentOptions.TopLeft;
+            float height=Mathf.Max(40,label.GetPreferredValues(text,BodyWidth-304,float.PositiveInfinity).y+8);label.rectTransform.sizeDelta=new Vector2(BodyWidth-304,height);return y+height+8;
         }
         private static string DateText(string value)=>DateTimeOffset.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.AllowWhiteSpaces,out var date)?date.ToString("yyyy年M月d日",CultureInfo.InvariantCulture):value;
         private float DetailVideos(string title,EmbyItem[] items,float y,bool parts)
@@ -473,50 +531,51 @@ namespace VRPlayer
             if(videos.Length==0)return y;
             var last=parts?app.EmbyMovieResume:null;
             y=SectionTitle(title,y+16);
+            int columns=Mathf.Max(1,Mathf.FloorToInt((BodyWidth-14)/360));float width=(BodyWidth-28-(columns-1)*18)/columns,artHeight=width*9/16,pitch=artHeight+118;
             for(int i=0;i<videos.Length;i++){
-                var video=videos[i];float x=14+(i%3)*444,py=y+(i/3)*354;
-                var card=Button(body,"",x,py,428,334,()=>{closeKeyboard?.Invoke();if(parts)app.PlayEmbyPart(video);else app.PlayEmbyExtra(video);});UiFactory.Clear(card.transform);
+                var video=videos[i];float x=14+(i%columns)*(width+18),py=y+(i/columns)*pitch;
+                var card=Button(body,"",x,py,width,pitch-18,()=>{closeKeyboard?.Invoke();if(parts)app.PlayEmbyPart(video);else app.PlayEmbyExtra(video);});UiFactory.Clear(card.transform);
                 string backdropTag=video.BackdropImageTags?.FirstOrDefault();
                 string imageType=!string.IsNullOrEmpty(video.ImageTags?.Thumb)?"Thumb":!string.IsNullOrEmpty(backdropTag)?"Backdrop":"Primary";
                 string imageTag=imageType=="Thumb"?video.ImageTags.Thumb:imageType=="Backdrop"?backdropTag:video.ImageTags?.Primary;
-                Image(card.transform,video.Id,0,0,428,241,!string.IsNullOrEmpty(imageTag),video,imageTag,imageType);
+                Image(card.transform,video.Id,0,0,width,artHeight,!string.IsNullOrEmpty(imageTag),video,imageTag,imageType);
                 string name=(parts?"CD"+(i+1)+" · ":"")+(string.IsNullOrWhiteSpace(video.Name)?parts?"影片部分":"附加篇":video.Name);
-                UiFactory.Label(card.transform,name,12,245,404,42,25);
+                UiFactory.Label(card.transform,name,12,artHeight+4,width-24,44,25);
                 long ticks=video.RunTimeTicks>0?video.RunTimeTicks:(video.MediaSources?.FirstOrDefault()?.RunTimeTicks??0);
                 string duration=ticks>0?TicksClock(ticks):"时长未知";
                 var progress=parts?app.EmbyPartProgress(video):null;
                 string resume=progress?.PositionTicks>0?" · 进度 "+TicksClock(progress.PositionTicks):"";
-                var subtitle=UiFactory.Label(card.transform,(last?.Item.Id==video.Id?last.HasLastPlayed?"上次播放 · ":"已存进度 · ":parts&&i==0?"主片 · ":"")+duration+resume,12,289,404,40,22);
+                var subtitle=UiFactory.Label(card.transform,(last?.Item.Id==video.Id?last.HasLastPlayed?"上次播放 · ":"已存进度 · ":parts&&i==0?"主片 · ":"")+duration+resume,12,artHeight+52,width-24,44,22);
                 subtitle.color=last?.Item.Id==video.Id?Green:Muted;
             }
-            return y+Mathf.CeilToInt(videos.Length/3f)*354;
+            return y+Mathf.CeilToInt(videos.Length/(float)columns)*pitch;
         }
         private void BeginScroll(float y,float height)
         {
-            var container=UiFactory.Rect(root,"Emby scrolling content",14,y,1348,height);
+            var container=UiFactory.Rect(root,"Emby scrolling content",14,y,Width-28,height);
             scroll=container.gameObject.AddComponent<ListScrollRect>();scroll.horizontal=false;scroll.vertical=true;scroll.movementType=ScrollRect.MovementType.Clamped;scroll.scrollSensitivity=48;scroll.decelerationRate=.12f;
-            var viewport=UiFactory.Box(container,"Viewport",0,0,1344,height,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();scroll.viewport=viewport;
-            body=UiFactory.Rect(viewport,"Cards",0,0,1344,height);scroll.content=body;
-            var barRect=UiFactory.Box(container,"Scrollbar",1348-16,0,16,height,Card,true);var bar=barRect.gameObject.AddComponent<Scrollbar>();
-            var handle=UiFactory.Box(barRect,"Handle",0,0,16,height,Green,true);handle.anchorMin=Vector2.zero;handle.anchorMax=Vector2.one;handle.offsetMin=handle.offsetMax=Vector2.zero;
+            var viewport=UiFactory.Box(container,"Viewport",0,0,BodyWidth,height,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();scroll.viewport=viewport;
+            body=UiFactory.Rect(viewport,"Cards",0,0,BodyWidth,height);scroll.content=body;
+            var barRect=UiFactory.Box(container,"Scrollbar",Width-38,0,10,height,Card,true);var bar=barRect.gameObject.AddComponent<Scrollbar>();
+            var handle=UiFactory.Box(barRect,"Handle",0,0,10,height,Muted,true);handle.anchorMin=Vector2.zero;handle.anchorMax=Vector2.one;handle.offsetMin=handle.offsetMax=Vector2.zero;
             bar.handleRect=handle;bar.targetGraphic=handle.GetComponent<Image>();bar.direction=Scrollbar.Direction.BottomToTop;scroll.verticalScrollbar=bar;
         }
-        private void FinishScroll(float height){body.sizeDelta=new Vector2(1344,Mathf.Max(scroll.viewport.rect.height,height));}
+        private void FinishScroll(float height){body.sizeDelta=new Vector2(BodyWidth,Mathf.Max(scroll.viewport.rect.height,height));}
         private static Button Button(Transform parent,string text,float x,float y,float width,float height,Action clicked,bool selected=false)
         {
             var button=UiFactory.Button(parent,text,x,y,width,height,clicked);Paint(button,selected);return button;
         }
         private static void Paint(Button button,bool selected)
         {
-            button.targetGraphic.color=selected?new Color(.22f,.46f,.20f,1):Card;var colors=button.colors;colors.pressedColor=Green;button.colors=colors;
+            UiFactory.SetAccent(button,selected);
         }
         private void Image(Transform parent,string itemId,float x,float y,float width,float height,bool available,EmbyItem item=null,string imageTag="",string imageType="Primary")
         {
-            var holder=UiFactory.Box(parent,"Artwork",x,y,width,height,new Color(.09f,.1f,.095f,1));
+            var holder=UiFactory.RoundedBox(parent,"Artwork",x,y,width,height,UiTheme.Elevated,false,12);holder.gameObject.AddComponent<Mask>().showMaskGraphic=true;
             var placeholder=UiFactory.Label(holder,available?"Emby":item?.IsBrowsable==true?"媒体库":width>height?"暂无缩略图":"暂无海报",8,0,width-16,height,22,TextAlignmentOptions.Center);placeholder.color=Muted;
             if(!available||string.IsNullOrEmpty(itemId)||app.ActiveEmbyAccount==null)return;
             var rect=UiFactory.Rect(holder,"Image",0,0,width,height);rect.pivot=new Vector2(.5f,.5f);var image=rect.gameObject.AddComponent<RawImage>();image.raycastTarget=false;
-            var fit=rect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.FitInParent;fit.aspectRatio=width/height;
+            var fit=rect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=width/height;
             RegisterImage(image,holder,itemId,height,available,item,imageTag,imageType);
         }
         private ImageBinding RegisterImage(RawImage image,RectTransform holder,string itemId,float height,bool available,EmbyItem item,string imageTag,string imageType)
@@ -547,7 +606,7 @@ namespace VRPlayer
             foreach(var job in imageJobs.Values){
                 job.wanted=false;job.priority=float.PositiveInfinity;
                 foreach(var binding in job.targets){
-                    binding.active=binding.target!=null&&binding.bottom>=imageOffset-ImagePreload&&binding.top<=bottom+ImagePreload;
+                    binding.active=binding.target!=null&&binding.target.gameObject.activeInHierarchy&&binding.bottom>=imageOffset-ImagePreload&&binding.top<=bottom+ImagePreload;
                     if(binding.active){job.wanted=true;job.priority=Mathf.Min(job.priority,Mathf.Max(0,Mathf.Max(imageOffset-binding.bottom,binding.top-bottom)));}
                     else Detach(binding.target);
                 }
@@ -620,7 +679,7 @@ namespace VRPlayer
         }
         private void OnDestroy()
         {
-            CancelImages();ClearPosterWall();pageOffsets.Clear();foreach(var cached in images.Values)if(cached.texture!=null)Destroy(cached.texture);images.Clear();textureBytes=0;password="";
+            CancelImages();ClearPosterWall();ClearCast();pageOffsets.Clear();foreach(var cached in images.Values)if(cached.texture!=null)Destroy(cached.texture);images.Clear();textureBytes=0;password="";
         }
         // Reject large responses before decoding, then validate JPEG/PNG dimensions.
         private sealed class LimitedImageDownload : DownloadHandlerScript

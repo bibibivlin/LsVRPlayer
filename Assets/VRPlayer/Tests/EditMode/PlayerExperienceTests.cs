@@ -42,7 +42,7 @@ namespace VRPlayer.Tests
         public void DirectorySizeDoesNotIncreaseRowPool(int count)
         {
             var root=new GameObject("List test",typeof(RectTransform));
-            try{var list=root.AddComponent<VirtualFileList>();list.Initialize(1376,352);list.SetRows(Enumerable.Range(0,count).Select(i=>new BrowserRow{key=i.ToString(),label="文件 "+i}).ToArray());Assert.That(list.PoolCount,Is.LessThanOrEqualTo(8));list.SetOffset(float.MaxValue);Assert.That(list.Offset,Is.EqualTo(Mathf.Max(0,count*64-352)));list.SetRows(Array.Empty<BrowserRow>());Assert.That(list.Offset,Is.Zero);}
+            try{var list=root.AddComponent<VirtualFileList>();list.Initialize(1376,352);list.SetRows(Enumerable.Range(0,count).Select(i=>new BrowserRow{key=i.ToString(),label="文件 "+i}).ToArray());Assert.That(list.PoolCount,Is.LessThanOrEqualTo(8));list.SetOffset(float.MaxValue);Assert.That(list.Offset,Is.EqualTo(Mathf.Max(0,count*VirtualFileList.RowPitch-352)));list.SetRows(Array.Empty<BrowserRow>());Assert.That(list.Offset,Is.Zero);}
             finally{UnityEngine.Object.DestroyImmediate(root);}
         }
         [Test] public void RecycledRowDoesNotActivateANewItemFromAnOldPress()

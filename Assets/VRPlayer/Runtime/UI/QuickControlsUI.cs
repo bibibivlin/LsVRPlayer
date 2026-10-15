@@ -30,7 +30,6 @@ namespace VRPlayer
         private TextMeshProUGUI hoverText;
         private readonly Dictionary<int,(RectTransform anchor,string text)> hints=new Dictionary<int,(RectTransform,string)>();
         private TextMeshProUGUI nameLabel,positionLabel,durationLabel,previewTime,popupStatus,delayLabel,distanceLabel,speedLabel,subtitleToggle,subtitleSelection;
-        private RectTransform subtitleKnob;private RoundedPanelGraphic subtitleSwitch;
         private Button previous,next,play,subtitle,mode;
         private Button[] filmButtons;
         private QuickPointerRegion region,volumeRegion;
@@ -62,29 +61,31 @@ namespace VRPlayer
             var rect=(RectTransform)root.transform;rect.sizeDelta=new Vector2(1440,1120);rect.localScale=Vector3.one*.00145f;
             region=root.AddComponent<QuickPointerRegion>();
             bar=QuickUiFactory.Box(rect,"Transport bar",0,880,1440,240,QuickUiFactory.Background);
-            bar.gameObject.AddComponent<Mask>().showMaskGraphic=true;
-            progress=UiFactory.Box(bar,"Progress fill",0,0,0,240,new Color(.23f,.48f,.78f,.30f));
+            var glass=bar.GetComponent<RoundedPanelGraphic>();glass.Treatment=SurfaceTreatment.Transport;glass.border=1.2f;glass.shadow=0;bar.gameObject.AddComponent<Mask>().showMaskGraphic=true;
+            progress=UiFactory.Box(bar,"Progress fill",0,0,0,240,Color.clear);
+            var fade=UiFactory.Rect(bar,"Progress soft gradient",0,0,1440,240).gameObject.AddComponent<VerticalFadeGraphic>();fade.raycastTarget=false;
             positionLabel=UiFactory.Label(bar,"00:00",32,20,210,60,28);
             nameLabel=UiFactory.Label(bar,"未打开影片",285,20,870,60,28,TextAlignmentOptions.Center);
             durationLabel=UiFactory.Label(bar,"00:00",1198,20,210,60,28,TextAlignmentOptions.Right);
             var surface=UiFactory.Box(bar,"Seek surface",0,0,1440,110,Color.clear,true);
             seek=surface.gameObject.AddComponent<QuickSeekSurface>();seek.Initialize(app,Preview);
             subtitle=QuickUiFactory.IconButton(bar,"Subtitles",QuickIcon.Subtitle,36,124,()=>TogglePopup("subtitles"));
-            var volumeRoot=UiFactory.Rect(bar,"Volume region",168,124,340,88);volumeRegion=volumeRoot.gameObject.AddComponent<QuickPointerRegion>();
+            var volumeRoot=UiFactory.Rect(bar,"Volume region",168,124,364,88);volumeRegion=volumeRoot.gameObject.AddComponent<QuickPointerRegion>();
             QuickUiFactory.IconButton(volumeRoot,"Volume",QuickIcon.Volume,0,0,app.ToggleMute);
-            volumeExpansion=QuickUiFactory.Box(volumeRoot,"Volume expansion",88,0,250,88,Color.clear,true,0);
-            volume=QuickUiFactory.Slider(volumeExpansion,"Volume slider",8,13,230,0,1,app.Store.Settings.volume,v=>{app.SetVolume(v);Touch();});
+            volumeExpansion=QuickUiFactory.Box(volumeRoot,"Volume expansion",88,0,276,88,Color.clear,true,0);
+            volume=QuickUiFactory.Slider(volumeExpansion,"Volume slider",8,13,260,0,1,app.Store.Settings.volume,v=>{app.SetVolume(v);Touch();});
             volumeExpansion.gameObject.SetActive(false);
             previous=QuickUiFactory.IconButton(bar,"Previous",QuickIcon.Previous,532,124,()=>app.Next(-1));
             play=QuickUiFactory.IconButton(bar,"Play pause",QuickIcon.Play,676,124,app.TogglePlay);
+            var playColors=play.colors;playColors.normalColor=UiTheme.Text;playColors.highlightedColor=Color.white;playColors.pressedColor=UiTheme.Accent;playColors.selectedColor=UiTheme.Text;playColors.disabledColor=UiTheme.Muted;UiFactory.SetColorsImmediate(play,playColors);
             next=QuickUiFactory.IconButton(bar,"Next",QuickIcon.Next,820,124,()=>app.Next(1));
             mode=QuickUiFactory.IconButton(bar,"Mode",QuickIcon.Mode,1180,124,()=>TogglePopup("mode"));
             QuickUiFactory.IconButton(bar,"Advanced",QuickIcon.Speed,1300,124,()=>TogglePopup("advanced"));
             filmButtons=new[]{previous,next,play,subtitle,mode};
             // The preview sits outside the bar's stencil and never intercepts a ray.
-            previewLine=UiFactory.Box(rect,"Seek preview line",0,862,2,128,Color.white);
-            previewBadge=QuickUiFactory.Box(rect,"Seek preview time",0,816,120,48,new Color(.035f,.04f,.05f,1),false,12);
-            previewTime=UiFactory.Label(previewBadge,"",0,0,120,48,24,TextAlignmentOptions.Center);Preview(false,0);
+            previewLine=UiFactory.Rect(rect,"Seek preview line",0,856,18,164);var beam=previewLine.gameObject.AddComponent<SeekBeamGraphic>();beam.color=UiTheme.Accent;beam.raycastTarget=false;
+            previewBadge=QuickUiFactory.Box(rect,"Seek preview time",0,780,184,66,UiTheme.Elevated,false,18);
+            previewTime=UiFactory.Label(previewBadge,"",0,0,184,66,34,TextAlignmentOptions.Center);Preview(false,0);
             hoverBadge=QuickUiFactory.Box(rect,"Button tooltip",0,816,160,48,new Color(.035f,.04f,.05f,1),false,12);hoverText=UiFactory.Label(hoverBadge,"",0,0,160,48,24,TextAlignmentOptions.Center);hoverBadge.gameObject.SetActive(false);
             foreach(var button in bar.GetComponentsInChildren<Button>()){
                 if(button.name=="Volume")continue;
@@ -93,7 +94,7 @@ namespace VRPlayer
             }
             var volumeAnchor=(RectTransform)volumeRoot.GetComponentInChildren<Button>().transform;volumeRoot.gameObject.AddComponent<QuickHoverLabel>().Change=(id,enter)=>Hint(id,enter,volumeAnchor,"音量");
             var close=QuickUiFactory.IconButton(rect,"Stop and open files",QuickIcon.Close,676,1144,owner.StopAndShowFiles);
-            var closeColors=close.colors;closeColors.normalColor=QuickUiFactory.Background;closeColors.selectedColor=QuickUiFactory.Background;closeColors.disabledColor=QuickUiFactory.Background;close.colors=closeColors;
+            close.targetGraphic.GetComponent<RoundedPanelGraphic>().border=1.2f;var closeColors=close.colors;closeColors.normalColor=QuickUiFactory.Background;closeColors.selectedColor=QuickUiFactory.Background;closeColors.disabledColor=QuickUiFactory.Background;UiFactory.SetColorsImmediate(close,closeColors);
             close.gameObject.AddComponent<QuickHoverLabel>().Change=(id,enter)=>Hint(id,enter,(RectTransform)close.transform,"停止并返回");
             popupRoot=QuickUiFactory.Box(rect,"Quick popup",0,40,900,820,QuickUiFactory.Background);popupRoot.gameObject.SetActive(false);
             root.SetActive(false);
@@ -151,10 +152,10 @@ namespace VRPlayer
             if(generation!=app.Generation)PlaybackOpened();
             var snapshot=app.Backend?.Snapshot;bool current=app.Current!=null&&snapshot!=null&&snapshot.generation==app.Generation;
             nameLabel.text=app.Current?.name??"未打开影片";positionLabel.text=Clock(current?snapshot.position:0);durationLabel.text=Clock(current?snapshot.duration:0);
-            if(!seek.Dragging)progress.sizeDelta=new Vector2(current&&snapshot.duration>0?1440*Mathf.Clamp01(snapshot.position/(float)snapshot.duration):0,240);
+            progress.sizeDelta=new Vector2(current&&snapshot.duration>0?1440*Mathf.Clamp01(snapshot.position/(float)snapshot.duration):0,240);bar.GetComponent<RoundedPanelGraphic>().Progress=progress.sizeDelta.x/1440;
             previous.interactable=app.CanNavigateAdjacent(-1);next.interactable=app.CanNavigateAdjacent(1);play.interactable=app.Current!=null;
             subtitle.interactable=mode.interactable=app.Current!=null;
-            foreach(var button in filmButtons)button.GetComponentInChildren<QuickIconGraphic>().color=button.interactable?Color.white:new Color(.5f,.52f,.55f,.65f);
+            foreach(var button in filmButtons)button.GetComponentInChildren<QuickIconGraphic>().color=button.interactable?(button==play?UiTheme.Ink:UiTheme.Text):new Color(.5f,.62f,.68f,.65f);
             play.GetComponentInChildren<QuickIconGraphic>().Icon=current&&snapshot.playing?QuickIcon.Pause:QuickIcon.Play;
             volumeRegion.GetComponentInChildren<QuickIconGraphic>().Icon=app.Store.Settings.volume>0?QuickIcon.Volume:QuickIcon.Muted;
             volumeExpansion.gameObject.SetActive(volumeRegion.Hovered||volume.HasOwner);
@@ -173,9 +174,9 @@ namespace VRPlayer
                 for(int i=0;i<speeds.Count;i++)QuickUiFactory.Select(speeds[i],Mathf.Abs(app.Store.Settings.speed-presets[i])<.001f);
             }
             if(Popup=="subtitles"){
-                int key=SubtitleKey();if(key!=subtitleKey)DrawSubtitles();
+                if(app.Current==null){ClosePopup();return;}
+                int key=SubtitleKey();if(key!=subtitleKey)RefreshSubtitleRows();
                 delayLabel.text=$"{app.Current?.subtitleDelay??0:+0.0;-0.0;0} 秒";
-                bool enabled=app.Current?.subtitleSelection!=SubtitleSelection.Off;subtitleToggle.text="字幕";subtitleSwitch.color=enabled?QuickUiFactory.Blue:new Color(.36f,.38f,.40f,1);subtitleKnob.anchoredPosition=new Vector2(enabled?50:4,-4);
                 subtitleSelection.text=SubtitleName();
             }
             if(popupStatus!=null)popupStatus.text=app.Status;
@@ -186,21 +187,24 @@ namespace VRPlayer
         private void Preview(bool visible,float value)
         {
             if(previewLine==null)return;previewLine.gameObject.SetActive(visible);previewBadge.gameObject.SetActive(visible);
-            if(visible&&hoverBadge!=null)hoverBadge.gameObject.SetActive(false);
-            previewLine.anchoredPosition=new Vector2(value*1440,-862);previewBadge.anchoredPosition=new Vector2(Mathf.Clamp(value*1440-60,0,1320),-816);
+            RefreshHint();
+            previewLine.anchoredPosition=new Vector2(value*1440-9,-(880+(seek?.PreviewY??55)-79));previewBadge.anchoredPosition=new Vector2(Mathf.Clamp(value*1440-92,8,1248),-780);
             previewTime.text=Clock((long)(value*(app.Backend?.Snapshot.duration??0)));
-            if(seek!=null&&seek.Dragging)progress.sizeDelta=new Vector2(value*1440,240);
         }
         private void Hint(int id,bool enter,RectTransform anchor,string text)
         {
             if(enter)hints[id]=(anchor,text);else hints.Remove(id);
-            hoverBadge.gameObject.SetActive(hints.Count>0);if(hints.Count==0)return;
+            RefreshHint();
+        }
+        private void RefreshHint()
+        {
+            if(hoverBadge==null)return;hoverBadge.gameObject.SetActive(hints.Count>0&&!previewBadge.gameObject.activeSelf);if(hints.Count==0)return;
             var hint=hints.Values.First();Vector3 local=Canvas.transform.InverseTransformPoint(hint.anchor.TransformPoint(hint.anchor.rect.center));
             hoverBadge.anchoredPosition=new Vector2(Mathf.Clamp(local.x+720-80,0,1280),-816);hoverText.text=hint.text;
         }
         public void TogglePopup(string name)
         {
-            if(!Visible)return;if(Popup==name){ClosePopup();return;}
+            if(!Visible)return;seek.Cancel();if(Popup==name){ClosePopup();return;}
             string origin=Popup;float originOffset=list?.Offset??0;ClosePopup();Popup=name;
             if(name=="files"){browseOrigin=origin;browseOriginOffset=originOffset;}
             Touch();popupRoot.gameObject.SetActive(true);
@@ -217,7 +221,7 @@ namespace VRPlayer
         {
             UiFactory.Clear(popupRoot);list=null;distanceSlider=speedSlider=null;popupStatus=null;
             UiFactory.Label(popupRoot,title,100,20,700,66,32,TextAlignmentOptions.Center);
-            if(reset!=null)QuickUiFactory.Button(popupRoot,"重置",744,30,120,50,()=>{reset();Touch();});
+            if(reset!=null)QuickUiFactory.Button(popupRoot,"重置",744,28,120,50,()=>{reset();Touch();});
             popupContent=UiFactory.Rect(popupRoot,"Content",32,112,836,622);
             popupStatus=UiFactory.Label(popupRoot,"",32,750,836,48,21);popupStatus.color=new Color(.7f,.72f,.75f,1);
         }
@@ -238,11 +242,8 @@ namespace VRPlayer
         {
             if(app.Current==null){ClosePopup();return;}
             Page("字幕");subtitleKey=SubtitleKey();
-            var toggle=QuickUiFactory.Button(popupContent,"字幕：开",0,0,836,64,()=>{app.SetSubtitlesEnabled(app.Current.subtitleSelection==SubtitleSelection.Off);Touch();});
+            var toggle=UiFactory.ToggleRow(popupContent,"字幕：开","字幕",()=>app.Current?.subtitleSelection!=SubtitleSelection.Off,0,0,836,value=>{app.SetSubtitlesEnabled(value);Touch();});
             subtitleToggle=toggle.GetComponentInChildren<TextMeshProUGUI>();
-            subtitleToggle.alignment=TextAlignmentOptions.Left;subtitleToggle.rectTransform.anchoredPosition=new Vector2(24,0);subtitleToggle.rectTransform.sizeDelta=new Vector2(670,64);
-            var switchRoot=QuickUiFactory.Box(toggle.transform,"Subtitle switch",718,10,90,44,QuickUiFactory.Blue,false,22);subtitleSwitch=switchRoot.GetComponent<RoundedPanelGraphic>();
-            subtitleKnob=QuickUiFactory.Box(switchRoot,"Knob",50,4,36,36,Color.white,false,18);
             UiFactory.Label(popupContent,"字幕进度调节",0,88,330,60,26);
             QuickUiFactory.Button(popupContent,"−",470,88,72,60,()=>app.SetSubtitleDelay(app.Current.subtitleDelay-.5f));
             delayLabel=UiFactory.Label(popupContent,"",550,88,170,60,26,TextAlignmentOptions.Center);
@@ -252,24 +253,28 @@ namespace VRPlayer
             QuickUiFactory.Button(popupContent,"恢复自动选择",498,164,338,50,()=>{app.RestoreAutomaticSubtitles();Touch();});
             subtitleSelection=UiFactory.Label(popupContent,"",0,232,836,48,24);
             var viewport=UiFactory.Rect(popupContent,"Subtitle list",0,298,836,314);list=viewport.gameObject.AddComponent<VirtualFileList>();list.Initialize(836,314,true);
-            var rows=new List<BrowserRow>();
+            RefreshSubtitleRows();
+        }
+        private void RefreshSubtitleRows()
+        {
+            subtitleKey=SubtitleKey();var rows=new List<BrowserRow>();
             foreach(var item in app.SubtitleCandidates){var file=item;rows.Add(new BrowserRow{key=file.uri,label=file.name,selected=app.Current.subtitle==file.uri,detail=app.Current.subtitle==file.uri?"已选择":"SRT",open=()=>{_ = app.LoadSubtitle(file.uri);Touch();}});}
             var state=app.Backend?.Snapshot;
             if(state!=null&&state.generation==app.Generation)foreach(var item in state.tracks??Array.Empty<MediaTrack>()){
                 if(item.type!=3)continue;var track=item;rows.Add(new BrowserRow{key="track:"+track.id,label=track.name,selected=app.Current.subtitle=="track:"+track.id,detail=track.supported?"内嵌":"不支持",open=track.supported?()=>{app.EmbeddedSubtitle(track.id);Touch();}:null});
             }
             if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label="未发现字幕，请选择 SRT 文件"});
-            list.SetRows(rows,true);
+            list.SetRows(rows);
         }
         private void DrawMode()
         {
             Page("模式切换");var view=app.Presenter.Settings;wasFlat=view.projection==Projection.Flat;projections.Clear();stereo.Clear();
             UiFactory.Label(popupContent,"全景角度",0,0,836,44,26);string[] names={"平面 / 曲面","VR180","VR360","鱼眼","Cubemap 3×2","EAC 3×2"};
             for(int i=0;i<names.Length;i++){int index=i;projections.Add(QuickUiFactory.Button(popupContent,names[i],i%3*282,56+i/3*104,272,92,()=>{app.ChangeFormat(v=>v.projection=(Projection)index);Touch();}));}
-            UiFactory.Label(popupContent,wasFlat?"画面远近":"画面远近 · 全景缩放",0,280,520,44,26);
-            distanceLabel=UiFactory.Label(popupContent,"",520,280,170,44,24,TextAlignmentOptions.Right);
-            QuickUiFactory.Button(popupContent,"重置远近",702,277,134,50,()=>{app.ResetViewDistance();Touch();});
-            distanceSlider=QuickUiFactory.Slider(popupContent,"Distance",0,336,836,wasFlat?1.2f:.5f,wasFlat?10:2,wasFlat?view.distance:view.panoramaZoom,v=>{if(wasFlat)app.SetViewDistance(v);else app.SetPanoramaZoom(v);Touch();},true);
+            UiFactory.Label(popupContent,wasFlat?"画面远近":"画面远近 · 全景缩放",0,280,524,48,26);
+            distanceLabel=UiFactory.Label(popupContent,"",540,280,144,48,24,TextAlignmentOptions.Right);
+            QuickUiFactory.Button(popupContent,"重置远近",700,280,136,48,()=>{app.ResetViewDistance();Touch();});
+            distanceSlider=QuickUiFactory.Slider(popupContent,"Distance",0,344,836,wasFlat?1.2f:.5f,wasFlat?10:2,wasFlat?view.distance:view.panoramaZoom,v=>{if(wasFlat)app.SetViewDistance(v);else app.SetPanoramaZoom(v);Touch();},true);
             UiFactory.Label(popupContent,"立体效果",0,430,836,44,26);string[] layouts={"2D","3D 左右","3D 上下"};
             for(int i=0;i<3;i++){int index=i;stereo.Add(QuickUiFactory.Button(popupContent,layouts[i],i*282,486,272,104,()=>{app.ChangeFormat(v=>v.stereo=(StereoLayout)index);Touch();}));}
         }
@@ -278,10 +283,10 @@ namespace VRPlayer
             Page("倍速",()=>app.SetSpeed(1));speeds.Clear();
             UiFactory.Label(popupContent,"倍速",0,12,630,48,28);speedLabel=UiFactory.Label(popupContent,"",650,12,186,48,26,TextAlignmentOptions.Right);
             for(int i=0;i<presets.Length;i++){float value=presets[i];speeds.Add(QuickUiFactory.Button(popupContent,$"{value:0.##}×",i*168,86,164,82,()=>{app.SetSpeed(value);Touch();}));}
-            speedSlider=QuickUiFactory.Slider(popupContent,"Playback speed",0,224,836,.25f,3,app.Store.Settings.speed,v=>{app.SetSpeed(Mathf.Clamp(Mathf.Round(v*10)/10,.25f,3));Touch();},true);
-            QuickUiFactory.Button(popupContent,"−0.1",0,316,220,62,()=>{app.SetSpeed(app.Store.Settings.speed-.1f);Touch();});
-            QuickUiFactory.Button(popupContent,"+0.1",616,316,220,62,()=>{app.SetSpeed(app.Store.Settings.speed+.1f);Touch();});
-            UiFactory.Label(popupContent,"调节范围 0.25–3×",0,410,836,52,24,TextAlignmentOptions.Center);
+            QuickUiFactory.Button(popupContent,"−0.1",0,200,120,62,()=>{app.SetSpeed(app.Store.Settings.speed-.1f);Touch();});
+            speedSlider=QuickUiFactory.Slider(popupContent,"Playback speed",136,200,564,.25f,3,app.Store.Settings.speed,v=>{app.SetSpeed(Mathf.Clamp(Mathf.Round(v*10)/10,.25f,3));Touch();},true);
+            QuickUiFactory.Button(popupContent,"+0.1",716,200,120,62,()=>{app.SetSpeed(app.Store.Settings.speed+.1f);Touch();});
+            UiFactory.Label(popupContent,"调节范围 0.25–3×",0,286,836,52,24,TextAlignmentOptions.Center);
         }
         public void Scroll(float value){list?.Scroll(value);Touch();}
         private List<BrowserRow> Roots()
@@ -316,10 +321,10 @@ namespace VRPlayer
                 browseParents.Add((browseUri,browseRowsReady?list.Offset:(float?)null));
             }
             browseUri=uri;browseRowsReady=false;Page("选择字幕文件");Touch();
-            QuickUiFactory.Button(popupContent,"返回字幕",0,0,220,54,()=>TogglePopup("subtitles"));
-            QuickUiFactory.Button(popupContent,"上级",242,0,180,54,BrowseUp);
-            QuickUiFactory.Button(popupContent,"来源",444,0,180,54,()=>_ = Browse(""));
-            QuickUiFactory.Button(popupContent,"刷新",646,0,190,54,()=>_ = Browse(browseUri,false));
+            UiFactory.IconButton(popupContent,"返回字幕",QuickIcon.Back,0,0,()=>TogglePopup("subtitles"));
+            UiFactory.IconButton(popupContent,"上级",QuickIcon.Up,80,0,BrowseUp);
+            QuickUiFactory.Button(popupContent,"来源",160,0,596,64,()=>_ = Browse(""));
+            UiFactory.IconButton(popupContent,"刷新",QuickIcon.Refresh,772,0,()=>_ = Browse(browseUri,false));
             UiFactory.Label(popupContent,string.IsNullOrEmpty(browseUri)?"选择一个来源":FileLibrary.DisplayAddress(browseUri),0,76,836,48,22);
             var viewport=UiFactory.Rect(popupContent,"Subtitle browser",0,142,836,472);list=viewport.gameObject.AddComponent<VirtualFileList>();list.Initialize(836,472,true);
             var requestList=list;
@@ -356,19 +361,20 @@ namespace VRPlayer
     }
     public sealed class QuickSeekSurface : MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IDragHandler,IPointerEnterHandler,IPointerExitHandler,IPointerMoveHandler
     {
-        private PlayerApp app;private Action<bool,float> preview;private int? owner;private int generation;private long duration;private float value;
+        private PlayerApp app;private Action<bool,float> preview;private int? owner,hoverOwner;private int generation;private long duration;private float value;
         public bool Dragging=>owner.HasValue;
+        public float PreviewY{get;private set;}=55;
         public void Initialize(PlayerApp player,Action<bool,float> show){app=player;preview=show;}
         private bool Ready=>app?.Current!=null&&app.Backend?.Snapshot.generation==app.Generation&&app.Backend.Snapshot.duration>0;
-        private void Position(PointerEventData data){if(RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform,data.position,data.pressEventCamera??data.enterEventCamera,out var local)){Rect rect=((RectTransform)transform).rect;value=Mathf.Clamp01((local.x-rect.xMin)/rect.width);preview?.Invoke(true,value);}}
-        public void OnPointerDown(PointerEventData data){if(!Ready||owner.HasValue)return;owner=data.pointerId;generation=app.Generation;duration=app.Backend.Snapshot.duration;Position(data);}
+        private void Position(PointerEventData data){if(RectTransformUtility.ScreenPointToLocalPointInRectangle((RectTransform)transform,data.position,data.pressEventCamera??data.enterEventCamera,out var local)){Rect rect=((RectTransform)transform).rect;value=Mathf.Clamp01((local.x-rect.xMin)/rect.width);PreviewY=Mathf.Clamp(rect.yMax-local.y,0,rect.height);hoverOwner=data.pointerId;preview?.Invoke(true,value);}}
+        public void OnPointerDown(PointerEventData data){if(!Ready||owner.HasValue||data.button!=PointerEventData.InputButton.Left)return;owner=data.pointerId;generation=app.Generation;duration=app.Backend.Snapshot.duration;Position(data);}
         public void OnDrag(PointerEventData data){if(owner==data.pointerId)Position(data);}
         public void OnPointerUp(PointerEventData data){if(owner!=data.pointerId)return;if(Ready&&generation==app.Generation){Position(data);app.Seek((long)(value*duration));}Cancel();}
-        public void OnPointerEnter(PointerEventData data){if(Ready&&!Dragging)Position(data);}
-        public void OnPointerMove(PointerEventData data){if(Ready&&!Dragging)Position(data);}
-        public void OnPointerExit(PointerEventData data){if(!Dragging)preview?.Invoke(false,0);}
-        public void Cancel(){owner=null;preview?.Invoke(false,0);}
-        public void Cancel(int pointerId){if(owner==pointerId)Cancel();}
+        public void OnPointerEnter(PointerEventData data){if(Ready&&!Dragging)Position(data);else if(!Ready)Cancel();}
+        public void OnPointerMove(PointerEventData data){if(Ready&&!Dragging)Position(data);else if(!Ready)Cancel();}
+        public void OnPointerExit(PointerEventData data){if(!Dragging&&hoverOwner==data.pointerId){hoverOwner=null;preview?.Invoke(false,0);}}
+        public void Cancel(){owner=hoverOwner=null;preview?.Invoke(false,0);}
+        public void Cancel(int pointerId){if(owner==pointerId||!owner.HasValue&&hoverOwner==pointerId)Cancel();}
         private void OnDisable()=>Cancel();
     }
 }
