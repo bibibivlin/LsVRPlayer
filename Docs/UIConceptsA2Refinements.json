@@ -1,0 +1,37 @@
+{
+  "date": "2026-10-13",
+  "generator": "built-in image_gen",
+  "purpose": "Concept consistency corrections; original generated outputs remain in Codex image storage.",
+  "edits": [
+    {
+      "key": "files",
+      "inputGeneratedFile": "exec-baf3c1ca-a65c-44b5-8053-561726af9266.png",
+      "finalFile": "A2-02-FileBrowser-v2.png",
+      "prompt": "Use case: precise-object-edit. Strictly edit only the supplied Chinese VR file-browser concept. It is the EDIT TARGET. Correct one contradictory row and two unsupported footer icons. The top filter says \"视频\"; therefore change ONLY the last list row currently showing \"静海.srt\" and \"56 KB\" with a document icon to a VIDEO row showing \"远航.mp4\", \"4.20 GB\", and the same filmstrip icon used by the video rows above. Preserve its row position and more-action icon. In the full-panel bottom footer, keep elapsed time, timeline, previous/pause/next and volume exactly as they are. Replace ONLY the last two footer icons: the text/subtitle-like icon becomes a circular arrow retry icon, and the fullscreen-corner icon becomes a solid square stop icon. Do not add labels or other actions. These represent existing Retry and Stop, not fullscreen. Preserve all other pixels as closely as possible: nav, sources, filename rows, sizes, typography, spacing, colors, A palette, sample-state panels, artwork absence, canvas size and composition. No new headers, thumbnails, graphics or redesign."
+    },
+    {
+      "key": "emby",
+      "inputGeneratedFile": "exec-1dbeff3e-d26f-4b21-9df9-83626bb4807c.png",
+      "finalFile": "A2-03-EmbyDetails-v2.png",
+      "prompt": "Use case: precise-object-edit. The supplied A-style Chinese VR Emby detail concept is the EDIT TARGET. Keep EVERY part above the bottom footer exactly unchanged: top navigation, source rail, ocean poster, title, CD2 resume, CD1 actions, synopsis, CD part cards and extras. Redesign ONLY the narrow full-panel playback footer at the very bottom, within its existing height and bounds, to match the app's existing ordinary full-panel transport. Remove the footer's thumbnail/poster, film name, \"停止并返回\" pill, \"列表\" and \"全屏\" controls. Within the same footer, arrange simple previous / circular pause / next controls as a compact group at left; a broad standard thin seek timeline through the middle; readable time \"32:18 / 1:48:06\"; then volume, circular retry-arrow and square stop controls at right. Use consistent A-style white outline icons and seafoam timeline. This is the FULL-PANEL footer, so a conventional thin timeline IS appropriate here. It is NOT the quick playback bar and must not include a separate floating X. Retain comfortable spacing and large targets. No new functionality, no fullscreen, no extra artwork. Preserve all other layout, colors, text, poster images, image dimensions and composition."
+    },
+    {
+      "key": "subtitles",
+      "inputGeneratedFile": "exec-75174c9d-1409-4441-9db6-d43b6dbb80cd.png",
+      "finalFile": "A2-05-Subtitles-v2.png",
+      "prompt": "Use case: precise-object-edit. The supplied two-panel Chinese VR subtitle concept is the EDIT TARGET. Make only two consistency corrections in the large LEFT full subtitle settings panel. First, REMOVE its five-item file-source sidebar (本地, SMB, Emby, 收藏, 最近), because source switching belongs ONLY to the 文件 page, not the active 字幕 page. Expand the existing subtitle body leftward into the freed sidebar space with generous gutters and keep its same settings-left / preview-right organization. Keep the five top main tabs and brand in the same upper band. Preserve all contents, labels, preview text, values, style language and Chinese font. Second, in the \"描边颜色\" swatch row, make BLACK the selected swatch with a clearly visible seafoam selection ring; white must not be selected in this row. In the \"文字颜色\" row, white stays selected. This matches the \"白字黑边\" preset and black outline in both previews. The separate RIGHT compact 字幕 popup must remain unchanged, including position and every control. Preserve original image dimensions, panel separation, A colors, typography, border radii and all other content. Do not introduce file-source controls elsewhere or add new functionality."
+    },
+    {
+      "key": "projection",
+      "inputGeneratedFile": "exec-0891a378-64db-4b1e-88b6-1d3210158c32.png",
+      "finalFile": "A2-04-Projection-v2.png",
+      "prompt": "Use case: precise-object-edit. The supplied full projection-settings UI concept is the EDIT TARGET. Correct ONLY the last two icons in the bottom ordinary full-panel playback footer. The subtitle/text-like icon near the far right must become a circular retry-arrow icon. The fullscreen-corner icon at the far right must become a solid square stop icon. Preserve their target positions, sizes and white visual style. Keep all remaining footer controls, elapsed time and standard timeline unchanged. Preserve every detail in the projection page above, independent VR180 and SBS selection, manual-lock label, all Chinese text, controls, A colors, screen-distance conditional example, image dimensions and composition. No fullscreen feature, no extra labels, no redesign."
+    },
+    {
+      "key": "settings",
+      "inputGeneratedFile": "exec-375f3e93-9e1b-4ada-b826-c783655bab4a.png",
+      "finalFile": "A2-06-SettingsAndInfo-v2.png",
+      "prompt": "Use case: precise-object-edit. The supplied side-by-side Chinese VR settings and information UI concept is the EDIT TARGET. Make the SAME precise correction in each of the TWO bottom playback footers: change the text/subtitle-like icon near each footer's far right into a circular retry-arrow icon, and the far-right fullscreen-corner icon into a solid square stop icon. Keep these control positions, hit-area size and white visual style unchanged. Preserve the rest of BOTH footers, timelines, transport buttons, volume and times. Preserve every pixel above the footers as closely as possible: all settings, Chinese captions, labels, values, switches, selected quality, grouping, info demo values, brand, tabs, typography, A colors and screen composition. No fullscreen feature, no labels, no added functionality or redesign."
+    }
+  ]
+}
