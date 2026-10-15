@@ -133,11 +133,13 @@ namespace VRPlayer
             surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;
             foreach(var line in rays)if(line!=null)line.enabled=false;foreach(var dot in dots)if(dot!=null)dot.gameObject.SetActive(false);
         }
+        private bool castRouting;
         private void ProcessStickControls(bool typing,float now,float deltaTime)
         {
             bool blocked=!app.HasFocus||typing||held[0]||held[1]||held[2]||pointers[0].dragging||pointers[1].dragging||pointers[2].dragging;
+            bool routeCast=app.UI.CastHovered;if(routeCast!=castRouting){transport.Suppress();castRouting=routeCast;}
             int skip=transport.Update(stickAxes[0],stickValid[0],stickAxes[1],stickValid[1],blocked,now,app.UI.BlocksTransport);
-            if(skip!=0){app.Skip(skip);app.UI.LastInteraction=now;}
+            if(skip!=0){if(routeCast)app.UI.ScrollCast(skip);else app.Skip(skip);app.UI.LastInteraction=now;}
             bool vertical=!blocked&&Mathf.Abs(transport.Scroll)>.25f;
             if(vertical&&app.UI.AnyVisible&&!app.UI.BlocksScrolling){app.UI.ScrollList(transport.Scroll);app.UI.LastInteraction=now;}
             if(vertical&&!app.UI.AnyVisible&&app.Current!=null)app.AdjustViewDistance(transport.Scroll,deltaTime);

@@ -1,0 +1,7 @@
+{
+  "name": "VRPlayer.PlayModeTests",
+  "references": ["VRPlayer.Runtime", "Unity.ugui", "Unity.TextMeshPro"],
+  "optionalUnityReferences": ["TestAssemblies"],
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "autoReferenced": false
+}

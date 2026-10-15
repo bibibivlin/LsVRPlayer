@@ -19,13 +19,13 @@ namespace VRPlayer
         public string Text=>label==null?"":label.text;
         public bool BackgroundVisible=>background!=null&&background.gameObject.activeSelf;
         public static float DistanceScale(float distance)=>Mathf.Clamp(distance,.1f,6)/3;
-        public void Initialize(float w=1300,float h=300,bool overlay=false)
+        public void Initialize(float w=1300,float h=300,bool overlay=false,bool opticalCenter=false)
         {
             width=w;height=h;
             overlayText=overlay;textShader=Shader.Find("VRPlayer/Subtitle SDF");
             background=UiFactory.Box(transform,"Subtitle background",0,0,w,h,Color.clear).GetComponent<Image>();
             if(overlay){backgroundMaterial=new Material(Shader.Find("VRPlayer/Subtitle Background"));background.material=backgroundMaterial;}
-            label=UiFactory.Label(transform,"",0,0,w,h,42,TextAlignmentOptions.Center);
+            label=UiFactory.Label(transform,"",0,0,w,h,42,TextAlignmentOptions.Center,opticalCenter);
             label.textWrappingMode=TextWrappingModes.Normal;label.overflowMode=TextOverflowModes.Overflow;
             label.extraPadding=true;
             var material=new Material(UiFactory.Font.material){name="Subtitle independent SDF"};

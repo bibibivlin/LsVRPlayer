@@ -1,0 +1,7 @@
+{
+  "concept": "B",
+  "generator": "built-in image_gen",
+  "input": "B-FogSpace.png",
+  "output": "B-FogSpace-v2.png",
+  "prompt": "Use case: text-localization. Edit the supplied UI concept board as a strict minimal text correction. The input image is the EDIT TARGET. In the bottom-left \"快捷播放\" panel, find the speed button between \"模式\" and \"停止并返回\". It has \"1.0×\" on its upper line, and an incorrect two-character Chinese label on its lower line. Change ONLY that lower label to the exact Chinese text \"倍速\". Preserve \"1.0×\", the button shape, all other typography, all other labels, colors, posters, icons, layout, image dimensions, and every other part of the board exactly. Do not redesign, add, move, blur, or crop anything. Output the full corrected board."
+}

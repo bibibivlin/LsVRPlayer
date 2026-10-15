@@ -19,10 +19,14 @@ namespace VRPlayer
         public int SurfaceRevision{get;private set;}
         public float LastInteraction{get;set;}
         private PlayerApp app;private Camera head;
-        private RectTransform content,keyboard;
-        private TextMeshProUGUI time,playLabel,detail,keyboardPreview;
+        private RectTransform content,keyboard,subtitleNavigation;
+        private readonly List<Button> subtitleTabs=new List<Button>();
+        private ListScrollRect infoScroll;private RectTransform infoBody;private PlaybackInfoUI infoCards;
+        private TextMeshProUGUI time,playLabel,keyboardPreview;
         private string lastStatus="";
         private Slider seek;private SeekGesture seekGesture;
+        private Button fullPrevious,fullNext,fullPlay;private Button[] fullTransportIcons;private float infoRefreshAt;
+        private VirtualFileList subtitleList;
         private Slider volumeSlider,fullSpeedSlider;private TextMeshProUGUI fullSpeedNumber;
         private TMP_InputField address,filter,keyboardTarget;
         private string tab="文件",query="";
@@ -42,17 +46,22 @@ namespace VRPlayer
         private Favorite removedFavorite;private int removedIndex;
         private TextMeshProUGUI scanLabel;
         private Button undoButton;
-        private CaptionPresenter preview;
+        private CaptionPresenter preview,brightPreview;
+        private readonly List<Button> stylePresets=new List<Button>();
+        private static readonly SubtitleStyle[] stylePresetValues={SubtitleStyle.Preset(0),SubtitleStyle.Preset(1),SubtitleStyle.Preset(2),SubtitleStyle.Preset(3)};
+        private int stylePresetState=-2;
         private RectTransform transportRoot;
-        private TextMeshProUGUI transportLabel,formatLabel;
+        private TextMeshProUGUI transportLabel;
         private float transportUntil;
         private string locatedFile="";
         private readonly List<Button> projectionButtons=new List<Button>(),stereoButtons=new List<Button>();
         private Button halfButton,eyesButton;
         private int projectionButtonState=-1;
         private bool projectionDistanceWasFlat;
-        public bool BlocksTransport=>Visible&&(modal!=""||(keyboard!=null&&keyboard.gameObject.activeSelf)||(seekGesture!=null&&seekGesture.Dragging))||Quick!=null&&Quick.BlocksTransport;
-        public bool BlocksScrolling=>Visible&&(keyboard!=null&&keyboard.gameObject.activeSelf||modal!="");
+        public bool BlocksTransport=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||modal!=""||(keyboard!=null&&keyboard.gameObject.activeSelf)||(seekGesture!=null&&seekGesture.Dragging))||Quick!=null&&Quick.BlocksTransport;
+        public bool CastHovered=>Visible&&tab=="文件"&&app.Source==FileSource.Emby&&!BlocksScrolling&&embyBrowser!=null&&embyBrowser.CastHovered;
+        public void ScrollCast(int direction)=>embyBrowser?.ScrollCast(direction);
+        public bool BlocksScrolling=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||keyboard!=null&&keyboard.gameObject.activeSelf||modal!="");
         private CancellationTokenSource connection;
         public bool CanDiscover=>Visible&&tab=="文件"&&modal==""&&!keyboard.gameObject.activeSelf;
         public string SelectedTab=>tab;
@@ -68,18 +77,25 @@ namespace VRPlayer
             app=owner;head=camera;
             var root=new GameObject("Player UI",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));Canvas=root.GetComponent<Canvas>();Canvas.renderMode=RenderMode.WorldSpace;Canvas.worldCamera=camera;Canvas.sortingOrder=10;
             var rect=(RectTransform)root.transform;rect.sizeDelta=new Vector2(1440,1040);rect.localScale=Vector3.one*.00145f;
-            UiFactory.Box(rect,"Background",0,0,1440,1040,UiFactory.Background,true);
-            string[] names={"文件","投影","字幕","设置","信息"};for(int i=0;i<names.Length;i++){string name=names[i];tabs[name]=UiFactory.Button(rect,name,32+i*158,24,142,50,()=>SelectTab(name));}
-            UiFactory.Label(rect,"L's VR Player",940,24,468,50,32,TextAlignmentOptions.Right);
-            content=UiFactory.Rect(rect,"Page",32,90,1376,842);
-            UiFactory.Button(rect,"上一部",32,954,88,54,()=>app.Next(-1));
-            var play=UiFactory.Button(rect,"播放",128,954,92,54,()=>app.TogglePlay(),true);playLabel=play.GetComponentInChildren<TextMeshProUGUI>();
-            UiFactory.Button(rect,"下一部",228,954,88,54,()=>app.Next(1));
-            seek=UiFactory.Slider(rect,332,960,458,0,1,0,_=>{});seekGesture=seek.gameObject.AddComponent<SeekGesture>();seekGesture.Commit=value=>app.Seek((long)(value*(app.Backend?.Snapshot.duration??0)));
-            time=UiFactory.Label(rect,"00:00 / 00:00",802,954,230,54,20,TextAlignmentOptions.Center);
-            UiFactory.Label(rect,"音量",1044,954,48,54,23);volumeSlider=UiFactory.Slider(rect,1100,960,128,0,1,app.Store.Settings.volume,app.SetVolume);
-            UiFactory.Button(rect,"重试",1240,954,78,54,app.Retry);UiFactory.Button(rect,"停止",1330,954,78,54,app.Stop);
-            keyboard=UiFactory.Box(rect,"Virtual keyboard",30,340,1380,485,new Color(.025f,.065f,.09f,1),true);keyboard.gameObject.SetActive(false);
+            UiFactory.RoundedBox(rect,"Background",0,0,1440,1040,UiFactory.Background,true,28,SurfaceTreatment.Frame);
+            UiFactory.RoundedBox(rect,"Page inset",20,90,1400,842,UiTheme.Surface,false,24,SurfaceTreatment.Inset);
+            string[] names={"文件","投影","字幕","设置","信息"};
+            var navigation=UiFactory.Rect(rect,"Primary tabs",0,14,(names.Length-1)*126+118,64);navigation.anchorMin=navigation.anchorMax=new Vector2(.5f,1);navigation.pivot=new Vector2(.5f,1);navigation.anchoredPosition=new Vector2(0,-14);
+            for(int i=0;i<names.Length;i++){string name=names[i];tabs[name]=UiFactory.TabButton(navigation,name,i*126,0,118,64,()=>SelectTab(name));}
+            UiFactory.Label(rect,"L's VR Player",1060,14,348,64,30,TextAlignmentOptions.Right);
+            content=UiFactory.Rect(rect,"Page",44,114,UiTheme.PageWidth,UiTheme.PageHeight);
+            subtitleNavigation=UiFactory.Rect(rect,"Subtitle tabs",0,114,642,60);subtitleNavigation.anchorMin=subtitleNavigation.anchorMax=new Vector2(.5f,1);subtitleNavigation.pivot=new Vector2(.5f,1);subtitleNavigation.anchoredPosition=new Vector2(0,-114);
+            string[] sections={"选择","位置","样式"};
+            for(int i=0;i<sections.Length;i++){int section=i;subtitleTabs.Add(UiFactory.TabButton(subtitleNavigation,sections[i],i*220,0,202,60,()=>{subtitlePage=section;Draw();}));}
+            subtitleNavigation.gameObject.SetActive(false);
+            fullPrevious=UiFactory.IconButton(rect,"上一部",QuickIcon.Previous,824,950,()=>app.Next(-1));
+            var play=fullPlay=UiFactory.IconButton(rect,"播放",QuickIcon.Play,904,950,()=>app.TogglePlay(),true);playLabel=play.GetComponentInChildren<TextMeshProUGUI>(true);
+            fullNext=UiFactory.IconButton(rect,"下一部",QuickIcon.Next,984,950,()=>app.Next(1));fullTransportIcons=new[]{fullPrevious,fullNext,fullPlay};UiFactory.ConfigureTransport(fullPrevious,false);UiFactory.ConfigureTransport(fullPlay,true);UiFactory.ConfigureTransport(fullNext,false);
+            seek=UiFactory.Slider(rect,276,958,532,0,1,0,_=>{});seek.name="播放进度";seekGesture=seek.gameObject.AddComponent<SeekGesture>();seekGesture.Commit=value=>app.Seek((long)(value*(app.Backend?.Snapshot.duration??0)));
+            time=UiFactory.Label(rect,"00:00 / 00:00",32,955,208,54,23,TextAlignmentOptions.Right);
+            var mute=UiFactory.IconButton(rect,"音量",QuickIcon.Volume,1064,950,app.ToggleMute,tooltip:"静音 / 恢复音量");UiFactory.ConfigureTransport(mute,false);volumeSlider=UiFactory.Slider(rect,1144,958,104,0,1,app.Store.Settings.volume,app.SetVolume);volumeSlider.name="主面板音量";
+            UiFactory.IconButton(rect,"重试",QuickIcon.Refresh,1264,950,app.Retry,tooltip:"重试播放");UiFactory.IconButton(rect,"停止",QuickIcon.Stop,1344,950,app.Stop,tooltip:"停止播放");
+            keyboard=UiFactory.Box(rect,"Virtual keyboard",30,340,1380,492,new Color(.025f,.065f,.09f,1),true);keyboard.gameObject.SetActive(false);
             var hud=new GameObject("Transport feedback",typeof(RectTransform),typeof(Canvas));transportRoot=(RectTransform)hud.transform;transportRoot.sizeDelta=new Vector2(1200,120);transportRoot.localScale=Vector3.one*.001f;hud.GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;hud.GetComponent<Canvas>().sortingOrder=12;
             UiFactory.Box(transportRoot,"Backdrop",0,0,1200,120,UiFactory.Background);transportLabel=UiFactory.Label(transportRoot,"",20,0,1160,120,26);transportLabel.textWrappingMode=TextWrappingModes.Normal;hud.SetActive(false);
             Quick=gameObject.AddComponent<QuickControlsUI>();Quick.Initialize(this,app,head);
@@ -136,10 +152,11 @@ namespace VRPlayer
         private void Update()
         {
             if(Canvas==null)return;var snapshot=app.Backend?.Snapshot;
+            fullPrevious.interactable=app.CanNavigateAdjacent(-1);fullNext.interactable=app.CanNavigateAdjacent(1);fullPlay.interactable=app.Current!=null;
+            foreach(var button in fullTransportIcons)button.GetComponentInChildren<QuickIconGraphic>().color=button.interactable?(button==fullPlay?UiTheme.Ink:UiTheme.Text):UiTheme.Muted*.65f;
             if(volumeSlider!=null&&!(volumeSlider as OwnedSlider).HasOwner)volumeSlider.SetValueWithoutNotify(app.Store.Settings.volume);
             if(fullSpeedSlider!=null&&!(fullSpeedSlider as OwnedSlider).HasOwner){fullSpeedSlider.SetValueWithoutNotify(app.Store.Settings.speed);fullSpeedNumber.text=$"{app.Store.Settings.speed:0.0#} 倍";}
             if(transportRoot!=null){transportRoot.gameObject.SetActive(Time.unscaledTime<transportUntil);transportRoot.SetPositionAndRotation(head.transform.position+head.transform.rotation*new Vector3(0,-.35f,1.9f),head.transform.rotation);}
-            if(formatLabel!=null)formatLabel.text=app.FormatDescription;
             if(tab=="投影"&&modal==""&&halfButton!=null){
                 var view=app.Presenter.Settings;
                 if((view.projection==Projection.Flat)!=projectionDistanceWasFlat)DrawProjectionPage();
@@ -148,33 +165,22 @@ namespace VRPlayer
                     projectionButtonState=state;
                     for(int i=0;i<projectionButtons.Count;i++)UiFactory.SetAccent(projectionButtons[i],(int)view.projection==i);
                     for(int i=0;i<stereoButtons.Count;i++)UiFactory.SetAccent(stereoButtons[i],(int)view.stereo==i);
-                    halfButton.GetComponentInChildren<TextMeshProUGUI>().text=view.half?"Half 半宽/半高":"Full 全宽/全高";UiFactory.SetAccent(halfButton,view.half);
-                    eyesButton.GetComponentInChildren<TextMeshProUGUI>().text=view.swapEyes?"已交换左右眼":"交换左右眼";UiFactory.SetAccent(eyesButton,view.swapEyes);
+
                 }
             }
             if(undoButton!=null)undoButton.gameObject.SetActive(removedFavorite!=null&&Time.unscaledTime<undoUntil);
-            if(preview!=null)preview.SetText("字幕样式实时预览\n明亮与暗色场景 · Subtitle preview",32,app.Store.Settings.subtitleStyle);
+            if(preview!=null){
+                var style=app.Store.Settings.subtitleStyle;
+                preview.SetText("字幕样式实时预览\nSubtitle preview",32,style);brightPreview?.SetText("字幕样式实时预览\nSubtitle preview",32,style);
+                int preset=-1;for(int i=0;i<stylePresetValues.Length;i++)if(SameStyle(style,stylePresetValues[i])){preset=i;break;}
+                if(preset!=stylePresetState){stylePresetState=preset;for(int i=0;i<stylePresets.Count;i++)UiFactory.SetAccent(stylePresets[i],i==preset);}
+            }
             UpdateStatusNotice();
-            if(snapshot!=null){bool current=app.Current!=null&&snapshot.generation==app.Generation;playLabel.text=current&&snapshot.playing?"暂停":"播放";if(!seekGesture.Dragging)seek.SetValueWithoutNotify(current&&snapshot.duration>0?snapshot.position/(float)snapshot.duration:0);time.text=current?Clock(snapshot.position)+" / "+Clock(snapshot.duration):"00:00 / 00:00";}
-            if(detail!=null&&tab=="信息")detail.text=snapshot==null?"播放内核未就绪":PlaybackDetails(snapshot);
+            if(snapshot!=null){bool current=app.Current!=null&&snapshot.generation==app.Generation;playLabel.text=current&&snapshot.playing?"暂停":"播放";playLabel.transform.parent.GetComponentInChildren<QuickIconGraphic>().Icon=current&&snapshot.playing?QuickIcon.Pause:QuickIcon.Play;if(!seekGesture.Dragging)seek.SetValueWithoutNotify(current&&snapshot.duration>0?snapshot.position/(float)snapshot.duration:0);time.text=current?Clock(snapshot.position)+" / "+Clock(snapshot.duration):"00:00 / 00:00";}
+            if(infoCards!=null&&Visible&&tab=="信息"&&Time.unscaledTime>=infoRefreshAt){infoRefreshAt=Time.unscaledTime+.25f;infoCards.Update(app,snapshot);}
             if(Visible&&app.Store.Settings.autoHide&&snapshot!=null&&snapshot.playing&&!keyboard.gameObject.activeSelf&&Time.unscaledTime-LastInteraction>18)Hide();
         }
         private static string Clock(long milliseconds){var duration=TimeSpan.FromMilliseconds(Math.Max(0,milliseconds));return duration.TotalHours>=1?$"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}":$"{duration.Minutes:00}:{duration.Seconds:00}";}
-        private string PlaybackDetails(MediaSnapshot snapshot)
-        {
-            string network="";var reads=snapshot.network;
-            if(reads!=null&&reads.generation==snapshot.generation&&reads.requests>0)
-                network=$"\nSMB：{reads.mbps:0.00} Mbps    请求：{reads.requests}    平均请求：{reads.averageRequestBytes/1024:0.0} KiB"+
-                    $"\n读取耗时：平均 {reads.averageReadMs:0.0} ms / P95 {reads.readP95Ms:0.0} ms    网络错误：{reads.errors}";
-            return $"播放内核：{snapshot.decoder}\n视频：{snapshot.codec}  {snapshot.width} × {snapshot.height}  {snapshot.fps:0.##} fps"+
-                $"\n码率：{(snapshot.bitrate>0?snapshot.bitrate/1000000f:0):0.##} Mbps    已缓冲到：{Clock(snapshot.buffered)}"+
-                $"\n剩余缓冲：{snapshot.bufferAheadMs/1000d:0.0} 秒    正在加载：{(snapshot.loading?"是":"否")}    缓冲内存：{snapshot.allocatedBufferBytes/1048576d:0.0} MiB"+
-                $"\n意外缓冲：{snapshot.rebufferCount} 次 / {snapshot.rebufferMs/1000d:0.00} 秒"+network+
-                $"\n解码丢帧：{snapshot.dropped}    GPU 更新帧：{app.Backend.RenderedFrames}"+
-                $"\n投影：{app.Presenter.Settings.projection}    立体：{app.Presenter.Settings.stereo}\n状态：{snapshot.state}    错误：{snapshot.error}"+
-                $"\n{app.RenderQuality.Description}\n版本：{Application.version}    图形 API：{SystemInfo.graphicsDeviceType}"+
-                "\n\n格式支持以当前设备解码器与样片实测为准。\nEAC / Cubemap 布局：上排 +X −X +Y，下排 −Y +Z −Z。";
-        }
         public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,2);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         public void Hide(){CloseKeyboard();CancelSmbConnection();app.StopDiscovery();embyBrowser?.Suspend();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
         public void Toggle(){if(Visible)Hide();else Show();}
@@ -200,28 +206,44 @@ namespace VRPlayer
         public void PlaybackOpened(){SurfaceRevision++;seekGesture?.Cancel();Quick?.PlaybackOpened();if(app?.Source==FileSource.Recent)fileList?.SetOffset(0);LastInteraction=Time.unscaledTime;}
         private void Draw()
         {
-            if(content==null)return;RememberFileOffset();fileRowsReady=false;embyBrowser?.ReleasePanel();UiFactory.Clear(content);detail=null;formatLabel=null;address=filter=null;fileList=null;preview=null;scanLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
+            if(content==null)return;RememberFileOffset();fileRowsReady=false;embyBrowser?.ReleasePanel();UiFactory.Clear(content);infoScroll=null;infoBody=null;infoCards=null;address=filter=null;fileList=null;subtitleList=null;preview=brightPreview=null;scanLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
             if(returningDirectory&&filePositions.TryGetValue(CurrentFileViewKey,out var parentPosition))query=parentPosition.query;
             foreach(var pair in tabs)UiFactory.SetAccent(pair.Value,pair.Key==tab);
+            subtitleNavigation.gameObject.SetActive(tab=="字幕");
             if(tab=="文件")DrawFiles();else if(tab=="投影")DrawProjection();else if(tab=="字幕")DrawSubtitles();else if(tab=="设置")DrawSettings();else DrawInfo();
         }
         private void DrawFiles()
         {
-            UiFactory.Button(content,"本地",0,0,104,44,()=>ChangeSource(app.Home));UiFactory.Button(content,"SMB",112,0,104,44,()=>ChangeSource(app.ShowServers));
-            UiFactory.Button(content,"收藏",224,0,104,44,()=>ChangeSource(app.ShowFavorites));UiFactory.Button(content,"最近",336,0,104,44,()=>ChangeSource(app.ShowRecent));
-            var emby=UiFactory.Button(content,"Emby",448,0,104,44,()=>ChangeSource(app.ShowEmby));UiFactory.SetAccent(emby,app.Source==FileSource.Emby);
-            if(app.Source==FileSource.Emby){fileKey=CurrentFileKey;embyBrowser.Bind(UiFactory.Rect(content,"Emby browser",0,60,1376,content.rect.height-60));return;}
-            undoButton=UiFactory.Button(content,"撤销移除",964,0,256,44,UndoFavorite);undoButton.gameObject.SetActive(false);
-            UiFactory.Button(content,"取消",1252,0,124,44,()=>{app.CancelListing();app.SetStatus("已取消读取");});
-            if(app.Source==FileSource.Smb){scanLabel=UiFactory.Label(content,"",0,60,790,48,23);UiFactory.Button(content,"手动添加",804,60,184,48,DrawServerForm);UiFactory.Button(content,"重新扫描",1002,60,180,48,app.StartDiscovery);UiFactory.Button(content,"停止扫描",1196,60,180,48,()=>{app.StopDiscovery();RefreshFileRows();});}
-            else{string originalUri=app.DirectoryUri;address=UiFactory.Input(content,FileLibrary.DisplayAddress(originalUri),"输入本地目录或选择一个来源",0,60,1034,48,ShowKeyboard);
-            UiFactory.Button(content,"打开",1046,60,102,48,()=>{query="";_ = app.Browse(FileLibrary.ParseAddress(address.text,originalUri));});UiFactory.Button(content,"上级",1160,60,102,48,UpDirectory);UiFactory.Button(content,"刷新",1274,60,102,48,app.Refresh);}
-            filter=UiFactory.Input(content,query,"搜索当前目录",0,126,752,44,ShowKeyboard);filter.onValueChanged.AddListener(value=>query=value);
-            UiFactory.Button(content,"搜索",764,126,100,44,()=>{query=filter.text;Draw();});
-            var favorite=UiFactory.Button(content,"收藏",876,126,100,44,()=>{if(!string.IsNullOrEmpty(app.DirectoryUri))app.AddFavorite(Uri.UnescapeDataString(app.DirectoryUri.Split('/').LastOrDefault(x=>x.Length>0)??"目录"),app.DirectoryUri);});favorite.name="Favorite directory";favorite.interactable=!string.IsNullOrEmpty(app.DirectoryUri);
-            var order=UiFactory.Button(content,app.Source==FileSource.Recent?"最近播放优先":new[]{"名称排序","日期排序","大小排序"}[sort],988,126,184,44,()=>{sort=(sort+1)%3;Draw();});order.interactable=app.Source!=FileSource.Recent;var mode=UiFactory.Button(content,app.Source==FileSource.Recent?"播放历史":subtitleBrowse?"字幕文件":"视频文件",1184,126,192,44,()=>{subtitleBrowse=!subtitleBrowse;Draw();});mode.interactable=app.Source!=FileSource.Recent;
-            float listHeight=content.rect.height-190;
-            var viewport=UiFactory.Rect(content,"File list",0,190,1376,listHeight);fileList=viewport.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(1376,listHeight);
+            UiFactory.Box(content,"Source divider",176,0,1,UiTheme.PageHeight,new Color(.17f,.30f,.37f,.35f));
+            string[] labels={"本地","SMB","Emby","收藏","最近"};
+            Action[] actions={app.Home,app.ShowServers,app.ShowEmby,app.ShowFavorites,app.ShowRecent};
+            bool smbDirectory=app.Source==FileSource.Directory&&app.DirectoryUri.StartsWith("smb://",StringComparison.OrdinalIgnoreCase);
+            bool[] selected={app.Source==FileSource.Home||app.Source==FileSource.Directory&&!smbDirectory,app.Source==FileSource.Smb||smbDirectory,app.Source==FileSource.Emby,app.Source==FileSource.Favorites,app.Source==FileSource.Recent};
+            QuickIcon[] sourceIcons={QuickIcon.Local,QuickIcon.Network,QuickIcon.Play,QuickIcon.Star,QuickIcon.Clock};
+            for(int i=0;i<labels.Length;i++){int index=i;UiFactory.SourceButton(content,labels[i],sourceIcons[i],0,i*80,160,64,()=>ChangeSource(actions[index]),selected[i]);}
+            var page=UiFactory.Rect(content,"Browser page",196,0,1156,UiTheme.PageHeight);
+            if(app.Source==FileSource.Emby){fileKey=CurrentFileKey;embyBrowser.Bind(page);return;}
+            undoButton=UiFactory.Button(page,"撤销移除",868,724,264,54,UndoFavorite);undoButton.gameObject.SetActive(false);
+            if(app.Source==FileSource.Smb){
+                scanLabel=UiFactory.Label(page,"",0,0,916,64,23);
+                UiFactory.IconButton(page,"手动添加",QuickIcon.Add,932,0,DrawServerForm,tooltip:"添加 SMB 服务器");UiFactory.IconButton(page,"重新扫描",QuickIcon.Refresh,1012,0,app.StartDiscovery);
+                UiFactory.IconButton(page,"停止扫描",QuickIcon.Stop,1092,0,()=>{app.StopDiscovery();RefreshFileRows();});
+            }else{
+                string originalUri=app.DirectoryUri;
+                UiFactory.IconButton(page,"返回",QuickIcon.Back,0,0,()=>Back());UiFactory.IconButton(page,"上级",QuickIcon.Up,80,0,UpDirectory);
+                address=UiFactory.Input(page,FileLibrary.DisplayAddress(originalUri),"输入目录或选择来源",160,0,676,64,ShowKeyboard);
+                UiFactory.IconButton(page,"打开",QuickIcon.Open,852,0,()=>{query="";_ = app.Browse(FileLibrary.ParseAddress(address.text,originalUri));},tooltip:"打开输入的地址");
+                UiFactory.IconButton(page,"刷新",QuickIcon.Refresh,932,0,app.Refresh);
+                UiFactory.Button(page,"取消读取",1012,0,144,64,()=>{app.CancelListing();app.SetStatus("已取消读取");}).name="取消";
+            }
+            filter=UiFactory.Input(page,query,"搜索当前目录",0,80,652,64,ShowKeyboard);filter.onValueChanged.AddListener(value=>query=value);
+            UiFactory.IconButton(page,"搜索",QuickIcon.Search,668,80,()=>{query=filter.text;Draw();});
+            var favorite=UiFactory.IconButton(page,"收藏",QuickIcon.Star,748,80,()=>{if(!string.IsNullOrEmpty(app.DirectoryUri))app.AddFavorite(Uri.UnescapeDataString(app.DirectoryUri.Split('/').LastOrDefault(x=>x.Length>0)??"目录"),app.DirectoryUri);});favorite.name="Favorite directory";favorite.interactable=!string.IsNullOrEmpty(app.DirectoryUri);
+            var order=UiFactory.Button(page,app.Source==FileSource.Recent?"最近优先":new[]{"名称排序","日期排序","大小排序"}[sort],828,80,156,64,()=>{sort=(sort+1)%3;Draw();});order.name=app.Source==FileSource.Recent?"最近播放优先":order.name;order.interactable=app.Source!=FileSource.Recent;
+            var mode=UiFactory.Button(page,app.Source==FileSource.Recent?"播放历史":subtitleBrowse?"字幕文件":"视频文件",1000,80,156,64,()=>{subtitleBrowse=!subtitleBrowse;Draw();});mode.interactable=app.Source!=FileSource.Recent;
+            UiFactory.Label(page,"名称",18,160,852,42,24).color=UiTheme.Muted;UiFactory.Label(page,"大小 / 操作",922,160,210,42,23,TextAlignmentOptions.Right).color=UiTheme.Muted;
+            float listHeight=page.rect.height-208;
+            var viewport=UiFactory.Rect(page,"File list",0,208,1156,listHeight);fileList=viewport.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(1156,listHeight,directoryStyle:true);undoButton.transform.SetAsLastSibling();
             fileViewKey=CurrentFileViewKey;fileQuery=query;fileKey=CurrentFileKey;fileRestorePending=true;
             fileOffset=filePositions.TryGetValue(fileViewKey,out var position)&&position.query==query?position.offset:0;
             RefreshFileRows();
@@ -241,18 +263,18 @@ namespace VRPlayer
             IEnumerable<FileEntry> items=app.Files.Where(e=>(e.directory||(app.Source==FileSource.Recent?e.IsVideo:subtitleBrowse?e.IsSubtitle:e.IsVideo))&&(string.IsNullOrEmpty(query)||(e.name??"").IndexOf(query,StringComparison.OrdinalIgnoreCase)>=0));
             if(app.Source!=FileSource.Recent)items=sort==1?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.modified):sort==2?items.OrderByDescending(e=>e.directory).ThenByDescending(e=>e.size):items.OrderByDescending(e=>e.directory).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase);
             var list=items.ToList();var rows=new List<BrowserRow>();
-            if(app.Source==FileSource.Smb)rows.Add(new BrowserRow{key="saved",label="已保存的共享"});
+            if(app.Source==FileSource.Smb)rows.Add(new BrowserRow{key="saved",label="已保存的共享",sectionHeader=true});
             foreach(FileEntry item in list){
-                string prefix=item.directory?"目录  ":item.IsSubtitle?"SRT   ":"视频  ";
-                var row=new BrowserRow{key=item.uri,label=prefix+item.name,detail=item.directory?"打开":Size(item.size),open=()=>{query="";if(item.directory)_ = app.Browse(item.uri,physicalParent:app.Source==FileSource.Directory?app.DirectoryUri:null);else if(item.IsSubtitle){_ = app.LoadSubtitle(item.uri);SelectTab("字幕");}else app.OpenRecentOrFile(item);}};
-                if(app.Source==FileSource.Favorites){row.secondary="移除";row.action=()=>RemoveFavorite(item.uri);}
-                else if(app.Source==FileSource.Smb){row.secondary="编辑";row.action=()=>DrawServerForm(app.FindServer(item.uri));}
+                string prefix="";
+                var row=new BrowserRow{key=item.uri,label=prefix+item.name,icon=item.directory?QuickIcon.Folder:item.IsSubtitle?QuickIcon.Subtitle:QuickIcon.Film,selected=app.Current?.uri==item.uri,detail=item.directory?"目录":Size(item.size),open=()=>{query="";if(item.directory)_ = app.Browse(item.uri,physicalParent:app.Source==FileSource.Directory?app.DirectoryUri:null);else if(item.IsSubtitle){_ = app.LoadSubtitle(item.uri);SelectTab("字幕");}else app.OpenRecentOrFile(item);}};
+                if(app.Source==FileSource.Favorites){row.secondary="移除";row.actionIcon=QuickIcon.Trash;row.action=()=>RemoveFavorite(item.uri);}
+                else if(app.Source==FileSource.Smb){row.secondary="编辑";row.actionIcon=QuickIcon.Edit;row.action=()=>DrawServerForm(app.FindServer(item.uri));}
                 else if(app.Source==FileSource.Recent){row.subtitle=RecentDescription(app.Store.Find(item.uri));row.secondary=EmbyIdentity.TryParse(item.uri,out _,out _)?"影片详情":"所在目录";row.action=()=>app.OpenContainingDirectory(item.uri);}
-                if(app.Source==FileSource.Directory&&item.uri==app.LocateFileUri)row.label="▶ "+row.label;
+                if(app.Source==FileSource.Directory&&item.uri==app.LocateFileUri)row.selected=true;
                 rows.Add(row);
             }
             if(app.Source==FileSource.Smb){
-                rows.Add(new BrowserRow{key="discovered",label="局域网发现"});
+                rows.Add(new BrowserRow{key="discovered",label="局域网发现",sectionHeader=true});
                 foreach(var host in app.Discovery.hosts??Array.Empty<DiscoveredSmbHost>()){
                     var found=host;if(!string.IsNullOrEmpty(query)&&!((host.name??"")+host.host).Contains(query,StringComparison.OrdinalIgnoreCase))continue;
                     rows.Add(new BrowserRow{key="host:"+host.host+":"+host.port,label=(string.IsNullOrEmpty(host.name)?host.host:host.name)+"  ·  "+host.host+":"+host.port,detail="选择共享",open=()=>ConnectHost(found)});
@@ -271,129 +293,196 @@ namespace VRPlayer
         private void DrawProjection()
         {
             projectionButtons.Clear();stereoButtons.Clear();projectionButtonState=-1;
-            projectionDistanceWasFlat=app.Presenter.Settings.projection==Projection.Flat;
-            var view=app.Presenter.Settings;string[] names={"平面 / 曲面","VR 180°","VR 360°","鱼眼","Cubemap 3×2","EAC 3×2"};
-            for(int i=0;i<names.Length;i++){int index=i;projectionButtons.Add(UiFactory.Button(content,names[i],i*230,0,216,52,()=>{app.ChangeFormat(v=>v.projection=(Projection)index);Draw();},(int)view.projection==i));}
-            string[] stereo={"普通 2D","左右 SBS","上下 OU"};for(int i=0;i<3;i++){int index=i;stereoButtons.Add(UiFactory.Button(content,stereo[i],i*230,72,216,52,()=>{app.ChangeFormat(v=>v.stereo=(StereoLayout)index);Draw();},(int)view.stereo==i));}
-            halfButton=UiFactory.Button(content,view.half?"Half 半宽/半高":"Full 全宽/全高",690,72,216,52,()=>{app.ChangeFormat(v=>v.half=!v.half);Draw();},view.half);
-            eyesButton=UiFactory.Button(content,view.swapEyes?"已交换左右眼":"交换左右眼",920,72,216,52,()=>{app.ChangeFormat(v=>v.swapEyes=!v.swapEyes);Draw();},view.swapEyes);
-            UiFactory.Button(content,view.monoEye?"单眼 2D 已开":"单眼 2D",1150,72,216,52,()=>{view.monoEye=!view.monoEye;Draw();},view.monoEye);
-            Setting("屏幕宽度",140,1,10,view.width,v=>view.width=v,"米");if(view.projection==Projection.Flat)Setting("屏幕距离",196,1.2f,10,view.distance,app.SetViewDistance,"米");else Setting("全景缩放",196,.5f,2,view.panoramaZoom,app.SetPanoramaZoom,"倍");Setting("屏幕高度",252,-3,3,view.heightOffset,v=>view.heightOffset=v,"米");Setting("屏幕曲率",308,0,150,view.curvature,v=>view.curvature=v,"°");Setting("鱼眼角度",364,120,240,view.fisheyeFov,v=>app.ChangeFormat(settings=>settings.fisheyeFov=v),"°");
-            UiFactory.Button(content,"重新识别格式",0,422,440,44,()=>{app.RedetectFormat();Draw();});UiFactory.Button(content,"撤销本次识别",456,422,440,44,()=>{app.UndoFormatDetection();Draw();});UiFactory.Button(content,"采用建议",912,422,464,44,()=>{app.ApplyFormatSuggestion();Draw();});
-            UiFactory.Button(content,app.CurrentDirectoryPrefersVr180?"本目录优先 VR180：开":"本目录优先 VR180：关",0,472,470,40,()=>{app.SetDirectoryVr180Preference(!app.CurrentDirectoryPrefersVr180);Draw();},app.CurrentDirectoryPrefersVr180);
-            UiFactory.Label(content,"仅在确认 SBS 后使用；明确标签与元数据优先",490,472,880,40,20);
-            formatLabel=UiFactory.Label(content,app.FormatDescription,0,516,1376,94,20);formatLabel.textWrappingMode=TextWrappingModes.Normal;
+            var view=app.Presenter.Settings;projectionDistanceWasFlat=view.projection==Projection.Flat;
+            UiFactory.Label(content,"投影与立体布局",0,0,UiTheme.PageWidth,54,34);
+            var formats=UiFactory.RoundedBox(content,"Projection and stereo",0,70,664,544,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            var geometry=UiFactory.RoundedBox(content,"Viewing geometry",688,70,664,544,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(formats,"画面投影",24,24,616,44,28);
+            string[] names={"平面 / 曲面","VR 180°","VR 360°","鱼眼","Cubemap 3×2","EAC 3×2"};
+            QuickIcon[] icons={QuickIcon.Flat,QuickIcon.VR180,QuickIcon.Globe,QuickIcon.Fisheye,QuickIcon.Cubemap,QuickIcon.Eac};
+            const float tileWidth=(664-48-32)/3f,tilePitch=tileWidth+16;
+            for(int i=0;i<names.Length;i++){int index=i;projectionButtons.Add(UiFactory.OptionTile(formats,names[i],icons[i],24+(i%3)*tilePitch,80+(i/3)*108,tileWidth,96,()=>{app.ChangeFormat(v=>v.projection=(Projection)index);Draw();},(int)view.projection==i));}
+            UiFactory.Label(formats,"立体布局",24,304,616,44,28);
+            string[] stereo={"普通 2D","左右 SBS","上下 OU"};QuickIcon[] stereoIcons={QuickIcon.Flat,QuickIcon.Sbs,QuickIcon.Ou};
+            for(int i=0;i<3;i++){int index=i;stereoButtons.Add(UiFactory.OptionTile(formats,stereo[i],stereoIcons[i],24+i*tilePitch,360,tileWidth,96,()=>{app.ChangeFormat(v=>v.stereo=(StereoLayout)index);Draw();},(int)view.stereo==i));}
+            halfButton=UiFactory.ToggleRow(formats,"Half 半宽/半高","半幅",()=>app.Presenter.Settings.half,24,472,tileWidth,value=>app.ChangeFormat(v=>v.half=value),48);halfButton.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;
+            eyesButton=UiFactory.ToggleRow(formats,"交换左右眼","左右互换",()=>app.Presenter.Settings.swapEyes,24+tilePitch,472,tileWidth,value=>app.ChangeFormat(v=>v.swapEyes=value),48);eyesButton.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;
+            UiFactory.ToggleRow(formats,"单眼 2D","单眼 2D",()=>app.Presenter.Settings.monoEye,24+2*tilePitch,472,tileWidth,value=>app.ChangeFormat(v=>v.monoEye=value),48).GetComponentInChildren<TextMeshProUGUI>().fontSize=23;
+            UiFactory.Label(geometry,view.projection==Projection.Flat?"屏幕与观看参数":"全景缩放",24,24,616,48,30);
+            int parameterCount=view.projection==Projection.Flat?4:view.projection==Projection.Fisheye?2:1;
+            // Space parameter groups and the final action by their visual centers.
+            const float firstParameterY=88,resetY=472;
+            float parameterPitch=(resetY+24-firstParameterY-40)/parameterCount;
+            if(view.projection==Projection.Flat){
+                CompactSetting(geometry,"屏幕宽度",24,firstParameterY,616,1,10,view.width,v=>view.width=v,"米");
+                CompactSetting(geometry,"屏幕距离",24,firstParameterY+parameterPitch,616,1.2f,10,view.distance,app.SetViewDistance,"米");
+                CompactSetting(geometry,"屏幕高度",24,firstParameterY+parameterPitch*2,616,-3,3,view.heightOffset,v=>view.heightOffset=v,"米");
+                CompactSetting(geometry,"屏幕曲率",24,firstParameterY+parameterPitch*3,616,0,150,view.curvature,v=>view.curvature=v,"°");
+            }else{
+                CompactSetting(geometry,"全景缩放",24,firstParameterY,616,.5f,2,view.panoramaZoom,app.SetPanoramaZoom,"倍");
+                if(view.projection==Projection.Fisheye)CompactSetting(geometry,"鱼眼角度",24,firstParameterY+parameterPitch,616,120,240,view.fisheyeFov,v=>app.ChangeFormat(settings=>settings.fisheyeFov=v),"°");
+            }
+            UiFactory.Button(geometry,view.projection==Projection.Flat?"重置距离":"重置缩放",400,resetY,240,48,()=>{app.ResetViewDistance();Draw();});
+            var recognition=UiFactory.RoundedBox(content,"Format recognition",0,638,UiTheme.PageWidth,156,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(recognition,"格式识别",24,24,1304,44,28);
+            UiFactory.Button(recognition,"重新识别格式",24,84,296,48,()=>{app.RedetectFormat();Draw();});
+            UiFactory.Button(recognition,"撤销本次识别",336,84,280,48,()=>{app.UndoFormatDetection();Draw();});
+            UiFactory.Button(recognition,"采用建议",632,84,252,48,()=>{app.ApplyFormatSuggestion();Draw();});
+            UiFactory.ToggleRow(recognition,"本目录优先 VR180","本目录优先 VR180",()=>app.CurrentDirectoryPrefersVr180,900,84,428,app.SetDirectoryVr180Preference,48);
+        }
+        private void CompactSetting(Transform parent,string name,float x,float y,float width,float min,float max,float value,Action<float> change,string unit="")
+        {
+            UiFactory.Label(parent,name,x,y,width-164,38,25);
+            var number=UiFactory.Label(parent,ValueWithUnit(value,"0.##",unit),x+width-164,y,164,38,25,TextAlignmentOptions.Right);
+            var slider=UiFactory.Slider(parent,x,y+31,width,min,max,value,v=>{change(v);number.text=ValueWithUnit(v,"0.##",unit);LastInteraction=Time.unscaledTime;});slider.name=name+" slider";
         }
         private void DrawProjectionPage(){UiFactory.Clear(content);DrawProjection();}
-        private void Setting(string name,float y,float min,float max,float value,Action<float> change,string unit="")
+        private static string ValueWithUnit(float value,string format,string unit)=>value.ToString(format)+(string.IsNullOrEmpty(unit)?"":" "+unit);
+        private void Setting(Transform parent,string name,float y,float min,float max,float value,Action<float> change,string unit="")
         {
-            UiFactory.Label(content,name,0,y,225,45,26);var number=UiFactory.Label(content,$"{value:0.##} {unit}",1180,y,196,45,24,TextAlignmentOptions.Right);
-            UiFactory.Slider(content,240,y+2,910,min,max,value,v=>{change(v);number.text=$"{v:0.##} {unit}";LastInteraction=Time.unscaledTime;});
+            UiFactory.ValueSlider(parent,name,24,y,1304,min,max,value,v=>{change(v);LastInteraction=Time.unscaledTime;},v=>ValueWithUnit(v,"0.##",unit));
         }
-        private void SteppedSetting(string name,float y,float min,float max,float value,Action<float> change,string unit="")
+        private void SteppedSetting(Transform parent,string name,float y,float min,float max,float value,Action<float> change,string unit="")
         {
             const float step=.1f;
-            UiFactory.Label(content,name,0,y,225,45,26);
-            var number=UiFactory.Label(content,$"{value:0.0#} {unit}",1050,y,150,45,24,TextAlignmentOptions.Right);
-            var slider=UiFactory.Slider(content,370,y+2,540,min,max,value,_=>{});
+            var label=UiFactory.Label(parent,name,24,y,200,48,26);float labelWidth=Mathf.Ceil(label.preferredWidth);label.rectTransform.sizeDelta=new Vector2(labelWidth,label.rectTransform.sizeDelta.y);
+            float minusX=24+labelWidth+UiTheme.ControlGap,sliderX=minusX+88+UiTheme.ControlGap;
+            var number=UiFactory.Label(parent,ValueWithUnit(value,"0.0#",unit),1088,y,112,48,24,TextAlignmentOptions.Center);
+            var slider=UiFactory.Slider(parent,sliderX,y,984-UiTheme.ControlGap-sliderX,min,max,value,_=>{});slider.name=name+" slider";
             if(name=="播放速度"){fullSpeedSlider=slider;fullSpeedNumber=number;}
             void Apply(float next)
             {
                 next=Mathf.Clamp(Mathf.Round(next/step)*step,min,max);
-                slider.SetValueWithoutNotify(next);change(next);number.text=$"{next:0.0#} {unit}";LastInteraction=Time.unscaledTime;
+                slider.SetValueWithoutNotify(next);change(next);number.text=ValueWithUnit(next,"0.0#",unit);LastInteraction=Time.unscaledTime;
             }
             slider.onValueChanged.AddListener(Apply);
-            UiFactory.Button(content,"−0.1",240,y,110,45,()=>Apply((Mathf.Ceil(slider.value/step-.0001f)-1)*step));
-            UiFactory.Button(content,"+0.1",930,y,110,45,()=>Apply((Mathf.Floor(slider.value/step+.0001f)+1)*step));
-            UiFactory.Button(content,"重置",1216,y,160,45,()=>Apply(1));
+            UiFactory.Button(parent,"−0.1",minusX,y,88,48,()=>Apply((Mathf.Ceil(slider.value/step-.0001f)-1)*step));
+            UiFactory.Button(parent,"+0.1",984,y,88,48,()=>Apply((Mathf.Floor(slider.value/step+.0001f)+1)*step));
+            UiFactory.Button(parent,"重置",1216,y,112,48,()=>Apply(1));
         }
         private void DrawSubtitles()
         {
-            string[] sections={"选择","位置","样式"};
-            for(int i=0;i<3;i++){int section=i;UiFactory.Button(content,sections[i],i*220,0,202,48,()=>{subtitlePage=section;Draw();},subtitlePage==i);}
+            for(int i=0;i<subtitleTabs.Count;i++)UiFactory.SetAccent(subtitleTabs[i],subtitlePage==i);
             var settings=app.Store.Settings;
             if(subtitlePage==2){DrawSubtitleStyle();return;}
-            if(subtitlePage==1){
-                Setting("字幕延后",78,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,"秒");
-                Setting("字幕大小",146,12,200,settings.subtitleSize,v=>settings.subtitleSize=v);
-                Setting("视觉高度",214,-4,4,settings.subtitleOffset,v=>settings.subtitleOffset=v);
-                Setting("字幕距离",282,.1f,6,settings.subtitleDistance,v=>settings.subtitleDistance=v,"米");
-                UiFactory.Button(content,"−0.01 米",0,356,230,48,()=>{settings.subtitleDistance=Mathf.Max(.1f,settings.subtitleDistance-.01f);Draw();});
-                UiFactory.Button(content,"+0.01 米",248,356,230,48,()=>{settings.subtitleDistance=Mathf.Min(6,settings.subtitleDistance+.01f);Draw();});
-                UiFactory.Button(content,settings.subtitleFollow?"字幕跟随视线":"字幕固定方向",500,356,330,48,()=>{settings.subtitleFollow=!settings.subtitleFollow;Draw();});
-                UiFactory.Label(content,"改变距离时保持视觉大小与相对高度；字号和高度可单独调整。",0,444,1376,60,25);return;
+            if(subtitlePage==1){var panel=UiFactory.RoundedBox(content,"Subtitle position settings",0,76,UiTheme.PageWidth,386,UiTheme.Surface);
+                Setting(panel,"字幕延后",24,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,"秒");
+                Setting(panel,"字幕大小",92,12,200,settings.subtitleSize,v=>settings.subtitleSize=v);
+                Setting(panel,"视觉高度",160,-4,4,settings.subtitleOffset,v=>settings.subtitleOffset=v);
+                Setting(panel,"字幕距离",228,.1f,6,settings.subtitleDistance,v=>settings.subtitleDistance=v,"米");
+                UiFactory.Button(panel,"−0.01 米",24,306,230,56,()=>{settings.subtitleDistance=Mathf.Max(.1f,settings.subtitleDistance-.01f);Draw();});
+                UiFactory.Button(panel,"+0.01 米",270,306,230,56,()=>{settings.subtitleDistance=Mathf.Min(6,settings.subtitleDistance+.01f);Draw();});
+                UiFactory.ToggleRow(panel,"字幕跟随视线","字幕跟随视线",()=>settings.subtitleFollow,548,306,440,value=>settings.subtitleFollow=value,56);
+                UiFactory.Label(content,"改变距离时保持视觉大小与相对高度；字号和高度可单独调整。",24,486,1304,60,25);return;
             }
-            UiFactory.Button(content,"关闭字幕",0,76,175,48,app.DisableSubtitles);
-            UiFactory.Button(content,"恢复自动选择",796,76,270,48,app.RestoreAutomaticSubtitles);
-            UiFactory.Button(content,"手动选择 SRT",190,76,260,48,()=>{subtitleBrowserEntry=app.BrowserHistoryPosition;subtitleBrowse=true;subtitleFileSelection=true;SelectTab("文件");});
+            var choices=UiFactory.RoundedBox(content,"Subtitle selection",0,76,UiTheme.PageWidth,718,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            const float actionWidth=314,actionPitch=330;
+            UiFactory.Button(choices,"关闭字幕",24,24,actionWidth,64,app.DisableSubtitles);
+            UiFactory.Button(choices,"手动选择 SRT",24+actionPitch,24,actionWidth,64,()=>{subtitleBrowserEntry=app.BrowserHistoryPosition;subtitleBrowse=true;subtitleFileSelection=true;SelectTab("文件");});
             string[] encodings={"Auto","UTF-8","GB18030","UTF-16LE"};int encoding=Array.IndexOf(encodings,app.SubtitleEncoding);
-            UiFactory.Button(content,"编码："+app.SubtitleEncoding,468,76,310,48,()=>{app.SubtitleEncoding=encodings[(encoding+1)%encodings.Length];if(app.Current!=null&&!string.IsNullOrEmpty(app.Current.subtitle)&&!app.Current.subtitle.StartsWith("track:"))_ = app.LoadSubtitle(app.Current.subtitle);Draw();});
-            UiFactory.Label(content,"同目录匹配字幕",0,148,900,40,28);
+            UiFactory.Button(choices,"编码："+app.SubtitleEncoding,24+2*actionPitch,24,actionWidth,64,()=>{app.SubtitleEncoding=encodings[(encoding+1)%encodings.Length];if(app.Current!=null&&!string.IsNullOrEmpty(app.Current.subtitle)&&!app.Current.subtitle.StartsWith("track:"))_ = app.LoadSubtitle(app.Current.subtitle);Draw();});
+            UiFactory.Button(choices,"恢复自动选择",24+3*actionPitch,24,actionWidth,64,app.RestoreAutomaticSubtitles);
+            UiFactory.Label(choices,"同目录匹配字幕",24,120,1304,48,30);
             var candidates=app.SubtitleCandidates;
-            for(int i=0;i<Math.Min(candidates.Count,4);i++){var item=candidates[i];UiFactory.Button(content,item.name,0,206+i*56,1376,48,()=>_ = app.LoadSubtitle(item.uri),app.Current?.subtitle==item.uri);}
-            if(candidates.Count==0)UiFactory.Label(content,"未发现匹配字幕，可手动选择。支持 chs、zh、zh-CN 等后缀。",0,210,1376,50,24);
-            if(candidates.Count>4)UiFactory.Label(content,$"另有 {candidates.Count-4} 个候选，请在文件页查看全部。",0,440,1376,40,22);
-            UiFactory.Button(content,"内嵌字幕与音轨…",0,526,360,48,DrawTracks);
+            var listRoot=UiFactory.Rect(choices,"Subtitle choices",24,184,1304,406);subtitleList=listRoot.gameObject.AddComponent<VirtualFileList>();subtitleList.Initialize(1304,406,fullWidthRows:true);
+            var rows=candidates.Select(item=>new BrowserRow{key=item.uri,label=item.name,detail=app.Current?.subtitle==item.uri?"已选择":"SRT",selected=app.Current?.subtitle==item.uri,open=()=>_ = app.LoadSubtitle(item.uri)}).ToList();
+            if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label="未发现匹配字幕，可手动选择 SRT 文件。"});subtitleList.SetRows(rows);
+            UiFactory.Button(choices,"内嵌字幕与音轨…",468,630,416,64,DrawTracks);
         }
         private void DrawSubtitleStyle()
         {
             var style=app.Store.Settings.subtitleStyle;string[] presets={"白字黑边","黄字黑边","阴影","半透明底"};
-            for(int i=0;i<4;i++){int preset=i;UiFactory.Button(content,presets[i],i*300,66,280,44,()=>{app.Store.Settings.subtitleStyle=SubtitleStyle.Preset(preset);Draw();});}
-            ColorRow("文字颜色",0,128,style.textColor,c=>style.textColor=c);ColorRow("描边颜色",700,128,style.outlineColor,c=>style.outlineColor=c);
-            UiFactory.Button(content,style.outline?"描边：开":"描边：关",0,194,202,44,()=>{style.outline=!style.outline;Draw();});
-            UiFactory.Slider(content,222,194,424,0,.4f,style.outlineWidth,v=>style.outlineWidth=v);
-            UiFactory.Button(content,style.shadow?"阴影：开":"阴影：关",700,194,202,44,()=>{style.shadow=!style.shadow;Draw();});
-            UiFactory.Slider(content,922,194,424,0,1,style.shadowStrength,v=>style.shadowStrength=v);
+            stylePresets.Clear();stylePresetState=-2;
+            var controls=UiFactory.RoundedBox(content,"Subtitle style settings",0,76,664,718,UiTheme.Surface,false,18,SurfaceTreatment.Inset);
+            UiFactory.Label(controls,"预设样式",24,24,616,48,28);
+            for(int i=0;i<4;i++){int preset=i;var button=UiFactory.Button(controls,presets[i],24+i*158,88,142,56,()=>{app.Store.Settings.subtitleStyle=SubtitleStyle.Preset(preset);Draw();},SameStyle(style,SubtitleStyle.Preset(preset)));button.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;stylePresets.Add(button);}
+            UiFactory.Box(controls,"Style separator",24,164,616,1,new Color(.20f,.31f,.37f,.28f));
+            ColorRow(controls,"文字颜色",176,style.textColor,c=>style.textColor=c);
+            UiFactory.Box(controls,"Outline separator",24,264,616,1,new Color(.20f,.31f,.37f,.28f));
+            UiFactory.ToggleRow(controls,"描边开关","描边",()=>style.outline,24,280,616,value=>style.outline=value);
+            ColorRow(controls,"描边颜色",360,style.outlineColor,c=>style.outlineColor=c);
+            UiFactory.ValueSlider(controls,"粗细",24,432,616,0,.4f,style.outlineWidth,v=>style.outlineWidth=v,v=>$"{v:0.00}",24,128,64);
+            UiFactory.Box(controls,"Shadow separator",24,508,616,1,new Color(.20f,.31f,.37f,.28f));
+            UiFactory.ToggleRow(controls,"阴影开关","阴影",()=>style.shadow,24,528,616,value=>style.shadow=value);
+            UiFactory.ValueSlider(controls,"强度",24,616,616,0,1,style.shadowStrength,v=>style.shadowStrength=v,v=>$"{v:0.00}",24,128,64);
+            var previewRoot=UiFactory.RoundedBox(content,"Subtitle preview",688,76,664,718,UiTheme.Surface,false,18,SurfaceTreatment.Inset);
+            UiFactory.Label(previewRoot,"样式预览",24,24,616,48,28);
+            var sample=UiFactory.RoundedBox(previewRoot,"Caption samples",24,88,616,252,UiTheme.Surface,false,14);sample.gameObject.AddComponent<Mask>().showMaskGraphic=true;
+            var bright=UiFactory.Box(sample,"Bright scene",0,0,616,126,new Color(.70f,.72f,.69f,1));var dark=UiFactory.Box(sample,"Dark scene",0,126,616,126,new Color(.035f,.048f,.06f,1));
+            brightPreview=bright.gameObject.AddComponent<CaptionPresenter>();brightPreview.Initialize(616,126,opticalCenter:true);
+            preview=dark.gameObject.AddComponent<CaptionPresenter>();preview.Initialize(616,126,opticalCenter:true);
+            preview.SetText("字幕样式实时预览\nSubtitle preview",32,style);brightPreview.SetText("字幕样式实时预览\nSubtitle preview",32,style);
+            UiFactory.Label(previewRoot,"明亮 / 深色背景",24,352,616,40,23).color=UiTheme.Muted;
+            UiFactory.Box(previewRoot,"Background separator",24,416,616,1,new Color(.20f,.31f,.37f,.28f));
+            UiFactory.Label(previewRoot,"字幕背景",24,436,616,44,28);
             string[] backgrounds={"无背景","文字底框","整行底条"};
-            for(int i=0;i<3;i++){int bg=i;UiFactory.Button(content,backgrounds[i],i*220,260,204,44,()=>{style.background=(SubtitleBackground)bg;Draw();},(int)style.background==i);}
-            ColorRow("背景颜色",700,260,style.backgroundColor,c=>style.backgroundColor=c);
-            Setting("背景透明度",324,0,1,1-style.backgroundOpacity,v=>style.backgroundOpacity=1-v);
-            var previewRoot=UiFactory.Box(content,"Subtitle preview",0,390,1376,208,new Color(.22f,.25f,.28f,1));
-            preview=previewRoot.gameObject.AddComponent<CaptionPresenter>();preview.Initialize(1376,208);
-            preview.SetText("字幕样式实时预览\n明亮与暗色场景 · Subtitle preview",32,style);
+            for(int i=0;i<3;i++){int bg=i;float width=(664-48-32)/3f;UiFactory.Button(previewRoot,backgrounds[i],24+i*(width+16),496,width,56,()=>{style.background=(SubtitleBackground)bg;Draw();},(int)style.background==i);}
+            ColorRow(previewRoot,"背景颜色",568,style.backgroundColor,c=>style.backgroundColor=c);
+            UiFactory.ValueSlider(previewRoot,"背景透明度",24,646,616,0,1,1-style.backgroundOpacity,v=>style.backgroundOpacity=1-v,v=>$"{v*100:0}%",24,128,64);
         }
-        private void ColorRow(string name,float x,float y,Color selected,Action<Color> change)
+        private void ColorRow(Transform parent,string name,float y,Color selected,Action<Color> change)
         {
-            UiFactory.Label(content,name,x,y,190,44,24);Color[] colors={Color.white,Color.yellow,Color.green,Color.cyan,Color.black};string[] names={"白","黄","绿","青","黑"};
-            for(int i=0;i<colors.Length;i++){Color color=colors[i];var button=UiFactory.Button(content,names[i],x+192+i*94,y,84,44,()=>{change(color);Draw();},selected==color);button.GetComponentInChildren<TextMeshProUGUI>().color=color==Color.black?UiFactory.TextColor:color;}
+            UiFactory.Label(parent,name,24,y,128,60,24,TextAlignmentOptions.Right);Color[] colors={Color.white,Color.yellow,Color.green,Color.cyan,Color.black};string[] names={"白","黄","绿","青","黑"};
+            for(int i=0;i<colors.Length;i++){Color color=colors[i];UiFactory.ColorSwatch(parent,name+" · "+names[i],color,selected==color,168+i*103,y,()=>{change(color);Draw();});}
         }
+        private static bool SameStyle(SubtitleStyle a,SubtitleStyle b)=>a.textColor==b.textColor&&a.outlineColor==b.outlineColor&&a.backgroundColor==b.backgroundColor&&a.outline==b.outline&&a.shadow==b.shadow&&Mathf.Approximately(a.outlineWidth,b.outlineWidth)&&Mathf.Approximately(a.shadowStrength,b.shadowStrength)&&Mathf.Approximately(a.backgroundOpacity,b.backgroundOpacity)&&a.background==b.background;
         private void DrawSettings()
         {
-            SteppedSetting("播放速度",0,.25f,3,app.Store.Settings.speed,app.SetSpeed,"倍");SteppedSetting("视频亮度",70,.3f,1.8f,app.Presenter.Settings.brightness,v=>app.Presenter.Settings.brightness=v);
-            UiFactory.Label(content,"渲染画质",0,140,225,45,26);string[] qualities={"均衡 1.0×","高清 1.25×","超清 1.5×"};for(int i=0;i<3;i++){int quality=i;UiFactory.Button(content,qualities[i],240+i*330,140,310,48,()=>{app.RenderQuality.Select((RenderQuality)quality);Draw();},(int)app.Store.Settings.renderQuality==i);}
-            UiFactory.Button(content,app.Store.Settings.loop?"单片循环：开":"单片循环：关",0,225,310,52,()=>{app.Store.Settings.loop=!app.Store.Settings.loop;app.Backend?.SetRepeat(app.Store.Settings.loop);Draw();});
-            UiFactory.Button(content,app.Store.Settings.sequential?"目录连播：开":"目录连播：关",330,225,310,52,()=>{app.Store.Settings.sequential=!app.Store.Settings.sequential;Draw();});
-            UiFactory.Button(content,app.Store.Settings.autoHide?"自动隐藏：开":"自动隐藏：关",660,225,310,52,()=>{app.Store.Settings.autoHide=!app.Store.Settings.autoHide;Draw();});
-            UiFactory.Button(content,"选择音轨 / 内嵌字幕",0,305,440,52,DrawTracks);
-            UiFactory.Button(content,"清空播放记录",0,391,310,52,app.ClearPlaybackHistory);
-            UiFactory.Button(content,"自动加载同名 SRT："+(app.Store.Settings.autoLoadSubtitles?"开":"关"),330,391,500,52,()=>{app.SetAutoLoadSubtitles(!app.Store.Settings.autoLoadSubtitles);Draw();});
-            UiFactory.Button(content,"格式："+new[]{"关闭","标签与元数据","增强识别"}[(int)app.Store.Settings.formatDetection],850,391,526,52,()=>{app.SetFormatDetectionMode((FormatDetectionMode)(((int)app.Store.Settings.formatDetection+1)%3));Draw();});
-            var instructions=UiFactory.Label(content,"扳机开关简易面板；A / X 或菜单键开关完整面板；Y / B 返回。摇杆左右 ±10 秒。\n自动字幕：中文后缀 → 无后缀 → 其他语言；手动选择与关闭状态优先。\n键盘：空格播放暂停，← / → 快退快进，Tab 完整面板，Esc 返回。观看方向使用系统重置。",0,478,1376,122,24);instructions.textWrappingMode=TextWrappingModes.Normal;
+            var playback=UiFactory.RoundedBox(content,"Playback settings",0,0,UiTheme.PageWidth,288,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(playback,"播放",24,24,1304,48,30);
+            SteppedSetting(playback,"播放速度",88,.25f,3,app.Store.Settings.speed,app.SetSpeed,"倍");
+            SteppedSetting(playback,"视频亮度",152,.3f,1.8f,app.Presenter.Settings.brightness,v=>app.Presenter.Settings.brightness=v);
+            var qualityLabel=UiFactory.Label(playback,"渲染画质",24,216,200,48,26);float qualityLabelWidth=Mathf.Ceil(qualityLabel.preferredWidth);qualityLabel.rectTransform.sizeDelta=new Vector2(qualityLabelWidth,qualityLabel.rectTransform.sizeDelta.y);
+            float qualityStart=24+qualityLabelWidth+UiTheme.ControlGap,qualityWidth=(1328-qualityStart-2*UiTheme.ControlGap)/3;string[] qualities={"均衡 1.0×","高清 1.25×","超清 1.5×"};
+            for(int i=0;i<3;i++){int quality=i;UiFactory.Button(playback,qualities[i],qualityStart+i*(qualityWidth+UiTheme.ControlGap),216,qualityWidth,48,()=>{app.RenderQuality.Select((RenderQuality)quality);Draw();},(int)app.Store.Settings.renderQuality==i);}
+            var behavior=UiFactory.RoundedBox(content,"Behavior settings",0,312,664,302,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(behavior,"播放行为",24,24,616,48,30);
+            UiFactory.ToggleRow(behavior,"单片循环","单片循环",()=>app.Store.Settings.loop,24,80,616,value=>{app.Store.Settings.loop=value;app.Backend?.SetRepeat(value);},56);
+            UiFactory.ToggleRow(behavior,"目录连播","目录连播",()=>app.Store.Settings.sequential,24,150,616,value=>app.Store.Settings.sequential=value,56);
+            UiFactory.ToggleRow(behavior,"自动隐藏","自动隐藏面板",()=>app.Store.Settings.autoHide,24,220,616,value=>app.Store.Settings.autoHide=value,56);
+            var subtitles=UiFactory.RoundedBox(content,"Subtitle settings",0,638,664,156,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(subtitles,"字幕与音轨",24,24,616,44,30);
+            UiFactory.ToggleRow(subtitles,"自动加载同名 SRT","自动加载同名 SRT",()=>app.Store.Settings.autoLoadSubtitles,24,80,616,app.SetAutoLoadSubtitles,52);
+            var recognition=UiFactory.RoundedBox(content,"Recognition settings",688,312,664,216,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(recognition,"格式识别",24,24,616,48,30);UiFactory.Label(recognition,"识别影片的投影与立体布局",24,80,616,40,23).color=UiTheme.Muted;
+            string[] detection={"关闭","标签与元数据","增强识别"};
+            for(int i=0;i<3;i++){int mode=i;var option=UiFactory.Button(recognition,detection[i],24+i*210,136,196,56,()=>{app.SetFormatDetectionMode((FormatDetectionMode)mode);Draw();},(int)app.Store.Settings.formatDetection==i);option.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;}
+            var other=UiFactory.RoundedBox(content,"Other settings",688,552,664,242,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(other,"其他",24,24,616,48,30);
+            UiFactory.Button(other,"选择音轨 / 内嵌字幕",24,88,616,56,DrawTracks);
+            var clear=UiFactory.Button(other,"清空播放记录",24,160,616,56,app.ClearPlaybackHistory);UiFactory.Icon(clear.transform,QuickIcon.Trash,28,13,30,UiTheme.Muted);
         }
         private void DrawTracks()
         {
-            BeginModal("tracks");UiFactory.Label(content,"音轨与内嵌字幕",0,0,1000,50,32);UiFactory.Button(content,"返回",1190,0,186,48,Draw);
-            UiFactory.Button(content,"自动音轨",0,68,285,48,()=>app.Backend?.SelectTrack("auto",1));UiFactory.Button(content,"关闭内嵌字幕",304,68,320,48,app.DisableSubtitles);
+            BeginModal("tracks");UiFactory.Label(content,"音轨与内嵌字幕",0,0,1000,64,32);UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,Draw);
+            UiFactory.Button(content,"自动音轨",0,88,285,56,()=>app.Backend?.SelectTrack("auto",1));UiFactory.Button(content,"关闭内嵌字幕",304,88,320,56,app.DisableSubtitles);
             var tracks=app.Backend?.Snapshot.tracks??Array.Empty<MediaTrack>();
-            for(int i=0;i<Math.Min(tracks.Length,8);i++){var track=tracks[i];UiFactory.Button(content,(track.type==1?"音轨  ":"字幕  ")+track.name+(track.supported?"":"  [解码器不支持]"),0,138+i*54,1376,48,()=>{if(track.type==1){app.Backend?.SelectTrack(track.id,1);if(app.Current!=null)app.Current.audio=track.id;}else app.EmbeddedSubtitle(track.id);},track.selected);}
-            if(tracks.Length==0)UiFactory.Label(content,"请先打开视频；轨道信息将在媒体准备完成后出现。",0,150,1376,60,25);
+            for(int i=0;i<Math.Min(tracks.Length,8);i++){var track=tracks[i];UiFactory.Button(content,(track.type==1?"音轨  ":"字幕  ")+track.name+(track.supported?"":"  [解码器不支持]"),0,168+i*64,UiTheme.PageWidth,56,()=>{if(track.type==1){app.Backend?.SelectTrack(track.id,1);if(app.Current!=null)app.Current.audio=track.id;}else app.EmbeddedSubtitle(track.id);},track.selected);}
+            if(tracks.Length==0)UiFactory.Label(content,"请先打开视频；轨道信息将在媒体准备完成后出现。",0,168,UiTheme.PageWidth,64,25);
         }
-        private void DrawInfo(){detail=UiFactory.Label(content,"",0,0,1376,590,25);detail.textWrappingMode=TextWrappingModes.Normal;detail.alignment=TextAlignmentOptions.TopLeft;}
+        private void DrawInfo()
+        {
+            infoRefreshAt=0;UiFactory.Label(content,"播放信息与诊断",0,0,UiTheme.PageWidth,54,34);
+            var host=UiFactory.Rect(content,"Diagnostics scroll",0,78,UiTheme.PageWidth,716);infoScroll=host.gameObject.AddComponent<ListScrollRect>();infoScroll.horizontal=false;infoScroll.movementType=ScrollRect.MovementType.Clamped;
+            var viewport=UiFactory.Box(host,"Viewport",0,0,1320,716,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();infoScroll.viewport=viewport;
+            infoBody=UiFactory.Rect(viewport,"Diagnostics",0,0,1320,PlaybackInfoUI.Height);infoScroll.content=infoBody;infoCards=new PlaybackInfoUI(infoBody);
+            var rail=UiFactory.Box(host,"Scrollbar",1336,0,10,716,UiTheme.Surface,true);var bar=rail.gameObject.AddComponent<Scrollbar>();var handle=UiFactory.Box(rail,"Handle",0,0,10,716,UiTheme.Muted,true);handle.anchorMin=Vector2.zero;handle.anchorMax=Vector2.one;handle.offsetMin=handle.offsetMax=Vector2.zero;bar.handleRect=handle;bar.targetGraphic=handle.GetComponent<Image>();bar.direction=Scrollbar.Direction.BottomToTop;infoScroll.verticalScrollbar=bar;
+        }
         public void CancelSmbConnection(){connection?.Cancel();connection?.Dispose();connection=null;if(modal=="connecting")Draw();}
-        private void CloseKeyboard(){keyboardTarget?.DeactivateInputField();keyboardTarget=null;if(keyboard!=null)keyboard.gameObject.SetActive(false);fileList?.Block(false);embyBrowser?.Block(false);}
+        private void CloseKeyboard(){keyboardTarget?.DeactivateInputField();keyboardTarget=null;if(keyboard!=null)keyboard.gameObject.SetActive(false);fileList?.Block(false);subtitleList?.Block(false);embyBrowser?.Block(false);}
         private void CompleteKeyboard(){bool search=keyboardTarget==filter;CloseKeyboard();if(search)Draw();else if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Render();}
-        private void BeginModal(string name){CancelSmbConnection();app.StopDiscovery();CloseKeyboard();RememberFileOffset();fileRowsReady=false;UiFactory.Clear(content);fileList=null;preview=null;modal=name;}
+        private void BeginModal(string name){CancelSmbConnection();app.StopDiscovery();CloseKeyboard();RememberFileOffset();fileRowsReady=false;subtitleNavigation.gameObject.SetActive(false);UiFactory.Clear(content);fileList=null;subtitleList=null;infoScroll=null;infoBody=null;infoCards=null;preview=brightPreview=null;modal=name;}
         private void ReturnFromModal(){CancelSmbConnection();CloseKeyboard();Draw();if(CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         private void ConnectHost(DiscoveredSmbHost host)=>_ = EnumerateShares(new SmbServer{name=host.name,host=host.host,port=host.port});
         private async Task EnumerateShares(SmbServer server)
         {
-            BeginModal("connecting");UiFactory.Label(content,"正在连接 "+server.host+" 并读取共享…",0,70,1376,80,30);UiFactory.Button(content,"取消",1100,0,276,48,ReturnFromModal);
+            BeginModal("connecting");UiFactory.Label(content,"正在连接 "+server.host+" 并读取共享…",0,88,UiTheme.PageWidth,80,30);UiFactory.Button(content,"取消",1112,0,240,64,ReturnFromModal);
             connection=new CancellationTokenSource();var token=connection.Token;
             try{
                 var result=await app.Smb.Shares(server,token);if(token.IsCancellationRequested)return;
                 if(!result.ok){DrawConnectionForm(server,result.error);return;}
-                BeginModal("shares");UiFactory.Label(content,"选择共享 · "+server.host,0,0,1040,50,30);UiFactory.Button(content,"返回",1160,0,216,48,ReturnFromModal);
-                var root=UiFactory.Rect(content,"Shares",0,74,1376,450);fileList=root.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(1376,450);
+                BeginModal("shares");UiFactory.Label(content,"选择共享 · "+server.host,0,0,1040,64,30);UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,ReturnFromModal);
+                var root=UiFactory.Rect(content,"Shares",0,88,UiTheme.PageWidth,450);fileList=root.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(UiTheme.PageWidth,450);
                 var rows=(result.shares??Array.Empty<SmbShare>()).Select(share=>new BrowserRow{key=share.name,label=share.name+"  "+share.comment,detail="打开",open=()=>SaveSharedFolder(server,share.name)}).ToList();
                 if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label="服务器未返回可用磁盘共享，可手填共享名。"});fileList.SetRows(rows);
                 UiFactory.Button(content,"手填共享名 / 更换账号",0,548,480,48,()=>DrawConnectionForm(server,""));
@@ -401,12 +490,12 @@ namespace VRPlayer
         }
         private void DrawConnectionForm(SmbServer server,string error)
         {
-            BeginModal("login");UiFactory.Label(content,"连接 "+server.host,0,0,1000,50,30);UiFactory.Button(content,"返回",1160,0,216,48,ReturnFromModal);
-            UiFactory.Label(content,error,0,64,1376,56,23);
+            BeginModal("login");UiFactory.Label(content,"连接 "+server.host,0,0,1000,64,30);UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,ReturnFromModal);
+            UiFactory.Label(content,error,0,88,UiTheme.PageWidth,56,23);
             string[] labels={"用户名（空为匿名）","密码","域（可留空）","共享名（可选）"};string[] initial={server.username,server.password,server.domain,server.share};var fields=new List<TMP_InputField>();
-            for(int i=0;i<4;i++){UiFactory.Label(content,labels[i],0,142+i*66,350,48,25);fields.Add(UiFactory.Input(content,initial[i],labels[i],370,142+i*66,1006,48,ShowKeyboard,i==1));}
-            UiFactory.Button(content,server.remember?"保存密码：开":"保存密码：关",0,430,310,48,()=>{ReadCredentials();server.remember=!server.remember;DrawConnectionForm(server,error);});
-            UiFactory.Button(content,server.encrypt?"SMB 加密：开":"SMB 加密：关",330,430,310,48,()=>{ReadCredentials();server.encrypt=!server.encrypt;DrawConnectionForm(server,error);});
+            for(int i=0;i<4;i++){UiFactory.Label(content,labels[i],0,168+i*66,350,48,25);fields.Add(UiFactory.Input(content,initial[i],labels[i],370,168+i*66,982,48,ShowKeyboard,i==1));}
+            UiFactory.ToggleRow(content,"保存密码","保存密码",()=>server.remember,0,440,310,value=>server.remember=value,64);
+            UiFactory.ToggleRow(content,"SMB 加密","SMB 加密",()=>server.encrypt,350,440,310,value=>server.encrypt=value,64);
             UiFactory.Button(content,"列出共享",0,528,470,56,()=>{ReadCredentials();CloseKeyboard();_ = EnumerateShares(server);},true);
             UiFactory.Button(content,"打开指定共享",492,528,470,56,()=>{ReadCredentials();if(string.IsNullOrWhiteSpace(fields[3].text)){app.SetStatus("请填写共享名，或选择“列出共享”");return;}SaveSharedFolder(server,fields[3].text);});
             void ReadCredentials(){server.username=fields[0].text;server.password=fields[1].text;server.domain=fields[2].text;server.share=fields[3].text;}
@@ -420,25 +509,26 @@ namespace VRPlayer
         private void DrawServerForm()=>DrawServerForm(null);
         private void DrawServerForm(SmbServer existing)
         {
-            BeginModal("server");UiFactory.Label(content,existing==null?"添加 SMB 服务器":"编辑 SMB 服务器",0,0,900,55,32);UiFactory.Button(content,"取消",1180,0,196,48,ReturnFromModal);
-            if(existing!=null)UiFactory.Button(content,"删除配置",920,0,240,48,()=>{app.RemoveServer(existing.id);Draw();});
+            BeginModal("server");UiFactory.Label(content,existing==null?"添加 SMB 服务器":"编辑 SMB 服务器",0,0,900,64,32);UiFactory.IconButton(content,"取消",QuickIcon.Close,1288,0,ReturnFromModal);
+            if(existing!=null)UiFactory.Button(content,"删除配置",920,0,240,64,()=>{app.RemoveServer(existing.id);Draw();});
             string[] labels={"显示名称","主机 / IP","共享名","用户名（空为匿名）",existing==null?"密码":"密码（空则保留）","域（可留空）"};var fields=new List<TMP_InputField>();var initial=existing??new SmbServer();string[] values={initial.name,initial.host,initial.share,initial.username,"",initial.domain};
-            for(int i=0;i<labels.Length;i++){float y=75+i*67;UiFactory.Label(content,labels[i],0,y,345,50,25);fields.Add(UiFactory.Input(content,values[i],labels[i],370,y,1006,50,ShowKeyboard,i==4));}
-            bool remember=initial.remember,encrypt=initial.encrypt;var rememberButton=UiFactory.Button(content,remember?"保存密码：开":"保存密码：关",0,493,296,48,null);rememberButton.onClick.AddListener(()=>{remember=!remember;rememberButton.GetComponentInChildren<TextMeshProUGUI>().text=remember?"保存密码：开":"保存密码：关";});
-            var encryptionButton=UiFactory.Button(content,encrypt?"SMB 加密：开":"SMB 加密：关",314,493,296,48,null);encryptionButton.onClick.AddListener(()=>{encrypt=!encrypt;encryptionButton.GetComponentInChildren<TextMeshProUGUI>().text=encrypt?"SMB 加密：开":"SMB 加密：关";});
+            for(int i=0;i<labels.Length;i++){float y=88+i*67;UiFactory.Label(content,labels[i],0,y,345,50,25);fields.Add(UiFactory.Input(content,values[i],labels[i],370,y,982,50,ShowKeyboard,i==4));}
+            bool remember=initial.remember,encrypt=initial.encrypt;UiFactory.ToggleRow(content,"保存密码","保存密码",()=>remember,0,493,296,value=>remember=value,56);
+            UiFactory.ToggleRow(content,"SMB 加密","SMB 加密",()=>encrypt,320,493,296,value=>encrypt=value,56);
             var port=UiFactory.Input(content,initial.port.ToString(),"端口",632,493,186,48,ShowKeyboard);UiFactory.Label(content,"端口",834,493,150,48,24);
-            UiFactory.Button(content,"保存并返回服务器列表",0,560,1376,48,()=>{if(!int.TryParse(port.text,out int parsed)||parsed<1||parsed>65535){app.SetStatus("请输入 1–65535 之间的端口");return;}
+            UiFactory.Button(content,"保存并返回服务器列表",0,560,UiTheme.PageWidth,48,()=>{if(!int.TryParse(port.text,out int parsed)||parsed<1||parsed>65535){app.SetStatus("请输入 1–65535 之间的端口");return;}
                 var server=new SmbServer{id=initial.id,name=fields[0].text,host=fields[1].text,share=fields[2].text,username=fields[3].text,password=fields[4].text,domain=fields[5].text,port=parsed,remember=remember,encrypt=encrypt};if(app.SaveServer(server)){keyboard.gameObject.SetActive(false);Draw();}},true);
         }
-        private void ShowKeyboard(TMP_InputField target){keyboardTarget=target;LastInteraction=Time.unscaledTime;keyboard.gameObject.SetActive(true);fileList?.Block(true);embyBrowser?.Block(true);DrawKeyboard();}
-        public void ScrollList(float direction){if(Quick!=null&&Quick.Visible){Quick.Scroll(direction);return;}if(keyboard!=null&&!keyboard.gameObject.activeSelf){if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Scroll(direction);else fileList?.Scroll(direction);}}
+        private void ShowKeyboard(TMP_InputField target){keyboardTarget=target;LastInteraction=Time.unscaledTime;keyboard.gameObject.SetActive(true);fileList?.Block(true);subtitleList?.Block(true);embyBrowser?.Block(true);DrawKeyboard();}
+        public void ScrollList(float direction){if(Visible&&infoScroll!=null&&infoScroll.enabled&&!infoScroll.HasDragOwner){infoScroll.StopMovement();infoBody.anchoredPosition=new Vector2(0,Mathf.Clamp(infoBody.anchoredPosition.y-direction*650*Time.unscaledDeltaTime,0,Mathf.Max(0,infoBody.rect.height-infoScroll.viewport.rect.height)));return;}if(Quick!=null&&Quick.Visible){Quick.Scroll(direction);return;}if(keyboard!=null&&!keyboard.gameObject.activeSelf){if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Scroll(direction);else if(tab=="字幕")subtitleList?.Scroll(direction);else fileList?.Scroll(direction);}}
         private void UpdateKeyboardPreview(){if(keyboardPreview!=null&&keyboardTarget!=null)keyboardPreview.text=keyboardTarget.contentType==TMP_InputField.ContentType.Password?new string('•',keyboardTarget.text.Length):keyboardTarget.text;}
         private void DrawKeyboard()
         {
-            UiFactory.Clear(keyboard);keyboardPreview=UiFactory.Label(keyboard,"",20,12,1050,44,25);UpdateKeyboardPreview();UiFactory.Button(keyboard,"完成",1140,10,215,46,CompleteKeyboard);
+            UiFactory.Clear(keyboard);keyboardPreview=UiFactory.Label(keyboard,"",24,24,1252,64,25);UpdateKeyboardPreview();UiFactory.IconButton(keyboard,"完成",QuickIcon.Check,1292,24,CompleteKeyboard,tooltip:"完成输入");
             string[] rows={"1234567890-_=+","qwertyuiop[]\\","asdfghjkl;:'\"","zxcvbnm,./@:#"};
-            for(int row=0;row<rows.Length;row++)for(int col=0;col<rows[row].Length;col++){char c=rows[row][col];string key=shift?c.ToString().ToUpperInvariant():c.ToString();UiFactory.Button(keyboard,key,20+col*100,80+row*72,91,60,()=>Insert(key));}
-            UiFactory.Button(keyboard,shift?"小写":"大写",20,389,195,64,()=>{shift=!shift;DrawKeyboard();});UiFactory.Button(keyboard,"空格",235,389,580,64,()=>Insert(" "));UiFactory.Button(keyboard,"退格",835,389,245,64,()=>{if(keyboardTarget!=null&&keyboardTarget.text.Length>0)keyboardTarget.text=keyboardTarget.text.Substring(0,keyboardTarget.text.Length-1);UpdateKeyboardPreview();});UiFactory.Button(keyboard,"清空",1100,389,245,64,()=>{if(keyboardTarget!=null)keyboardTarget.text="";UpdateKeyboardPreview();});
+            const float keyWidth=(1380-48-13*8)/14f,keyPitch=keyWidth+8;
+            for(int row=0;row<rows.Length;row++)for(int col=0;col<rows[row].Length;col++){char c=rows[row][col];string key=shift?c.ToString().ToUpperInvariant():c.ToString();float left=(1380-(rows[row].Length*keyPitch-8))/2;UiFactory.Button(keyboard,key,left+col*keyPitch,104+row*72,keyWidth,60,()=>Insert(key));}
+            UiFactory.Button(keyboard,shift?"小写":"大写",24,404,192,64,()=>{shift=!shift;DrawKeyboard();});UiFactory.Button(keyboard,"空格",232,404,848,64,()=>Insert(" "));UiFactory.IconButton(keyboard,"退格",QuickIcon.Backspace,1096,404,()=>{if(keyboardTarget!=null&&keyboardTarget.text.Length>0)keyboardTarget.text=keyboardTarget.text.Substring(0,keyboardTarget.text.Length-1);UpdateKeyboardPreview();});UiFactory.Button(keyboard,"清空",1176,404,180,64,()=>{if(keyboardTarget!=null)keyboardTarget.text="";UpdateKeyboardPreview();});
         }
         private void Insert(string text){if(keyboardTarget==null)return;keyboardTarget.text+=text;keyboardTarget.caretPosition=keyboardTarget.text.Length;UpdateKeyboardPreview();}
         private void OnDestroy(){CancelSmbConnection();if(app!=null){app.Changed-=OnAppChanged;app.DiscoveryChanged-=RefreshFileRows;}if(Canvas!=null)Destroy(Canvas.gameObject);if(transportRoot!=null)Destroy(transportRoot.gameObject);}

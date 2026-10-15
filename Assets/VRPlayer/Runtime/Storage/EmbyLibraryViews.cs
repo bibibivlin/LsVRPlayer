@@ -36,6 +36,23 @@ namespace VRPlayer
             EmbyLibraryView.Table=>new EmbyWallLayout(1,1314,84,84*9f/16,72,80),
             _=>new EmbyWallLayout(6,204,204,306,386,404)
         };
+        public static EmbyWallLayout Layout(EmbyLibraryView view,float viewportWidth)
+        {
+            var original=Layout(view);float usable=Math.Max(204,viewportWidth-28);
+            if(view==EmbyLibraryView.List||view==EmbyLibraryView.Table)return new EmbyWallLayout(1,usable,original.ArtworkWidth,original.ArtworkHeight,original.CardHeight,original.Pitch);
+            int columns=Math.Max(1,(int)Math.Floor((usable+18)/(original.Width+18)));
+            float width=(usable-(columns-1)*18)/columns;
+            float artHeight=width*original.ArtworkHeight/original.ArtworkWidth;
+            return new EmbyWallLayout(columns,width,width,artHeight,artHeight+80,artHeight+98);
+        }
+        public static EmbyWallLayout HomeLayout(float viewportWidth,bool thumbnails)
+        {
+            float usable=Math.Max(192,viewportWidth-28);
+            int columns=Math.Max(1,(int)Math.Floor((usable+18)/(192+18)));
+            float width=(usable-(columns-1)*18)/columns;
+            float artHeight=thumbnails?width*9f/16:width*1.5f;
+            return new EmbyWallLayout(columns,width,width,artHeight,artHeight+80,artHeight+98);
+        }
         public static string ImageType(EmbyItem item,EmbyLibraryView view)
         {
             string requested=Normalize(view) switch {
