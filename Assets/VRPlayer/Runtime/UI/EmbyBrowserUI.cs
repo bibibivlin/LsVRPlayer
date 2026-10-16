@@ -240,7 +240,7 @@ namespace VRPlayer
         }
         private void DrawHome()
         {
-            BeginScroll(76,root.rect.height-90);var state=app.EmbyState;float y=0;
+            BeginScroll(76,root.rect.height-90);var state=app.EmbyState;float y=PlayedFeedback(0);
             y=SectionTitle("我的媒体",y);
             var views=state.views??Array.Empty<EmbyItem>();
             if(views.Length==0){UiFactory.Label(body,"此账户没有可访问的媒体库",18,y,BodyWidth-36,58,26).color=Muted;y+=78;}
@@ -329,6 +329,25 @@ namespace VRPlayer
             UiFactory.Label(card.transform,meta,8,artHeight+46,width-16,34,20).color=Muted;
             float progress=Progress(item);if(progress>0){UiFactory.Box(card.transform,"Progress rail",0,artHeight-6,width,6,new Color(0,0,0,.6f));UiFactory.Box(card.transform,"Progress",0,artHeight-6,width*progress,6,Green);}
             if(item.UserData?.Played==true){UiFactory.Box(card.transform,"Watched",width-52,8,44,28,Green);UiFactory.Label(card.transform,"已看",width-52,8,44,28,17,TextAlignmentOptions.Center);}
+            if(thumbnails&&item.IsPlayable){
+                const float markSize=44;
+                var mark=UiFactory.IconButton(card.transform,"标记为已播放",QuickIcon.Check,width-markSize-10,artHeight-markSize-14,PlayedAction(item,true),tooltip:"标记为已播放",size:markSize);
+                mark.name="Emby played "+item.Id;mark.interactable=!app.EmbyPlayedBusy;
+                card.gameObject.AddComponent<UiHoverAction>().Initialize(mark.gameObject.AddComponent<CanvasGroup>());
+            }
+        }
+        private Action PlayedAction(EmbyItem item,bool played)
+        {
+            var state=app.EmbyState;var account=app.ActiveEmbyAccount;
+            return ()=>{if(app.Source!=FileSource.Emby||app.EmbyState!=state||app.ActiveEmbyAccount!=account)return;closeKeyboard?.Invoke();_ = app.SetEmbyPlayed(item,played);};
+        }
+        private float PlayedFeedback(float y)
+        {
+            string message=app.EmbyState.playedError;
+            if(string.IsNullOrEmpty(message)&&!string.IsNullOrEmpty(app.EmbyState.playedItemId))message="正在同步播放状态…";
+            if(string.IsNullOrEmpty(message))return y;
+            var label=UiFactory.Label(body,message,18,y,BodyWidth-36,44,23);label.color=Muted;label.textWrappingMode=TextWrappingModes.Normal;
+            float height=Mathf.Max(44,label.GetPreferredValues(message,BodyWidth-36,float.PositiveInfinity).y+12);label.rectTransform.sizeDelta=new Vector2(BodyWidth-36,height);return y+height+14;
         }
         private float BuildPosterWall(EmbyItem[] items,float top,EmbyLibraryView view=EmbyLibraryView.Poster)
         {
@@ -440,29 +459,7 @@ namespace VRPlayer
             float metaY=nameHeight+20;
             UiFactory.Label(body,DetailsMeta(item),290,metaY,BodyWidth-304,42,25).color=Muted;
             float playY=metaY+60;
-            float actionsBottom=playY+56;
-            if(item.IsBrowsable){Button(body,"浏览季 / 剧集",290,playY,280,56,()=>app.OpenEmbyLibrary(item),true);}
-            else{
-                var last=app.EmbyMovieResume;
-                long currentTicks=app.EmbyPartProgress(item)?.PositionTicks??item.UserData?.PlaybackPositionTicks??0;
-                if(last!=null){
-                    int cd=Array.FindIndex(app.EmbyState.parts,part=>part.Id==last.Item.Id)+1;
-                    var label=UiFactory.Label(body,(last.HasLastPlayed?"上次播放":"已保存进度")+"：CD"+cd+" · "+DisplayName(last.Item),290,playY,BodyWidth-304,42,25);label.color=Muted;
-                    float primaryY=playY+48;
-                    Button(body,(last.PositionTicks>0?"继续播放":"播放上次部分")+" · CD"+cd+(last.PositionTicks>0?" · "+TicksClock(last.PositionTicks):""),290,primaryY,Mathf.Min(416,BodyWidth-304),56,()=>app.ContinueEmbyMovie(),true);
-                    actionsBottom=primaryY+56;
-                    if(last.Item.Id!=item.Id){
-                        float secondaryY=primaryY+68;
-                        if(currentTicks>0)Button(body,"仅继续 CD1 · "+TicksClock(currentTicks),290,secondaryY,360,48,()=>app.PlayEmby(item,true));
-                        Button(body,"CD1 从头播放",290,secondaryY+(currentTicks>0?64:0),280,56,()=>app.PlayEmby(item,false));
-                        actionsBottom=secondaryY+(currentTicks>0?120:56);
-                    }else {Button(body,"从头播放",290,primaryY+76,256,56,()=>app.PlayEmby(item,false));actionsBottom=primaryY+132;}
-                }else{
-                    float primaryWidth=currentTicks>0?320:248;
-                    Button(body,currentTicks>0?"继续播放 · "+TicksClock(currentTicks):"播放",290,playY,primaryWidth,56,()=>app.PlayEmby(item,true),true);
-                    if(currentTicks>0)Button(body,"从头播放",290+primaryWidth+16,playY,224,56,()=>app.PlayEmby(item,false));
-                }
-            }
+            float actionsBottom=DrawDetailActions(item,playY);
             string overview=string.IsNullOrWhiteSpace(item.Overview)?"暂无影片简介":PlainOverview(item.Overview);
             if(overview.Length>10000)overview=overview.Substring(0,10000)+"…";
             float overviewY=actionsBottom+22;
@@ -479,6 +476,37 @@ namespace VRPlayer
             if(people.Length>0){float heading=y+16;y=SectionTitle("演员与主创",heading)+22;BuildCast(people,y);UiFactory.IconButton(body,"←",QuickIcon.Back,BodyWidth-158,heading,()=>MoveCast(-1),tooltip:"向左浏览演员与主创");UiFactory.IconButton(body,"→",QuickIcon.Forward,BodyWidth-78,heading,()=>MoveCast(1),tooltip:"向右浏览演员与主创");y+=306;}
             y=DetailVideos("花絮与预告",app.EmbyState.extras,y,false);
             FinishScroll(y+20);
+        }
+        private float DrawDetailActions(EmbyItem item,float y)
+        {
+            if(item.IsBrowsable){Button(body,"浏览季 / 剧集",290,y,280,64,()=>app.OpenEmbyLibrary(item),true);return y+64;}
+            var last=app.EmbyMovieResume;
+            long currentTicks=app.EmbyPartProgress(item)?.PositionTicks??item.UserData?.PlaybackPositionTicks??0;
+            bool played=item.Type=="Movie"&&app.EmbyState.parts.Length>1?app.EmbyState.parts.All(part=>part.UserData?.Played==true):item.UserData?.Played==true;
+            int cd=last==null?1:Array.FindIndex(app.EmbyState.parts,part=>part.Id==last.Item.Id)+1;
+            string progress=last!=null?(last.HasLastPlayed?"上次播放":"已保存进度")+"：CD"+cd+" · "+TicksClock(last.PositionTicks):currentTicks>0?"已播放 · "+TicksClock(currentTicks):played?"已播放":"";
+            if(!string.IsNullOrEmpty(progress)){UiFactory.Label(body,progress,290,y,BodyWidth-304,40,24).color=Muted;y+=50;}
+            float width=BodyWidth-304;int columns=width>=722?3:2;float actionWidth=(width-(columns-1)*16)/columns;
+            int count=0;
+            void Action(string title,QuickIcon icon,System.Action callback,bool primary=false,bool selected=false,bool enabled=true)
+            {
+                var button=Button(body,title,290+count%columns*(actionWidth+16),y+count/columns*80,actionWidth,64,callback,primary||selected);
+                button.name="Emby action "+title;button.interactable=enabled;
+                var label=button.GetComponentInChildren<TextMeshProUGUI>();label.fontSize=23;label.rectTransform.anchoredPosition=new Vector2(50,0);label.rectTransform.sizeDelta=new Vector2(actionWidth-62,64);
+                UiFactory.Icon(button.transform,icon,16,20,24,primary||selected?UiTheme.Ink:UiTheme.Text);count++;
+            }
+            bool resume=last!=null||currentTicks>0;
+            Action(last!=null?last.PositionTicks>0?"继续播放 · CD"+cd:"播放上次 CD":currentTicks>0?"继续播放":"播放",QuickIcon.Play,()=>{if(last!=null)app.ContinueEmbyMovie();else app.PlayEmby(item,true);},true,enabled:!app.EmbyPlayedBusy);
+            if(resume)Action(app.EmbyState.parts.Length>1?"CD1 从头播放":"从头播放",QuickIcon.Play,()=>app.PlayEmby(item,false),enabled:!app.EmbyPlayedBusy);
+            if(item.IsPlayable)Action(!string.IsNullOrEmpty(app.EmbyState.playedItemId)?"正在同步…":played?"标记为未播放":"标记为已播放",QuickIcon.Check,PlayedAction(item,!played),selected:played,enabled:!app.EmbyPlayedBusy);
+            if(last!=null&&last.Item.Id!=item.Id&&currentTicks>0)Action("仅继续 CD1",QuickIcon.Play,()=>app.PlayEmby(item,true),enabled:!app.EmbyPlayedBusy);
+            float bottom=y+Mathf.CeilToInt(count/(float)columns)*80-16;
+            if(app.EmbyState.parts.Length>1){UiFactory.Label(body,"播放状态应用到整部电影的全部 CD",290,bottom+10,width,38,22).color=Muted;bottom+=48;}
+            if(!string.IsNullOrEmpty(app.EmbyState.playedError)){
+                var error=UiFactory.Label(body,app.EmbyState.playedError,290,bottom+12,width,44,23);error.textWrappingMode=TextWrappingModes.Normal;
+                float height=Mathf.Max(44,error.GetPreferredValues(error.text,width,float.PositiveInfinity).y+12);error.rectTransform.sizeDelta=new Vector2(width,height);bottom+=height+12;
+            }
+            return bottom;
         }
         private static List<KeyValuePair<string,string>> Categories(EmbyNamedItem[] named,string[] names)
         {

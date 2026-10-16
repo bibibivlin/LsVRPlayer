@@ -42,6 +42,22 @@ namespace VRPlayer.PlayModeTests
             Assert.That(actual.a,Is.EqualTo(expected.a).Within(.001),button.name+" alpha");
         }
 
+        [UnityTest] public IEnumerator CardActionRemainsHoveredWithAnotherPointerAndResetsWhenThePanelCloses()
+        {
+            var card=UiFactory.Button(root.transform,"Card",0,0,240,220,()=>{});
+            var button=UiFactory.IconButton(card.transform,"Watched",QuickIcon.Check,186,82,()=>{},size:44);
+            var group=button.gameObject.AddComponent<CanvasGroup>();var hover=card.gameObject.AddComponent<UiHoverAction>();hover.Initialize(group);
+            var first=new PointerEventData(EventSystem.current){pointerId=-10};var second=new PointerEventData(EventSystem.current){pointerId=-11};
+            Assert.That(group.alpha,Is.Zero);Assert.That(button.IsInteractable(),Is.False);
+            hover.OnPointerEnter(first);hover.OnPointerEnter(second);hover.OnPointerExit(first);
+            yield return null;
+            Assert.That(group.alpha,Is.EqualTo(1));Assert.That(button.IsInteractable(),Is.True);
+            root.SetActive(false);root.SetActive(true);yield return null;
+            Assert.That(group.alpha,Is.Zero);Assert.That(group.blocksRaycasts,Is.False);Assert.That(button.IsInteractable(),Is.False);
+            hover.OnPointerEnter(first);hover.OnPointerExit(first);
+            Assert.That(group.alpha,Is.Zero);Assert.That(group.blocksRaycasts,Is.False);
+        }
+
         [UnityTest] public IEnumerator SourceButtonsUseTheirFinalPaletteBeforeTheFirstFrame()
         {
             var inactive=UiFactory.SourceButton(root.transform,"Local",QuickIcon.Local,0,0,180,64,()=>{},false);

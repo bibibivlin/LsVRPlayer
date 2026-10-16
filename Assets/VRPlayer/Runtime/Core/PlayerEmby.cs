@@ -16,6 +16,7 @@ namespace VRPlayer
         public string filterKind="",filterValue="",filterId="";
         public string viewLibraryId="";
         public bool loading,canGoBack;
+        public string playedItemId="",playedError="";
         public int revision,totalCount,startIndex;
         public EmbyItem[] views=Array.Empty<EmbyItem>(),resume=Array.Empty<EmbyItem>(),latest=Array.Empty<EmbyItem>(),items=Array.Empty<EmbyItem>(),parts=Array.Empty<EmbyItem>(),extras=Array.Empty<EmbyItem>();
         public EmbyItem selected,parent;
@@ -195,7 +196,7 @@ namespace VRPlayer
             try{
                 await embyReports;token.ThrowIfCancellationRequested();
                 var detail=await EmbyApi.GetItem(account,item.Id,token);
-                if(directory!=null)detail=await ResolveEmbyContainingItem(account,detail,directory,token);
+                if(directory!=null||detail.IsAdditionalPart)detail=await ResolveEmbyContainingItem(account,detail,directory,token);
                 var parts=EmbyApi.GetAdditionalParts(account,detail.Id,token);
                 var extras=EmbyApi.GetExtras(account,detail.Id,token);
                 await Task.WhenAll(parts,extras);
@@ -278,6 +279,7 @@ namespace VRPlayer
         }
         public void CancelEmbyBrowsing(bool cancelPlayback=true)
         {
+            CancelEmbyPlayedChange();
             embyBrowsing?.Cancel();embyBrowsing?.Dispose();embyBrowsing=null;
             if(EmbyState.loading){EmbyState.loading=false;EmbyState.revision=++embyRevision;}
             if(cancelPlayback){embyRecentReturn=false;CancelEmbyPlaybackRequest();}
@@ -310,8 +312,9 @@ namespace VRPlayer
                 var parts=ActiveEmbyAccount==null?null:EmbyMovieParts.FromDetails(ActiveEmbyAccount.id,EmbyState);
                 if(parts==null)return null;
                 var snapshot=Backend?.Snapshot;
-                if(parts.IndexOfUri(Current?.uri)>=0&&snapshot?.generation==Generation&&snapshot.state==3)
+                if(!EmbyProgressSuppressed&&!embyMarkingPlayback&&parts.IndexOfUri(Current?.uri)>=0&&snapshot?.generation==Generation&&snapshot.state==3)
                     return ReadEmbyPartProgress(parts,parts.Items[parts.IndexOfUri(Current.uri)]);
+                if(parts.Items.All(item=>item.UserData?.Played==true&&item.UserData.PlaybackPositionTicks==0))return null;
                 return parts.LastPlayed(Store==null?null:new Func<string,PlaybackRecord>(Store.Find));
             }
         }
@@ -326,7 +329,7 @@ namespace VRPlayer
         {
             var progress=parts.ProgressFor(item,Store==null?null:new Func<string,PlaybackRecord>(Store.Find));
             var snapshot=Backend?.Snapshot;
-            if(progress!=null&&Current?.uri==EmbyIdentity.Create(parts.AccountId,item.Id)&&snapshot?.generation==Generation&&snapshot.state==3)
+            if(!EmbyProgressSuppressed&&!embyMarkingPlayback&&progress!=null&&Current?.uri==EmbyIdentity.Create(parts.AccountId,item.Id)&&snapshot?.generation==Generation&&snapshot.state==3)
                 return new EmbyPartResume(item,Math.Min(Math.Max(0,snapshot.position),long.MaxValue/10000)*10000,DateTimeOffset.UtcNow);
             return progress;
         }
@@ -386,7 +389,7 @@ namespace VRPlayer
                 var playback=await EmbyApi.GetPlayback(captured,itemId,position,token);
                 if(token.IsCancellationRequested||generation!=Generation||embyDisposed)return;
                 var currentState=Backend?.Snapshot;
-                if(resume&&Current?.uri==EmbyIdentity.Create(account.id,itemId)&&currentState?.generation==Generation&&currentState.state==3)position=currentState.position;
+                if(resume&&!EmbyProgressSuppressed&&Current?.uri==EmbyIdentity.Create(account.id,itemId)&&currentState?.generation==Generation&&currentState.state==3)position=currentState.position;
                 playback.startPositionMs=position;
                 string parent=directory;
                 if(parts!=null)parent=EmbyIdentity.Create(account.id,parts.MainId);
@@ -452,6 +455,7 @@ namespace VRPlayer
         private bool AllowEmbyAdjacent(string targetUri,bool automatic)
         {
             if(!EmbyIdentity.TryParse(Current?.uri,out _,out _))return true;
+            if(automatic&&(EmbyProgressSuppressed||embyMarkingPlayback))return false;
             if(embyMovieParts?.IndexOfUri(Current.uri)>=0)return embyMovieParts.IndexOfUri(targetUri)>=0;
             return !automatic&&embyMovieExtras?.IndexOfUri(Current.uri)>=0&&embyMovieExtras.IndexOfUri(targetUri)>=0;
         }
@@ -499,7 +503,7 @@ namespace VRPlayer
         private static EmbyAccount CopyEmbyAccount(EmbyAccount account)=>new EmbyAccount{
             id=account.id,name=account.name,serverUrl=account.serverUrl,serverId=account.serverId,userId=account.userId,username=account.username,accessToken=account.accessToken,remember=account.remember
         };
-        private void CancelEmbyPlaybackRequest(){embyOpening?.Cancel();embyOpening?.Dispose();embyOpening=null;}
+        private void CancelEmbyPlaybackRequest(){CancelEmbyPlayedChange();embyOpening?.Cancel();embyOpening?.Dispose();embyOpening=null;}
         private void BeginEmbyPlayback(EmbyPlayback playback)
         {
             embyPlayback=playback;
@@ -509,6 +513,7 @@ namespace VRPlayer
         }
         private void TickEmbyPlayback(MediaSnapshot state)
         {
+            if(EmbyProgressSuppressed||embyMarkingPlayback)return;
             if(embyPlayback==null||state.generation!=embyPlaybackGeneration||Generation!=embyPlaybackGeneration)return;
             if(state.state==3&&!state.HasError){
                 embyLastPosition=state.position;
@@ -520,6 +525,7 @@ namespace VRPlayer
         }
         private void QueueEmbyReport(string kind,long position,bool paused)
         {
+            if(EmbyProgressSuppressed||embyMarkingPlayback)return;
             if(embyPlayback==null)return;
             if(kind=="progress"&&embyPendingReports>=2)return;
             embyReportAt=Time.unscaledTime+10;
