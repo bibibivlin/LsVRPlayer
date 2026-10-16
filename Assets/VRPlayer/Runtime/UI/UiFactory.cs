@@ -42,11 +42,11 @@ namespace VRPlayer
             SetColorsImmediate(button,UiTheme.ButtonColors());
             Label(rect,text,12,0,w-24,h,26,TextAlignmentOptions.Center);button.onClick.AddListener(()=>action?.Invoke());SetAccent(button,accent);return button;
         }
-        public static Button IconButton(Transform parent,string name,QuickIcon icon,float x,float y,Action action,bool accent=false,string tooltip=null)
+        public static Button IconButton(Transform parent,string name,QuickIcon icon,float x,float y,Action action,bool accent=false,string tooltip=null,float size=UiTheme.IconButtonSize)
         {
-            const float width=UiTheme.IconButtonSize,height=UiTheme.IconButtonSize;
+            float width=size,height=size,glyphSize=Mathf.Min(30,size*.5f);
             var button=Button(parent,name,x,y,width,height,action,accent);var text=button.GetComponentInChildren<TextMeshProUGUI>();text.gameObject.SetActive(false);
-            var graphic=Rect(button.transform,"Icon",(width-30)/2,(height-30)/2,30,30).gameObject.AddComponent<QuickIconGraphic>();graphic.Icon=icon;graphic.color=accent?UiTheme.Ink:TextColor;graphic.raycastTarget=false;
+            var graphic=Rect(button.transform,"Icon",(width-glyphSize)/2,(height-glyphSize)/2,glyphSize,glyphSize).gameObject.AddComponent<QuickIconGraphic>();graphic.Icon=icon;graphic.color=accent?UiTheme.Ink:TextColor;graphic.raycastTarget=false;
             button.gameObject.AddComponent<UiIconTooltip>().Initialize(button,text,tooltip);return button;
         }
         public static QuickIconGraphic Icon(Transform parent,QuickIcon icon,float x,float y,float size,Color color)

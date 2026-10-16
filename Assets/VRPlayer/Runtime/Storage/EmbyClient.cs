@@ -231,6 +231,40 @@ namespace VRPlayer
             return item;
         }
 
+        public async Task<EmbyItem[]> GetPlayedStateItems(EmbyAccount account, string itemId, CancellationToken token = default)
+        {
+            var item = await GetItem(account, itemId, token);
+            if (!item.IsPlayable || item.IsBrowsable) throw new InvalidOperationException("请选择影片或单集后标记播放状态");
+            var main = item;
+            if (item.IsAdditionalPart)
+            {
+                if (string.IsNullOrEmpty(item.ParentId)) throw new InvalidOperationException("无法确认此 CD 所属影片，请从影片详情重试");
+                main = await GetItem(account, item.ParentId, token);
+            }
+            // Only a movie's official AdditionalParts form a film-wide watched action. Never expand a series or extras.
+            if (main.Type != "Movie" || main.IsExtra || main.IsAdditionalPart)
+            {
+                if (item.IsAdditionalPart) throw new InvalidOperationException("无法确认此 CD 所属电影，请从影片详情重试");
+                return new[] { item };
+            }
+            var additional = await GetAdditionalParts(account, main.Id, token);
+            var parts = EmbyMovieParts.Create(account.id, main, additional.Where(part => part.Type == "Movie" || part.Type == "Video"));
+            if (item.IsAdditionalPart && (parts == null || parts.IndexOf(item.Id) < 0))
+                throw new InvalidOperationException("此 CD 不在服务器的影片分段列表中，请刷新后重试");
+            return parts?.Items.ToArray() ?? new[] { main };
+        }
+
+        public async Task<EmbyUserData> SetPlayed(EmbyAccount account, string itemId, bool played, CancellationToken token = default)
+        {
+            token.ThrowIfCancellationRequested(); RequireId(itemId);
+            string path = UserPath(account) + "/PlayedItems/" + Escape(itemId);
+            var result = Parse<EmbyUserData>(await SendAccount(account, path, played ? "POST" : "DELETE", null, token));
+            token.ThrowIfCancellationRequested();
+            if (result == null || result.Played != played || result.PlaybackPositionTicks != 0)
+                throw new InvalidOperationException("Emby 未确认播放状态，请刷新后重试");
+            return result;
+        }
+
         public async Task<EmbyPlayback> GetPlayback(EmbyAccount account, string itemId, long startMs, CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();

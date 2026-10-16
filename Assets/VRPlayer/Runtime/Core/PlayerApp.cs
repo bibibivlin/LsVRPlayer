@@ -258,7 +258,7 @@ namespace VRPlayer
         public void SaveProgress()
         {
             if(Store==null)return;var state=Backend?.Snapshot;
-            if(Current!=null&&state!=null&&state.generation==Generation&&state.duration>0){Current.position=state.state==4?0:state.position;}
+            if(!EmbyProgressSuppressed&&Current!=null&&state!=null&&state.generation==Generation&&state.duration>0){Current.position=state.state==4?0:state.position;}
             Store.Save();viewDistanceDirty=false;
             if(Source==FileSource.Recent)Notify();
         }

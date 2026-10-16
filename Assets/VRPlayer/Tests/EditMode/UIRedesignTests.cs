@@ -103,6 +103,33 @@ namespace VRPlayer.Tests
             foreach(var card in cards){var art=(RectTransform)card.Find("Artwork");Assert.That(art.rect.width/art.rect.height,Is.EqualTo(16f/9).Within(.001));}
             Assert.That(cards[5].anchoredPosition.y,Is.LessThan(cards[0].anchoredPosition.y));
         }
+        [TestCase(false)][TestCase(true)] public void MovieActionsShareTouchSizeAndKeepCdResumeSeparate(bool multipart)
+        {
+            Set("Source",FileSource.Emby);Set("ActiveEmbyAccount",new EmbyAccount{id="fixture"});
+            app.EmbyState.page=EmbyPage.Details;app.EmbyState.selected=new EmbyItem{Id="main",Name="Fixture",Type="Movie",UserData=new EmbyUserData{PlaybackPositionTicks=100000000,LastPlayedDate="2026-10-16T01:00:00Z"}};
+            if(multipart)app.EmbyState.parts=new[]{app.EmbyState.selected,new EmbyItem{Id="second",Type="Video",ExtraType="AdditionalPart",UserData=new EmbyUserData{PlaybackPositionTicks=200000000,LastPlayedDate="2026-10-16T02:00:00Z"}}};
+            ui.SelectTab("文件");var body=Field<RectTransform>(Field<EmbyBrowserUI>(ui,"embyBrowser"),"body");
+            var buttons=body.GetComponentsInChildren<Button>().Where(button=>button.name.StartsWith("Emby action ")).ToArray();
+            Assert.That(buttons.Length,Is.EqualTo(multipart?4:3));
+            var size=((RectTransform)buttons[0].transform).rect.size;
+            Assert.That(size.y,Is.EqualTo(64));Assert.That(size.x,Is.GreaterThanOrEqualTo(230));
+            Assert.That(buttons.All(button=>((RectTransform)button.transform).rect.size==size),Is.True);
+            Assert.That(buttons.Any(button=>button.name.Contains("标记为已播放")),Is.True);
+            Assert.That(buttons.Any(button=>button.name.Contains("仅继续 CD1")),Is.EqualTo(multipart));
+            foreach(var button in buttons){var rect=(RectTransform)button.transform;Assert.That(rect.anchoredPosition.x+rect.rect.width,Is.LessThanOrEqualTo(body.rect.width-14+.1f));}
+        }
+        [Test] public void ResumeCardsExposeTheirOwnWatchedActionWithoutOpeningDetails()
+        {
+            Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Home;app.EmbyState.resume=new[]{new EmbyItem{Id="main",Type="Movie"}};
+            ui.SelectTab("文件");var body=Field<RectTransform>(Field<EmbyBrowserUI>(ui,"embyBrowser"),"body");
+            var card=body.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby resume main");
+            var mark=card.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby played main");
+            Assert.That(((RectTransform)mark.transform).rect.size,Is.EqualTo(new Vector2(44,44)));Assert.That(mark.GetComponent<UiIconTooltip>(),Is.Not.Null);
+            Assert.That(mark.GetComponent<CanvasGroup>().alpha,Is.Zero);Assert.That(mark.GetComponent<CanvasGroup>().blocksRaycasts,Is.False);
+            card.GetComponent<UiHoverAction>().OnPointerEnter(new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-10});
+            Assert.That(mark.GetComponent<CanvasGroup>().alpha,Is.EqualTo(1));Assert.That(mark.GetComponent<CanvasGroup>().blocksRaycasts,Is.True);
+            mark.onClick.Invoke();Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Home));
+        }
         [TestCase(EmbyLibraryView.Poster)][TestCase(EmbyLibraryView.Thumb)][TestCase(EmbyLibraryView.Banner)]
         [TestCase(EmbyLibraryView.List)][TestCase(EmbyLibraryView.Table)][TestCase(EmbyLibraryView.Disc)][TestCase(EmbyLibraryView.Logo)]
         public void ArtworkCoversItsFrameWithoutStretchingWhileTransparentArtStaysComplete(EmbyLibraryView view)
