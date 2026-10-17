@@ -33,7 +33,7 @@ namespace VRPlayer.Editor
             PlayerSettings.insecureHttpOption=InsecureHttpOption.AlwaysAllowed;
             var pico=AssetDatabase.LoadAssetAtPath<PXR_Settings>("Assets/XR/Settings/PXR_Settings.asset");if(pico!=null){pico.stereoRenderingModeAndroid=PXR_Settings.StereoRenderingModeAndroid.Multiview;pico.systemDisplayFrequency=PXR_Settings.SystemDisplayFrequency.RefreshRate72;EditorUtility.SetDirty(pico);}
             if(TMP_Settings.instance==null){var package=UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(TMP_Settings).Assembly);AssetDatabase.ImportPackage(Path.Combine(package.resolvedPath,"Package Resources/TMP Essential Resources.unitypackage"),false);throw new InvalidOperationException("TMP essentials imported. Run Configure once importing has finished.");}
-            EnsureShaders();EnsureFont();
+            PlayerIcons.Configure();EnsureShaders();EnsureFont();
             var quality=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/QualitySettings.asset")[0]);
             var levels=quality.FindProperty("m_QualitySettings");for(int i=0;i<levels.arraySize;i++)levels.GetArrayElementAtIndex(i).FindPropertyRelative("antiAliasing").intValue=4;quality.ApplyModifiedPropertiesWithoutUndo();
             foreach(string path in new[]{"Assets/Plugins/Android/vrplayer-android.aar","Assets/Plugins/Android/arm64-v8a/libvrplayerrender.so"}){
