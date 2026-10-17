@@ -1,0 +1,62 @@
+name: 问题报告
+description: 报告播放、连接、字幕或界面问题
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        请先搜索已有问题。不要附上服务器地址、凭据、令牌、私人片名或未脱敏的设备备份。
+        安全漏洞请按 [安全政策](https://github.com/bibibivlin/LsVRPlayer/blob/main/SECURITY.md) 私密报告。
+  - type: input
+    id: version
+    attributes:
+      label: 应用版本
+      description: 发布版本或源码提交；请注明正式版或开发版。
+      placeholder: 例如 1.0.0 正式版
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 头显与系统
+      placeholder: 例如 PICO 4，系统版本……；编辑器问题请注明操作系统。
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: 涉及的来源
+      options:
+        - 本地
+        - SMB
+        - Emby
+        - 与文件来源无关 / 不确定
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开……
+        2. 执行……
+        3. 出现……
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 预期与实际结果
+      description: 描述预期行为、实际现象及是否每次都能复现。
+    validations:
+      required: true
+  - type: textarea
+    id: media
+    attributes:
+      label: 媒体信息（播放或字幕问题时填写）
+      description: 容器、视频 / 音频编码、分辨率、帧率、码率、字幕格式及投影类型。不需要私人文件名、路径或影片原件。
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 日志或截图（可选）
+      description: 仅提供复现所需片段，附加前检查并移除私人信息。

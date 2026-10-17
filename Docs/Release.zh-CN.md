@@ -43,10 +43,14 @@ Runner 安装在当前用户的 `%LOCALAPPDATA%/LsVRPlayer/actions-runner`。本
 
 ## 发布步骤
 
-1. 更新 Version 和递增 Version Code，添加 `Docs/Releases/v<版本>.zh-CN.md`。
+APK 公开分发前先完成 [许可与依赖分发核对](Licensing.zh-CN.md)。现有签名与测试流程不检查全部第三方分发条件。
+
+1. 更新 Version 和递增 Version Code，添加 `Docs/Releases/v<版本>.zh-CN.md`，整理 `CHANGELOG.md`，同步 README 的静态版本徽章。
 2. 提交 `codex/release-*` 分支并创建 PR；工具检查与实际签名构建通过后合并至 main。
 3. 给合并提交添加与 Version 完全一致的标签（例如 `v1.0.0`）并推送。
 4. 标签工作流再次运行完整构建、测试和签名。仅已合并到 main 的提交允许发布。
 5. 发布任务检查 artifact 的 SHA-256，再创建 GitHub Release 草稿、上传 APK／校验值／清单并发布为 Latest。失败时不发布成品，不覆盖既有 Release。
 
 `VRPlayer → Build Android APK` 仍保留开发包用途。正式包没有开发命令入口，设备自动化脚本不能替代最终正式包的手动／佩戴验收。既有开发包与新发布包跨签名安装前应备份数据。
+
+仓库治理与公开前准备见 [项目维护](Maintenance.zh-CN.md)。

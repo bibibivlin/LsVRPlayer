@@ -1,6 +1,8 @@
 # 第三方组件与来源
 
-本项目沿用用户已有的 Unity / PICO SDK，只新增免费或开源组件；没有付费播放器插件。
+项目自有代码与文档采用 [MIT](../LICENSE)；本页所列第三方组件、SDK、字体及导入资源保留各自条款，不由根目录 MIT 重新授权。完整许可范围及当前 APK 分发待核对事项见 [许可说明](Licensing.zh-CN.md)。
+
+本项目使用 Unity / PICO SDK，没有付费播放器插件。
 
 | 组件 | 固定版本 / 来源 | 许可证 / 用途 |
 | --- | --- | --- |
@@ -14,7 +16,7 @@
 
 Apache-2.0、SMBJ-RPC BSD-3-Clause、Jellyfin GPL-3.0 原文及 Jellyfin Maven POM 保存在 `Docs/Licenses`。SMBJ-RPC 许可证按[上游 LICENSE.txt](https://github.com/rapid7/smbj-rpc/blob/master/LICENSE.txt) 保留。Gradle 会解析 Media3、SMBJ、SMBJ-RPC 的传递依赖，包括 AndroidX、Guava、Apache Commons Lang、Bouncy Castle、SLF4J 等，具体解析结果以构建依赖报告为准。
 
-当前 FFmpeg 扩展采用上游现成 GPL 包，服务于已约定的个人安装使用。如果后续对外分发，需先重新评估此扩展与 Unity/PICO 分发条款的组合；可将它替换为自行构建的、仅启用所需音频解码器的适当许可 FFmpeg 扩展。此处没有为用户自有代码指定开源许可证。
+当前 FFmpeg 扩展采用上游现成 GPL 包。其与 Unity / PICO 运行时的组合分发条件、对应源码及构建 / 再链接材料仍需针对实际产物核对。项目自有代码采用 MIT 不会消除这些要求；选择替代解码器时也需核对其实际编译配置和适用许可。当前文档不能作为完整 APK 已完成分发许可核对的证明。
 
 `Tools/Generate-TestMedia.py` 的 imageio-ffmpeg 和 `Tools/Serve-TestSmb.py` 的 Impacket 只用于开发验证，不打入 APK；生成的测试视频不包含用户私人视频。测试服务器仅绑定 `127.0.0.1:1445`，只读暴露 `TestMedia`，通过 `adb reverse` 验证设备协议链路。
 

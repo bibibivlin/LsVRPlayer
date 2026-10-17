@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 使用与构建文档
+    url: https://github.com/bibibivlin/LsVRPlayer/blob/main/Docs/BuildAndUse.zh-CN.md
+    about: 安装、手柄操作、字幕、SMB 配置与源码构建。
+  - name: 安全问题
+    url: https://github.com/bibibivlin/LsVRPlayer/blob/main/SECURITY.md
+    about: 请先阅读私密报告流程，不在公开 Issue 中提供漏洞详情。

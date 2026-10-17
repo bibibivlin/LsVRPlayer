@@ -1,116 +1,63 @@
 # L's VRPlayer
 
-面向 PICO 4 的 Unity VR 视频播放器，当前正式版本为 **v1.0.0**。签名 APK、校验值和构建清单见 [GitHub Releases](https://github.com/bibibivlin/LsVRPlayer/releases/latest)，发布流程见 [正式版本构建与发布](Docs/Release.zh-CN.md)。
+[![Android Build](https://github.com/bibibivlin/LsVRPlayer/actions/workflows/android-release.yml/badge.svg)](https://github.com/bibibivlin/LsVRPlayer/actions/workflows/android-release.yml)
+[![release v1.0.0](https://img.shields.io/badge/release-v1.0.0-blue)](https://github.com/bibibivlin/LsVRPlayer/releases/latest)
+[![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](ProjectSettings/ProjectSettings.asset)
+[![PICO 4](https://img.shields.io/badge/PICO-4-00B8B0)](Docs/BuildAndUse.zh-CN.md)
 
-- 本地、SMB2 / SMB3 文件与 Emby 媒体服务器浏览和视频播放。
-- 普通平面、曲面影院，VR180 / VR360，SBS / OU、Half / Full、交换左右眼和单眼观看。
-- 同名及 chs / zh 等语言后缀 SRT、中文编码、字幕同步和位置设置、内嵌文本字幕。
-- 手柄射线、虚拟键盘、播放控制、进度恢复、目录连播、收藏、音轨与倍速设置。
+面向 **PICO 4** 的 VR 视频播放器，支持本地文件、SMB 共享和 Emby 媒体库。使用 Unity 开发。
 
-## 播放功能与兼容性
+[下载 APK](https://github.com/bibibivlin/LsVRPlayer/releases/latest) · [使用说明](Docs/BuildAndUse.zh-CN.md) · [问题反馈](https://github.com/bibibivlin/LsVRPlayer/issues)
 
-- SMB 播放增加 1 MiB 按需预读，合并解封装的小块网络请求；信息页增加缓冲余量、加载状态、内存和读取统计，后台记录缓冲事件。保留原缓冲阈值，播放连接支持正常空闲后继续读取。
-- 自动加载同目录、同片名 SRT（默认关闭），按中文后缀、无后缀、其他语言排序；记住每部影片的手动选择或关闭状态，支持恢复自动选择。
-- 最近播放按播放顺序更新，重播条目置顶，显示来源、时间和进度；本地 / SMB 的“所在目录”定位不打断当前播放。Emby 历史条目进入对应影片详情并续播，旁边的“影片详情”仅浏览。
-- 左手 Y／右手 B 和键盘 Esc 全局返回，按实际浏览历史恢复来源页、目录及列表位置；“上级”按钮独立进入物理父目录。
-- 左右手摇杆均支持左右快退／快进 10 秒，长拨连续跳转，暂停时保持暂停。
-- 本地 / SMB 点击上一部／下一部切换同文件夹影片时继承当前投影格式；普通打开与自动连播保留影片各自的设置。Emby 同片分 CD 的显式切换与自动接段采用下述继承规则。
-- 格式识别结合容器元数据、明确文件名标签和播放期间的画面分析；支持重新识别、建议、撤销和目录 VR180 偏好。设置提供增强识别（默认）、仅标签与元数据、关闭。
-- 完整保留 v1 → v2 → v3 设置迁移，升级时保留旧投影设置、历史、收藏及 SMB 配置。
+## 功能
 
-**无标签 VR180 的投影自动判定仍未启用。** 当前画面分析可自动选择 SBS／OU；真实测试集 5 段中 4 段识别为 SBS，VR180 仅给出建议。可手动采用建议，或在确认 SBS 后使用目录 VR180 偏好。SBS 并不等于 VR180；独立真实样片验证未达门槛前不会仅凭画面自动切换 VR180。
+- **文件来源**：本地存储、SMB2 / SMB3 共享、多个 Emby 服务器与账户；支持局域网发现、搜索、收藏和最近播放。
+- **视频显示**：平面 / 曲面屏幕、VR180 / VR360、左右 SBS / 上下 OU；支持 Half / Full、交换左右眼、单眼观看及屏幕距离、全景缩放调节。
+- **字幕**：外部 SRT 与内嵌文本字幕，支持中文编码、同名匹配、时间偏移、位置与样式设置。
+- **Emby**：七种媒体库视图、演员与分类浏览、进度同步、已播放状态，以及同片分 CD 续播和附加篇。
+- **播放控制**：完整面板与简易控制条、摇杆快进快退与远近调节、音轨切换、0.25–3× 倍速、单片循环和本地 / SMB 目录连播。
+- **逐片记忆**：保存进度、投影、字幕选择、距离和缩放；格式识别结合文件名、元数据与画面分析，支持手动调整和撤销。
 
-## A 方案界面重构
+## 截图
 
-采用深色影院底色、海绿色强调、柔和渐变与统一线性图标。主标签相对整个窗口居中，使用无框悬停反馈和非线性下划线动画；开关保留整行点击区域，并提供平滑位移与颜色过渡。
+| Emby 媒体库 | 投影设置 |
+| :---: | :---: |
+| ![Emby 媒体库](Docs/Images/EmbyUIRefinement/24-EmbyHome.png) | ![投影设置](Docs/Images/UIStyleGrid/02-Projection.png) |
 
-- 文件、投影、字幕、设置与信息页统一卡片、字体对齐、滑条间距和操作按钮尺寸。SMB 分类标题独立展示，编辑与收藏移除采用正方形图标按钮。
-- 快捷面板本身显示播放进度，上半区域保留大面积精确跳转；悬停显示光束与时间，下方独立关闭按钮停止并返回文件页。
-- Emby 使用统一背景、铺满卡片的等比裁切封面和继续播放横向缩略图，完整演员与主创列表横向滚动。信息页直接展示诊断内容。
+| 字幕样式 | 简易控制条与倍速 |
+| :---: | :---: |
+| ![字幕样式](Docs/Images/UIStyleGrid/04-SubtitleStyle.png) | ![简易控制条与倍速](Docs/Images/UISliderSpacing/18-QuickSpeed.png) |
 
-完整变更、概念图、原生界面与各阶段验证边界见 [UI 重构总览](Docs/UIRedesignRelease.zh-CN.md)。
+截图为实际界面渲染，使用演示数据与合成封面。
 
-![字幕样式界面](Docs/Images/UIStyleGrid/04-SubtitleStyle.png)
+## 安装与使用
 
-## Emby 媒体服务器
+1. 从 [Releases](https://github.com/bibibivlin/LsVRPlayer/releases/latest) 下载 APK，安装到 PICO 4，从“未知来源”打开。
+2. 在“文件”页选择本地视频、配置 SMB 共享，或登录已有的 Emby 账户。
+3. 选择影片播放，按需设置投影与字幕。A / X / 菜单键切换完整面板，面板关闭时对空白处按扳机呼出简易控制条，Y / B 返回。
 
-主面板“文件”页新增与本地、SMB、收藏、最近同级的 Emby 入口，可登记多个已有服务器和账户。支持 HTTP / HTTPS、独立地址和端口、记住登录；密码不保存，登录令牌与账户元数据分开存储。
+调试版与正式版签名不同，无法直接覆盖安装；切换前请备份数据，卸载会删除应用数据。
 
-媒体库支持海报、横幅图、光盘封面、徽标、缩略图、列表、表格七种视图；默认海报，每个账户与媒体库独立保存选择，图片按原比例显示并保留透明背景。2026-10-13 版通过 EditMode 520 / 520 与七种视图的模拟图片 / 布局检查，详见 [视图验证](Docs/EmbyValidation.zh-CN.md#媒体库七种视图2026-10-13)。
+## 已知限制
 
-- 首页显示媒体库、继续播放和最新加入；媒体库全部影片使用同一个连续滚动海报墙，返回恢复列表位置，海报随可见区域按需加载。
-- 详情显示海报、简介、演员和主创；点击人物查看简介与全部出演电影，点击类型、标签或制片厂查看该账户全部可访问的同类电影，并可在分类内搜索。
-- 使用当前 Media3 / GPU 播放路径及原有 VR 格式控制，支持逐片设置、稳定历史标识和 Emby 进度同步。原始编码需头显支持，不自动转码。
-- 官方分 CD 正片显示在演员表上方，附加篇显示在下方。普通电影不跨片连播；分 CD 的显式切换与开启连播后的自动接段只限同片组，并继承 VR 格式和格式锁。附加篇只支持同片组内显式切换并继承格式，直接点选恢复自身设置，不自动接下一项；单片循环仍重复当前项。
+- 视频解码取决于头显能力；Emby 使用原始视频播放，不自动转码。目前不支持 HDR 色调映射。
+- 无标签视频的纯画面 VR180 自动投影尚未启用，可手动设置或采用识别建议。SBS 布局不等于 VR180。
+- 其他头显尚未确认兼容；长片与高码率无线播放的验证范围见 [SMB](Docs/SmbPlaybackValidation.zh-CN.md) 和 [Emby](Docs/EmbyValidation.zh-CN.md) 记录。
 
-2026-10-11 扩展版通过 EditMode **341 / 341**；同一 APK 在 PICO 4 上完成真实 LAN 回归 **24 项通过、1 项跳过**（受控延迟仅适用于模拟服务器），以及模拟服务器 / `adb reverse` 回归 **25 项通过、0 跳过**。两轮设备与服务端数据均严格恢复并核对。真实两段样本与 205 项模拟墙的范围、失败记录和剩余硬件限制见 [Emby 接入验证](Docs/EmbyValidation.zh-CN.md)；短测不替代长影片或佩戴体验验收。
+## 文档
 
-多 CD 影片现在优先显示并续播上次播放的部分；当前 CD 的独立续播与从头播放作为次级入口，各部分卡片显示独立进度。2026-10-12 改版新增 18 项回归，当前 EditMode 全套 444 / 444 通过，布局检查完成，新 APK 已安装到 PICO；此轮尚未重跑头显视频续播，详见 [多 CD 续播验证](Docs/EmbyValidation.zh-CN.md#多-cd-上次部分续播2026-10-12)。
-
-2026-10-12 最近播放更新版通过 EditMode **472 / 472**，以及本机模拟服务器的普通影片、CD2、附加篇历史详情跳转和续播检查；新版 APK 已安装至 PICO，此轮未重跑头显解码播放。范围与构建信息见 [最近播放验证](Docs/EmbyValidation.zh-CN.md#最近播放刷新与-emby-历史跳转2026-10-12)。
-
-## 简易播放控制
-
-完整面板关闭时，对空白处按扳机开关 PICO 风格控制条；呼出时先松开扳机，再操作进度、上一部／下一部及播放／暂停。A／X／菜单键和键盘 Tab 继续开关完整面板。控制条固定在当前视线前方约 2 米；启用自动隐藏后，播放时离开面板 5 秒隐藏，暂停时保留。
-
-Y／B 先关闭键盘、二级菜单或简易弹窗，再按实际浏览历史返回，最后关闭面板。从本地或收藏首页直接进入深层目录后，一次返回原首页，并恢复那次访问的搜索、排序和滚动位置；“上级”仍进入物理父目录。主面板手动 SRT 选择及简易字幕浏览返回各自入口，保留原文件浏览历史；长按或双手同时按下只返回一步。
-
-- 字幕页支持开关、同名及内嵌字幕、独立 SRT 浏览和 ±0.5 秒偏移，关闭后可恢复上次选择。
-- 音量图标悬停展开播放器音量条，点击静音／恢复最近的非零音量，与完整面板同步。
-- 模式页提供平面／曲面、VR180、VR360、鱼眼、Cubemap 3×2、EAC 3×2 和 2D／SBS／OU。平面／曲面距离为 1.2–10 米，全景缩放为 0.5–2×，中心跟随头部朝向。“重置远近”只恢复距离或缩放，保留投影、立体布局及格式锁；字幕和菜单不随视频缩放。
-- 倍速页提供 0.75／1／1.25／1.5／2× 快捷速度和 0.25–3× 细调。简易面板不包含音轨、瞳距或画质调节。
-
-两种面板均隐藏且有影片时，上推摇杆拉近平面／曲面或放大全景，下推反向调节；暂停时也可使用。面板显示时上下摇杆仍用于列表滚动，左右仍为快进／快退。操作说明、测试命令和截图见[简易播放控制面板](Docs/QuickControls.zh-CN.md)。
-
-## 其他功能
-
-- 均衡／高清／超清三档渲染倍率，默认高清 1.25×，4× MSAA、72Hz 目标刷新率；提高中文 SDF 字体精度，信息页显示实际眼缓冲与帧率。
-- SMB 页自动发现局域网服务器，支持共享枚举、认证及手动配置。
-- 文件、投影、字幕、设置、信息五个标签随当前页面正确高亮。
-- 字幕距离支持 0.1–6 米，调整距离时保持视觉大小与相对位置。
-- 字幕支持四种预设及独立文字颜色、描边、阴影、背景设置，提供实时预览。
-- 文件来源与目录使用虚拟滚动列表，支持扳机拖动、摇杆上下滚动和鼠标滚轮；返回、刷新和读取失败后重试保留列表位置。
-- 收藏目录可直接移除，并在 5 秒内撤销；旧设置自动迁移，保留历史、收藏与服务器配置。
-
-## 从源码开始
-
-安装 Git LFS 和 Unity **6000.3.23f1**，并为 Unity 安装 Android Build Support（SDK、NDK、OpenJDK）。克隆仓库后在项目根目录执行：
-
-```powershell
-git lfs install
-git lfs pull
-./Tools/Build-Native.ps1
-```
-
-用指定版本 Unity 打开项目，等待导入与编译完成，再执行 **VRPlayer → Configure Project and Open Player** 和 **VRPlayer → Build Android APK**。Gradle 首次解析依赖需要网络；Unity 安装路径不同时，为原生构建脚本传入 `-UnityEditor`。
-
-上述菜单生成开发 APK。正式版本使用 `./Tools/Build-Release.ps1`，运行原生和 Unity 测试后独立签名；版本为 1.0.0 / code 7。GitHub Actions 由本机自托管 Runner 构建，通过版本标签发布，详见 [发布说明](Docs/Releases/v1.0.0.zh-CN.md)。
-
-正式场景：`Assets/VRPlayer/Scenes/Player.unity`，也是当前唯一加入 Build Settings 的场景。为保持仓库聚焦核心播放器，项目不包含 XRI Toolkit 的 Starter Assets、Device Simulator、DemoScene 或模板 SampleScene；XRI 包本身仍作为 PICO Integration SDK 的传递依赖保留。APK 输出到 `Builds/LsVRPlayer.apk`，仅保存在本地。源码、Unity 资源与 `.meta`、必要的原生插件和字体通过 Git／Git LFS 管理；构建缓存、测试媒体、原始设备记录与凭据不入库。
-
-## 文档与验证
-
-- [UI 重构总览、最新界面与验证范围](Docs/UIRedesignRelease.zh-CN.md)
-- [安装、操作与构建](Docs/BuildAndUse.zh-CN.md)
-- [Emby 多服务器、人物与分类浏览、分 CD 和附加篇使用说明](Docs/Emby.zh-CN.md)
-- [Emby 真实 LAN 与模拟回归验证](Docs/EmbyValidation.zh-CN.md)
-- [全局返回、目录位置恢复、简易面板与验证](Docs/QuickControls.zh-CN.md)
-- [SMB 预读与缓冲诊断说明](Docs/SmbPlaybackDiagnostics.zh-CN.md)
-- [AVC 经 SMB 播放修复验证与剩余验收](Docs/SmbPlaybackValidation.zh-CN.md)
-- [v0.6.0 VR180／SBS 识别结果与当前限制](Docs/VR180SbsRecognitionResults.zh-CN.md)
-- [字幕、历史、摇杆与格式识别改进记录](Docs/PlaybackImprovements.zh-CN.md)
-- [VR180／SBS 识别优化方案](Docs/VR180SbsRecognitionPlan.zh-CN.md)
-- [v0.4.0 验证报告与已知边界](Docs/ExperienceValidation.zh-CN.md)
-- [v0.3.0 播放内核验证报告](Docs/ValidationReport.zh-CN.md)
-- [原始开发计划](Docs/DevelopmentPlan.zh-CN.md)
+- [安装、操作与源码构建](Docs/BuildAndUse.zh-CN.md)
+- [Emby 使用说明](Docs/Emby.zh-CN.md)
+- [简易控制与全局返回](Docs/QuickControls.zh-CN.md)
+- [格式识别说明](Docs/VR180SbsRecognitionResults.zh-CN.md)
+- [界面与更多截图](Docs/UIRedesignRelease.zh-CN.md)
 - [第三方组件与许可](Docs/ThirdPartyNotices.md)
 
-Unity 6000.3.23f1；PICO Integration 3.4.0；Android ARM64 / IL2CPP / GLES3 / Multiview。新增依赖均为免费或开源组件，未使用付费视频插件。
+源码构建需要 Unity **6000.3.23f1**、Android Build Support 与 Git LFS。签名构建和发布见 [发布指南](Docs/Release.zh-CN.md)。
 
-2026-10-11 至 2026-10-12，全局返回与目录位置恢复版通过 EditMode **426/426**、同一最终 APK 的 USB PICO 返回／目录回归 **26/26** 和简易控制回归 **17/17**。设备自动化使用共享输入路径的开发模拟 Y/B、指针和摇杆，持续核对焦点、佩戴感应及诊断更新；播放器／账户数据和临时 USB 常亮均已恢复。用户另已确认真实 Y/B 按键正常。复现命令、覆盖范围和记录见[全局返回与简易控制验证](Docs/QuickControls.zh-CN.md#验证记录)。
+## 参与与许可
 
-此前简易面板完善版于 2026-10-10 通过 EditMode 184/184 和 USB PICO 简易面板设备检查 17/17，原始面板版于 2026-10-09 通过播放改善 21/21 与相邻播放 8/8。物理扳机手感、文字可读性和双眼舒适度需单独佩戴验收。
+问题与 PR 请参阅 [贡献指南](CONTRIBUTING.md) 和 [行为准则](CODE_OF_CONDUCT.md)。安全问题见 [安全政策](SECURITY.md)，版本变化见 [更新日志](CHANGELOG.md)。
 
-此前版本另有原生 JUnit 41/41、PICO 功能回归 24/24（含真实 Wi-Fi SMB）及同目录切片 8/8 通过记录，本次面板更新未重跑原生或 LAN 测试。SMB 修复版在问题 AVC 上完成 180 秒真实 NAS 播放，意外缓冲、网络读取错误和解码丢帧均为 0；18 轮切片／seek、字幕及生成的 HEVC／8K 短测通过。头显无人佩戴时会自动暂停，完整三组 10 分钟对照和 60 分钟连续播放仍未完成，不能据短测认定长期稳定性通过；详情见 SMB 修复验证报告。
-
-生成样片成绩不代表真实影片识别准确率，兼容性以报告中的实际样片组合为准。HDR 色调映射、任意鱼眼／立方体布局不属于已支持范围。真实 NAS 的完整认证与加密流程、高码率无线播放、长片热稳定性，以及佩戴后的清晰度和舒适度仍需单独验收。
+项目自有代码与文档采用 [MIT](LICENSE)。第三方组件保留各自许可；包含 GPL 音频解码依赖的完整 APK 仍有分发条件待核对，详见 [许可说明](Docs/Licensing.zh-CN.md)。
