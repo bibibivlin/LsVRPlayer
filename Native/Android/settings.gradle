@@ -13,3 +13,5 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = 'vrplayer-android'
+include ':decoder-ffmpeg'
+project(':decoder-ffmpeg').projectDir = file('../FFmpeg/decoder')

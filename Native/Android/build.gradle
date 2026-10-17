@@ -2,18 +2,36 @@ plugins { id 'com.android.library' version '9.0.0' }
 android {
     namespace 'com.linxyi.vrplayer'
     compileSdk 35
-    defaultConfig { minSdk 29; consumerProguardFiles 'consumer-rules.pro' }
+    defaultConfig { minSdk 29; consumerProguardFiles 'consumer-rules.pro'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'; ndk { abiFilters 'arm64-v8a' } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     testOptions { unitTests.returnDefaultValues = true }
+    sourceSets { androidTest { assets.srcDirs = ['../../Assets/StreamingAssets']; jniLibs.srcDirs = ['../../Assets/Plugins/Android'] } }
 }
 dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.9.3'
-    implementation 'org.jellyfin.media3:media3-ffmpeg-decoder:1.9.0+1'
+    implementation project(':decoder-ffmpeg')
     implementation 'com.hierynomus:smbj:0.13.0'
     implementation('com.rapid7.client:dcerpc:0.12.13') { exclude group: 'com.hierynomus', module: 'smbj' }
     testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
 }
 tasks.register('collectRuntimeDependencies', Copy) {
     from configurations.releaseRuntimeClasspath
     into layout.buildDirectory.dir('runtime-dependencies')
+}
+tasks.register('writeRuntimeInventory') {
+    dependsOn 'assembleRelease'
+    doLast {
+        def artifacts = configurations.releaseRuntimeClasspath.incoming.artifactView {
+            componentFilter { id -> id instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+        }.artifacts.artifacts
+        def items = artifacts.collect { artifact ->
+            def id = artifact.id.componentIdentifier
+            [group: id.group, name: id.module, version: id.version,
+             file: artifact.file.absolutePath]
+        }.sort { a, b -> (a.group + ':' + a.name) <=> (b.group + ':' + b.name) }
+        def output = layout.buildDirectory.file('runtime-inventory.json').get().asFile
+        output.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(items))
+    }
 }

@@ -66,9 +66,9 @@ try {
         $records=Join-Path $root "Docs/Validation/release/$runId"
         $null=New-Item -ItemType Directory -Path $records -Force
         $tests=Join-Path $records 'editmode-results.xml'
+        & (Join-Path $PSScriptRoot 'Build-Native.ps1') -UnityEditor $UnityEditor
         & $python (Join-Path $PSScriptRoot 'Test-ReleaseVerification.py')
         if($LASTEXITCODE -ne 0){throw 'Release verification regressions failed'}
-        & (Join-Path $PSScriptRoot 'Build-Native.ps1') -UnityEditor $UnityEditor
         $java=Join-Path $env:JAVA_HOME 'bin/java.exe'
         & $java '-classpath' (Join-Path $android 'Tools/gradle/lib/*') org.gradle.launcher.GradleMain -p (Join-Path $root 'Native/Android') testDebugUnitTest --console=plain
         if($LASTEXITCODE -ne 0){throw 'Native JUnit tests failed'}

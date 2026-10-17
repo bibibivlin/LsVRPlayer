@@ -60,4 +60,4 @@
 
 问题与 PR 请参阅 [贡献指南](CONTRIBUTING.md) 和 [行为准则](CODE_OF_CONDUCT.md)。安全问题见 [安全政策](SECURITY.md)，版本变化见 [更新日志](CHANGELOG.md)。
 
-项目自有代码与文档采用 [MIT](LICENSE)。第三方组件保留各自许可；包含 GPL 音频解码依赖的完整 APK 仍有分发条件待核对，详见 [许可说明](Docs/Licensing.zh-CN.md)。
+项目自有代码与文档采用 [MIT](LICENSE)。新构建使用可重建的 LGPL 共享音频库，随包附带对应源码和第三方声明；旧发布 APK 不受更新影响。第三方组件与商业编解码权利见 [许可说明](Docs/Licensing.zh-CN.md)。应用内可离线查看 [隐私政策](Docs/PrivacyPolicy.zh-CN.md)、[权限说明](Docs/Permissions.zh-CN.md) 和许可，并导出音频库源码。

@@ -68,6 +68,14 @@
 
 # Exclude from GitHub stats and diffs: third-party plugins, packages lock file
 Assets/Plugins/**           linguist-generated
+Assets/StreamingAssets/Legal/*.zip lfs
+# Preserve upstream byte hashes and executable bash source on Windows checkouts.
+Native/FFmpeg/** text eol=lf
+Tools/Build-AudioDecoder.py text eol=lf
+Docs/Licenses/** text eol=lf
+Assets/VRPlayer/Resources/Legal/** text eol=lf
+Assets/StreamingAssets/Legal/*.txt text eol=lf
+Assets/StreamingAssets/Legal/*.json text eol=lf
 Packages/packages-lock.json linguist-generated
 
 # Unity LFS

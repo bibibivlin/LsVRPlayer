@@ -36,7 +36,7 @@ namespace VRPlayer.Editor
             PlayerIcons.Configure();EnsureShaders();EnsureFont();
             var quality=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/QualitySettings.asset")[0]);
             var levels=quality.FindProperty("m_QualitySettings");for(int i=0;i<levels.arraySize;i++)levels.GetArrayElementAtIndex(i).FindPropertyRelative("antiAliasing").intValue=4;quality.ApplyModifiedPropertiesWithoutUndo();
-            foreach(string path in new[]{"Assets/Plugins/Android/vrplayer-android.aar","Assets/Plugins/Android/arm64-v8a/libvrplayerrender.so"}){
+            foreach(string path in new[]{"Assets/Plugins/Android/vrplayer-android.aar","Assets/Plugins/Android/vrplayer-ffmpeg-lgpl.aar","Assets/Plugins/Android/arm64-v8a/libvrplayerrender.so"}){
                 if(AssetImporter.GetAtPath(path) is PluginImporter importer){importer.SetCompatibleWithAnyPlatform(false);importer.SetCompatibleWithEditor(false);importer.SetCompatibleWithPlatform(BuildTarget.Android,true);if(path.EndsWith(".so"))importer.SetPlatformData(BuildTarget.Android,"CPU","ARM64");importer.SaveAndReimport();}
             }
             EditorSceneManager.SaveOpenScenes();
