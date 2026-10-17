@@ -24,6 +24,8 @@ Sign 阶段验证所选证书有效期，使用 `apksigner` 重新签名，并�
 
 Runner 由仓库 Settings → Actions → Runners 注册，使用已授权用户身份运行。不得在公开 PR 或不可信分支执行签名工作。此流程只自动构建 `codex/release-*` 分支和 `v*` 标签，也支持手动运行；普通 PR 只在 GitHub 托管环境执行无签名资料的工具检查。
 
+Runner 安装在当前用户的 `%LOCALAPPDATA%/LsVRPlayer/actions-runner`。本次注册后已后台启动；电脑重启后，在项目根目录执行 `./Tools/Start-ReleaseRunner.ps1` 重新启动。脚本会检测现有进程，避免重复运行。构建脚本使用 Python 的真实可执行文件；需要指定安装时可设置 `VRPLAYER_PYTHON`。
+
 在仓库 Settings → Secrets and variables → Actions 设置：
 
 | Secret | 内容 |

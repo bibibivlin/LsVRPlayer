@@ -17,7 +17,7 @@ jobs:
       - name: Check PowerShell syntax
         shell: pwsh
         run: |
-          $files = @('Tools/Build-Release.ps1', 'Tools/Build-Native.ps1')
+          $files = @('Tools/Build-Release.ps1', 'Tools/Build-Native.ps1', 'Tools/Start-ReleaseRunner.ps1')
           foreach ($file in $files) {
             $parseErrors = $null
             $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$null, [ref]$parseErrors)

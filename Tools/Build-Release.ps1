@@ -10,6 +10,9 @@ $sdk=Join-Path $android 'SDK'
 $env:JAVA_HOME=Join-Path $android 'OpenJDK'
 $env:ANDROID_HOME=$sdk
 $env:ANDROID_SDK_ROOT=$sdk
+$python=$env:VRPLAYER_PYTHON
+if(-not $python){$python=(& python -c 'import sys; print(sys.executable)').Trim()}
+if(-not (Test-Path -LiteralPath $python)){throw 'A real Python 3.11+ executable is required; set VRPLAYER_PYTHON'}
 $settings=Get-Content -LiteralPath (Join-Path $root 'ProjectSettings/ProjectSettings.asset') -Raw
 $version=[regex]::Match($settings,'(?m)^  bundleVersion: (\d+\.\d+\.\d+)\s*$').Groups[1].Value
 $versionCode=[regex]::Match($settings,'(?m)^  AndroidBundleVersionCode: (\d+)\s*$').Groups[1].Value
@@ -55,7 +58,7 @@ try {
         $records=Join-Path $root "Docs/Validation/release/$runId"
         $null=New-Item -ItemType Directory -Path $records -Force
         $tests=Join-Path $records 'editmode-results.xml'
-        & python (Join-Path $PSScriptRoot 'Test-ReleaseVerification.py')
+        & $python (Join-Path $PSScriptRoot 'Test-ReleaseVerification.py')
         if($LASTEXITCODE -ne 0){throw 'Release verification regressions failed'}
         & (Join-Path $PSScriptRoot 'Build-Native.ps1') -UnityEditor $UnityEditor
         $java=Join-Path $env:JAVA_HOME 'bin/java.exe'
@@ -119,7 +122,7 @@ try {
             $apk=Join-Path $release "LsVRPlayer-$version.apk"
             & $apksigner sign --ks $key --ks-key-alias $env:ANDROID_KEYALIAS_NAME --ks-pass env:ANDROID_KEYSTORE_PASS --key-pass env:ANDROID_KEYALIAS_PASS --out $apk $intermediate
             if($LASTEXITCODE -ne 0){throw 'APK signing failed'}
-            & python (Join-Path $PSScriptRoot 'Verify-Release.py') --apk $apk --apkanalyzer $apkanalyzer --apksigner $apksigner --expected-cert-sha256 $fingerprint --tests $state.tests --commit $commit
+            & $python (Join-Path $PSScriptRoot 'Verify-Release.py') --apk $apk --apkanalyzer $apkanalyzer --apksigner $apksigner --expected-cert-sha256 $fingerprint --tests $state.tests --commit $commit
             if($LASTEXITCODE -ne 0){throw 'Signed release verification failed'}
             # v4 signing sidecars are not part of this standalone APK release.
             if(Test-Path -LiteralPath ($apk+'.idsig')){Remove-Item -LiteralPath ($apk+'.idsig') -Force}
