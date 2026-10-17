@@ -1,0 +1,25 @@
+name: Release tooling checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Verify release rejection gates
+        run: python3 Tools/Test-ReleaseVerification.py
+      - name: Check PowerShell syntax
+        shell: pwsh
+        run: |
+          $files = @('Tools/Build-Release.ps1', 'Tools/Build-Native.ps1', 'Tools/Start-ReleaseRunner.ps1')
+          foreach ($file in $files) {
+            $parseErrors = $null
+            $null = [Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD $file), [ref]$null, [ref]$parseErrors)
+            if ($parseErrors.Count) { throw "PowerShell syntax errors in $file" }
+          }

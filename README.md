@@ -1,13 +1,13 @@
 # L's VRPlayer
 
-面向个人 PICO 4 的 Unity VR 视频播放器，当前为 **v0.6.0 开发版**。
+面向 PICO 4 的 Unity VR 视频播放器，当前正式版本为 **v1.0.0**。签名 APK、校验值和构建清单见 [GitHub Releases](https://github.com/bibibivlin/LsVRPlayer/releases/latest)，发布流程见 [正式版本构建与发布](Docs/Release.zh-CN.md)。
 
 - 本地、SMB2 / SMB3 文件与 Emby 媒体服务器浏览和视频播放。
 - 普通平面、曲面影院，VR180 / VR360，SBS / OU、Half / Full、交换左右眼和单眼观看。
 - 同名及 chs / zh 等语言后缀 SRT、中文编码、字幕同步和位置设置、内嵌文本字幕。
 - 手柄射线、虚拟键盘、播放控制、进度恢复、目录连播、收藏、音轨与倍速设置。
 
-## v0.6.0 改进
+## 播放功能与兼容性
 
 - SMB 播放增加 1 MiB 按需预读，合并解封装的小块网络请求；信息页增加缓冲余量、加载状态、内存和读取统计，后台记录缓冲事件。保留原缓冲阈值，播放连接支持正常空闲后继续读取。
 - 自动加载同目录、同片名 SRT（默认关闭），按中文后缀、无后缀、其他语言排序；记住每部影片的手动选择或关闭状态，支持恢复自动选择。
@@ -83,6 +83,8 @@ git lfs pull
 ```
 
 用指定版本 Unity 打开项目，等待导入与编译完成，再执行 **VRPlayer → Configure Project and Open Player** 和 **VRPlayer → Build Android APK**。Gradle 首次解析依赖需要网络；Unity 安装路径不同时，为原生构建脚本传入 `-UnityEditor`。
+
+上述菜单生成开发 APK。正式版本使用 `./Tools/Build-Release.ps1`，运行原生和 Unity 测试后独立签名；版本为 1.0.0 / code 7。GitHub Actions 由本机自托管 Runner 构建，通过版本标签发布，详见 [发布说明](Docs/Releases/v1.0.0.zh-CN.md)。
 
 正式场景：`Assets/VRPlayer/Scenes/Player.unity`，也是当前唯一加入 Build Settings 的场景。为保持仓库聚焦核心播放器，项目不包含 XRI Toolkit 的 Starter Assets、Device Simulator、DemoScene 或模板 SampleScene；XRI 包本身仍作为 PICO Integration SDK 的传递依赖保留。APK 输出到 `Builds/LsVRPlayer.apk`，仅保存在本地。源码、Unity 资源与 `.meta`、必要的原生插件和字体通过 Git／Git LFS 管理；构建缓存、测试媒体、原始设备记录与凭据不入库。
 

@@ -1,6 +1,6 @@
 # L's VRPlayer 使用与构建
 
-开发场景：`Assets/VRPlayer/Scenes/Player.unity`。Android 包名：`com.linxyi.LsVRPlayer`。当前为个人使用的开发版 APK，ARM64 / IL2CPP / GLES3 / PICO Multiview。
+开发场景：`Assets/VRPlayer/Scenes/Player.unity`。Android 包名：`com.linxyi.LsVRPlayer`。1.0 正式版为 1.0.0 / code 7，ARM64 / IL2CPP / GLES3 / PICO Multiview。签名构建与 GitHub 发布见 [正式版本构建与发布](Release.zh-CN.md)；下述 Unity 菜单仍构建开发 APK。
 
 ## 在 PICO 4 上使用
 
@@ -23,7 +23,7 @@ Emby 使用现有播放器播放原始视频并保存各项 VR 设置。分 CD �
 
 摘下头显、失去焦点或进入后台会暂停，回来后手动播放。退出或切换影片时保存进度，播放过程中也周期保存。错误会显示在状态栏，可点击重试。
 
-0.6 的无标签识别会分别判断 SBS/OU 和投影，最多等待 60 秒有效播放以越过片头；暂停时不消耗采样窗口。投影页会显示“继承／手动格式”“有效画面不足”或继续判断投影等原因。无标签 VR180 目前保留候选与“采用建议”，尚未通过独立真实集的自动投影验收。同类影片目录可显式开启“本目录优先 VR180”，仅在已确认 SBS 后补齐 180°；元数据和明确文件名仍优先。详见 [VR180 专项实测](VR180SbsRecognitionResults.zh-CN.md)。
+无标签识别会分别判断 SBS/OU 和投影，最多等待 60 秒有效播放以越过片头；暂停时不消耗采样窗口。投影页会显示“继承／手动格式”“有效画面不足”或继续判断投影等原因。无标签 VR180 目前保留候选与“采用建议”，尚未通过独立真实集的自动投影验收。同类影片目录可显式开启“本目录优先 VR180”，仅在已确认 SBS 后补齐 180°；元数据和明确文件名仍优先。详见 [VR180 专项实测](VR180SbsRecognitionResults.zh-CN.md)。
 
 ## 返回与目录位置
 

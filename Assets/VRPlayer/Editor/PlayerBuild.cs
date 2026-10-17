@@ -25,9 +25,9 @@ namespace VRPlayer.Editor
         {
             if(EditorApplication.isPlaying)throw new InvalidOperationException("Exit Play Mode before configuring the project.");
             Directory.CreateDirectory("Assets/VRPlayer/Scenes");Directory.CreateDirectory("Builds");Directory.CreateDirectory("TestMedia");
-            PlayerSettings.productName="L's VRPlayer";PlayerSettings.companyName="Linxyi";PlayerSettings.bundleVersion="0.6.0";
+            PlayerSettings.productName="L's VRPlayer";PlayerSettings.companyName="Linxyi";
             PlayerSettings.SetApplicationIdentifier(NamedBuildTarget.Android,"com.linxyi.LsVRPlayer");PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android,ScriptingImplementation.IL2CPP);
-            PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;PlayerSettings.Android.bundleVersionCode=6;
+            PlayerSettings.Android.targetArchitectures=AndroidArchitecture.ARM64;PlayerSettings.Android.minSdkVersion=AndroidSdkVersions.AndroidApiLevel29;PlayerSettings.Android.targetSdkVersion=AndroidSdkVersions.AndroidApiLevel35;
             PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.Android,false);PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,new[]{GraphicsDeviceType.OpenGLES3});
             PlayerSettings.defaultInterfaceOrientation=UIOrientation.LandscapeLeft;PlayerSettings.runInBackground=false;PlayerSettings.Android.forceInternetPermission=true;
             PlayerSettings.insecureHttpOption=InsecureHttpOption.AlwaysAllowed;
@@ -95,6 +95,34 @@ namespace VRPlayer.Editor
             Configure();var result=BuildPipeline.BuildPlayer(new BuildPlayerOptions{scenes=new[]{ScenePath},locationPathName="Builds/LsVRPlayer.apk",target=BuildTarget.Android,options=BuildOptions.Development|BuildOptions.CompressWithLz4|BuildOptions.DetailedBuildReport});
             if(result.summary.result!=BuildResult.Succeeded)throw new InvalidOperationException("VRPlayer Android build failed: "+result.summary.totalErrors+" errors");
             Debug.Log("VRPlayer APK built: "+Path.GetFullPath("Builds/LsVRPlayer.apk"));
+        }
+
+        // The release script signs this intermediate APK outside Unity. Signing secrets
+        // never enter Unity, generated Gradle projects, or the Editor log.
+        public static void BuildAndroidReleasePlayer()
+        {
+            string output=Environment.GetEnvironmentVariable("VRPLAYER_RELEASE_INTERMEDIATE");
+            if(string.IsNullOrWhiteSpace(output))throw new InvalidOperationException("Run Tools/Build-Release.ps1 to build and sign a release.");
+            Configure();
+            EditorUserBuildSettings.development=false;
+            EditorUserBuildSettings.allowDebugging=false;
+            EditorUserBuildSettings.connectProfiler=false;
+            EditorUserBuildSettings.waitForManagedDebugger=false;
+            EditorUserBuildSettings.buildAppBundle=false;
+            PlayerSettings.SetIl2CppCompilerConfiguration(NamedBuildTarget.Android,Il2CppCompilerConfiguration.Release);
+            bool customKeystore=PlayerSettings.Android.useCustomKeystore;
+            try{
+                PlayerSettings.Android.useCustomKeystore=false;
+                var result=BuildPipeline.BuildPlayer(new BuildPlayerOptions{
+                    scenes=new[]{ScenePath},locationPathName=output,target=BuildTarget.Android,
+                    options=BuildOptions.CompressWithLz4HC|BuildOptions.DetailedBuildReport
+                });
+                if(result.summary.result!=BuildResult.Succeeded)throw new InvalidOperationException("VRPlayer release player build failed: "+result.summary.totalErrors+" errors");
+                if((result.summary.options&(BuildOptions.Development|BuildOptions.AllowDebugging|BuildOptions.ConnectWithProfiler))!=0)
+                    throw new InvalidOperationException("Release player unexpectedly contains development build options.");
+                Debug.Log("VRPlayer release player built; final signing and verification are required.");
+            }
+            finally{PlayerSettings.Android.useCustomKeystore=customKeystore;}
         }
     }
 }

@@ -1,0 +1,73 @@
+name: Signed Android Release
+
+on:
+  push:
+    branches: ['codex/release-*']
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One Unity process at a time on the licensed Windows build machine.
+concurrency:
+  group: vrplayer-release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Test, build and verify signed APK
+    runs-on: [self-hosted, Windows, X64, vrplayer-release]
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: powershell
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          lfs: true
+          persist-credentials: false
+          clean: false
+      - name: Build native plugins, run tests and build Release player
+        run: ./Tools/Build-Release.ps1 -Stage Build
+      - name: Sign and verify release
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+          ANDROID_KEYALIAS_NAME: ${{ secrets.ANDROID_KEYALIAS_NAME }}
+          ANDROID_KEYALIAS_PASS: ${{ secrets.ANDROID_KEYALIAS_PASS }}
+          VRPLAYER_SIGNING_CERT_SHA256: ${{ vars.VRPLAYER_SIGNING_CERT_SHA256 }}
+        run: ./Tools/Build-Release.ps1 -Stage Sign
+      - name: Store verified release files
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: signed-android-release
+          path: Builds/Release/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: signed-android-release
+          path: release
+      - name: Verify files and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        working-directory: release
+        run: |
+          set -euo pipefail
+          sha256sum --check SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" ./*.apk SHA256SUMS.txt release-manifest.json \
+            --verify-tag --draft --title "L's VRPlayer ${RELEASE_TAG#v}" --notes-file release-notes.md
+          gh release edit "$RELEASE_TAG" --draft=false --latest
