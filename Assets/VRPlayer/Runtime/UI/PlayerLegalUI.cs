@@ -54,10 +54,11 @@ namespace VRPlayer
         {
             legalDocument=document;BeginModal("legal");
             string title=document=="privacy"?"隐私政策 / Privacy":document=="permissions"?"权限说明 / Permissions":"第三方许可 / Licenses";
-            UiFactory.Label(content,title,0,0,820,60,32);
-            if(document=="notices")UiFactory.Button(content,"导出源码 / Sources",876,0,360,60,ExportLicenseSource);
-            else UiFactory.Button(content,legalEnglish?"简体中文":"English",876,0,280,60,()=>{legalEnglish=!legalEnglish;ShowLegalDocument(legalDocument);});
-            UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,()=>{if(privacyGate)DrawPrivacyConsent();else ReturnFromModal();});
+            UiFactory.IconButton(content,"返回",QuickIcon.Back,0,0,()=>{if(privacyGate)DrawPrivacyConsent();else ReturnFromModal();});
+            float actionWidth=document=="notices"?360:280,actionX=UiTheme.PageWidth-actionWidth;
+            UiFactory.Label(content,title,80,0,actionX-80-UiTheme.ControlGap,64,32);
+            if(document=="notices")UiFactory.Button(content,"导出源码 / Sources",actionX,0,actionWidth,64,ExportLicenseSource);
+            else UiFactory.Button(content,legalEnglish?"简体中文":"English",actionX,0,actionWidth,64,()=>{legalEnglish=!legalEnglish;ShowLegalDocument(legalDocument);});
             string resource=document=="notices"?"notices":document+"-"+(legalEnglish?"en":"zh-CN");
             var asset=Resources.Load<TextAsset>("Legal/"+resource);
             string text=asset!=null?asset.text:"说明文件不可用 / Document unavailable.\n\n"+DeveloperLink+"\n\n"+ProjectUrl+"\n\n隐私联系 / Privacy: linyoc@outlook.com";

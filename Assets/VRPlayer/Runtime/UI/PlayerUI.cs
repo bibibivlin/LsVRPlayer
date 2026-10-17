@@ -458,7 +458,7 @@ namespace VRPlayer
         }
         private void DrawTracks()
         {
-            BeginModal("tracks");UiFactory.Label(content,"音轨与内嵌字幕",0,0,1000,64,32);UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,Draw);
+            BeginModal("tracks");UiFactory.IconButton(content,"返回",QuickIcon.Back,0,0,Draw);UiFactory.Label(content,"音轨与内嵌字幕",80,0,UiTheme.PageWidth-80,64,32);
             UiFactory.Button(content,"自动音轨",0,88,285,56,()=>app.Backend?.SelectTrack("auto",1));UiFactory.Button(content,"关闭内嵌字幕",304,88,320,56,app.DisableSubtitles);
             var tracks=app.Backend?.Snapshot.tracks??Array.Empty<MediaTrack>();
             for(int i=0;i<Math.Min(tracks.Length,8);i++){var track=tracks[i];UiFactory.Button(content,(track.type==1?"音轨  ":"字幕  ")+track.name+(track.supported?"":"  [解码器不支持]"),0,168+i*64,UiTheme.PageWidth,56,()=>{if(track.type==1){app.Backend?.SelectTrack(track.id,1);if(app.Current!=null)app.Current.audio=track.id;}else app.EmbeddedSubtitle(track.id);},track.selected);}
@@ -483,12 +483,12 @@ namespace VRPlayer
         private void ConnectHost(DiscoveredSmbHost host)=>_ = EnumerateShares(new SmbServer{name=host.name,host=host.host,port=host.port});
         private async Task EnumerateShares(SmbServer server)
         {
-            BeginModal("connecting");UiFactory.Label(content,"正在连接 "+server.host+" 并读取共享…",0,88,UiTheme.PageWidth,80,30);UiFactory.Button(content,"取消",1112,0,240,64,ReturnFromModal);
+            BeginModal("connecting");UiFactory.IconButton(content,"取消",QuickIcon.Back,0,0,ReturnFromModal);UiFactory.Label(content,"连接 SMB 服务器",80,0,UiTheme.PageWidth-80,64,32);UiFactory.Label(content,"正在连接 "+server.host+" 并读取共享…",0,88,UiTheme.PageWidth,80,30);
             connection=new CancellationTokenSource();var token=connection.Token;
             try{
                 var result=await app.Smb.Shares(server,token);if(token.IsCancellationRequested)return;
                 if(!result.ok){DrawConnectionForm(server,result.error);return;}
-                BeginModal("shares");UiFactory.Label(content,"选择共享 · "+server.host,0,0,1040,64,30);UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,ReturnFromModal);
+                BeginModal("shares");UiFactory.IconButton(content,"返回",QuickIcon.Back,0,0,ReturnFromModal);UiFactory.Label(content,"选择共享 · "+server.host,80,0,UiTheme.PageWidth-80,64,30);
                 var root=UiFactory.Rect(content,"Shares",0,88,UiTheme.PageWidth,450);fileList=root.gameObject.AddComponent<VirtualFileList>();fileList.Initialize(UiTheme.PageWidth,450);
                 var rows=(result.shares??Array.Empty<SmbShare>()).Select(share=>new BrowserRow{key=share.name,label=share.name+"  "+share.comment,detail="打开",open=()=>SaveSharedFolder(server,share.name)}).ToList();
                 if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label="服务器未返回可用磁盘共享，可手填共享名。"});fileList.SetRows(rows);
@@ -497,7 +497,7 @@ namespace VRPlayer
         }
         private void DrawConnectionForm(SmbServer server,string error)
         {
-            BeginModal("login");UiFactory.Label(content,"连接 "+server.host,0,0,1000,64,30);UiFactory.IconButton(content,"返回",QuickIcon.Back,1288,0,ReturnFromModal);
+            BeginModal("login");UiFactory.IconButton(content,"返回",QuickIcon.Back,0,0,ReturnFromModal);UiFactory.Label(content,"连接 "+server.host,80,0,UiTheme.PageWidth-80,64,30);
             UiFactory.Label(content,error,0,88,UiTheme.PageWidth,56,23);
             string[] labels={"用户名（空为匿名）","密码","域（可留空）","共享名（可选）"};string[] initial={server.username,server.password,server.domain,server.share};var fields=new List<TMP_InputField>();
             for(int i=0;i<4;i++){UiFactory.Label(content,labels[i],0,168+i*66,350,48,25);fields.Add(UiFactory.Input(content,initial[i],labels[i],370,168+i*66,982,48,ShowKeyboard,i==1));}
@@ -516,8 +516,8 @@ namespace VRPlayer
         private void DrawServerForm()=>DrawServerForm(null);
         private void DrawServerForm(SmbServer existing)
         {
-            BeginModal("server");UiFactory.Label(content,existing==null?"添加 SMB 服务器":"编辑 SMB 服务器",0,0,900,64,32);UiFactory.IconButton(content,"取消",QuickIcon.Close,1288,0,ReturnFromModal);
-            if(existing!=null)UiFactory.Button(content,"删除配置",920,0,240,64,()=>{app.RemoveServer(existing.id);Draw();});
+            BeginModal("server");UiFactory.IconButton(content,"取消",QuickIcon.Back,0,0,ReturnFromModal);UiFactory.Label(content,existing==null?"添加 SMB 服务器":"编辑 SMB 服务器",80,0,existing==null?UiTheme.PageWidth-80:UiTheme.PageWidth-80-240-UiTheme.ControlGap,64,32);
+            if(existing!=null)UiFactory.Button(content,"删除配置",UiTheme.PageWidth-240,0,240,64,()=>{app.RemoveServer(existing.id);Draw();});
             string[] labels={"显示名称","主机 / IP","共享名","用户名（空为匿名）",existing==null?"密码":"密码（空则保留）","域（可留空）"};var fields=new List<TMP_InputField>();var initial=existing??new SmbServer();string[] values={initial.name,initial.host,initial.share,initial.username,"",initial.domain};
             for(int i=0;i<labels.Length;i++){float y=88+i*67;UiFactory.Label(content,labels[i],0,y,345,50,25);fields.Add(UiFactory.Input(content,values[i],labels[i],370,y,982,50,ShowKeyboard,i==4));}
             bool remember=initial.remember,encrypt=initial.encrypt;UiFactory.ToggleRow(content,"保存密码","保存密码",()=>remember,0,493,296,value=>remember=value,56);

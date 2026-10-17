@@ -177,8 +177,10 @@ namespace VRPlayer
         }
         private void DrawAccounts()
         {
-            UiFactory.Label(root,"Emby · 服务器与账户",24,8,Width-280,52,32);
-            if(!string.IsNullOrEmpty(app.ActiveEmbyAccount?.accessToken))Button(root,"返回媒体库",Width-256,10,242,54,()=>{login=false;app.EmbyHome();});
+            bool canReturn=!string.IsNullOrEmpty(app.ActiveEmbyAccount?.accessToken);
+            if(canReturn)UiFactory.IconButton(root,"返回媒体库",QuickIcon.Back,0,0,()=>{login=false;app.EmbyHome();});
+            float titleX=canReturn?80:24;
+            UiFactory.Label(root,"Emby · 服务器与账户",titleX,0,Width-titleX,64,32);
             BeginScroll(76,root.rect.height-158);
             var saved=app.EmbyAccounts??Array.Empty<EmbyAccount>();
             float errorHeight=string.IsNullOrEmpty(app.EmbyState.error)?0:68;
@@ -216,8 +218,8 @@ namespace VRPlayer
         }
         private void DrawLogin()
         {
-            UiFactory.Label(root,"添加 Emby 服务器 / 账户",24,8,Width-250,54,32);
-            Button(root,busy?"取消登录":"返回",Width-196,10,182,54,ReturnFromLogin);
+            UiFactory.IconButton(root,busy?"取消登录":"返回",QuickIcon.Back,0,0,ReturnFromLogin);
+            UiFactory.Label(root,"添加 Emby 服务器 / 账户",80,0,Width-80,64,32);
             UiFactory.Label(root,"输入服务器地址，并使用该服务器已有的账户登录",24,73,Width-48,44,24).color=Muted;
             UiFactory.Label(root,"连接协议",24,130,224,52,26);
             var protocol=Button(root,useHttps?"HTTPS":"HTTP",258,130,190,52,()=>{CaptureLogin();closeKeyboard?.Invoke();useHttps=!useHttps;Render(true);},true);protocol.interactable=!busy;
