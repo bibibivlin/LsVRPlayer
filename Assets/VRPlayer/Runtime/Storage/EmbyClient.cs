@@ -62,7 +62,7 @@ namespace VRPlayer
             string server = NormalizeServerUrl(serverUrl);
             if (string.IsNullOrWhiteSpace(username)) throw new ArgumentException("请输入 Emby 用户名");
             string body = JsonUtility.ToJson(new AuthenticationRequest { Username = username.Trim(), Pw = password ?? "" });
-            var response = Parse<AuthenticationResponse>(await Send(server, "/Users/AuthenticateByName", null, "POST", body, token));
+            var response = await Send(server, "/Users/AuthenticateByName", null, "POST", body, token, Parse<AuthenticationResponse>);
             token.ThrowIfCancellationRequested();
             if (string.IsNullOrEmpty(response?.AccessToken) || string.IsNullOrEmpty(response.User?.Id))
                 throw new InvalidOperationException("Emby 登录响应无效，请检查服务器后重试");
@@ -75,29 +75,29 @@ namespace VRPlayer
         }
 
         public async Task<EmbyItemsResult> GetViews(EmbyAccount account, CancellationToken token = default)
-            => ParseItems(await SendAccount(account, UserPath(account) + "/Views?Fields=" + Escape(Fields), "GET", null, token));
+            => await SendAccount(account, UserPath(account) + "/Views?Fields=" + Escape(Fields), "GET", null, token, ParseItems);
 
         public async Task<EmbyItemsResult> GetResume(EmbyAccount account, CancellationToken token = default)
-            => ParseItems(await SendAccount(account, UserPath(account) + "/Items/Resume?Limit=" + PageSize +
-                "&MediaTypes=Video&IncludeItemTypes=Movie,Episode,Video&Fields=" + Escape(Fields), "GET", null, token));
+            => await SendAccount(account, UserPath(account) + "/Items/Resume?Limit=" + PageSize +
+                "&MediaTypes=Video&IncludeItemTypes=Movie,Episode,Video&Fields=" + Escape(Fields), "GET", null, token, ParseItems);
 
         public async Task<EmbyItemsResult> GetLatest(EmbyAccount account, string parentId = "", CancellationToken token = default)
         {
             string path = UserPath(account) + "/Items/Latest?Limit=" + PageSize + "&IncludeItemTypes=Movie,Episode,Video&Fields=" + Escape(Fields);
             if (!string.IsNullOrEmpty(parentId)) path += "&ParentId=" + Escape(parentId);
-            return ParseItems(await SendAccount(account, path, "GET", null, token));
+            return await SendAccount(account, path, "GET", null, token, ParseItems);
         }
 
         public async Task<EmbyItemsResult> GetItems(EmbyAccount account, string parentId, int startIndex = 0, string search = "", CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
-            return ParseItems(await SendAccount(account, ItemsPath(account, parentId, startIndex, search, false), "GET", null, token));
+            return await SendAccount(account, ItemsPath(account, parentId, startIndex, search, false), "GET", null, token, ParseItems);
         }
 
         public async Task<EmbyItemsResult> GetItems(EmbyAccount account, EmbyItem parent, int startIndex = 0, string search = "", CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
-            return ParseItems(await SendAccount(account, ItemsPath(account, parent?.Id, startIndex, search, parent?.IsMovieLibrary == true), "GET", null, token));
+            return await SendAccount(account, ItemsPath(account, parent?.Id, startIndex, search, parent?.IsMovieLibrary == true), "GET", null, token, ParseItems);
         }
 
         private static string ItemsPath(EmbyAccount account, string parentId, int startIndex, string search, bool movieLibrary)
@@ -115,8 +115,8 @@ namespace VRPlayer
         }
 
         public Task<EmbyItemsResult> GetAllItems(EmbyAccount account, EmbyItem parent, string search = "", CancellationToken token = default)
-            => CollectItems(async start => ParseItems(await SendAccount(account,
-                PagedItemsPath(account, parent?.Id, start, search, parent?.IsMovieLibrary == true, AllItemsPageSize), "GET", null, token)), token);
+            => CollectItems(start => SendAccount(account,
+                PagedItemsPath(account, parent?.Id, start, search, parent?.IsMovieLibrary == true, AllItemsPageSize), "GET", null, token, ParseItems), token);
 
         public async Task<EmbyItem> GetPerson(EmbyAccount account, string personId, CancellationToken token = default)
         {
@@ -130,16 +130,16 @@ namespace VRPlayer
         public Task<EmbyItemsResult> GetPersonMovies(EmbyAccount account, string personId, CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested(); RequireId(personId);
-            return CollectItems(async start => ParseItems(await SendAccount(account,
-                MovieFilterPath(account, start, "", "PersonIds", personId), "GET", null, token)), token);
+            return CollectItems(start => SendAccount(account,
+                MovieFilterPath(account, start, "", "PersonIds", personId), "GET", null, token, ParseItems), token);
         }
 
         public Task<EmbyItemsResult> GetFilteredMovies(EmbyAccount account, string kind, string value, string id = "", string search = "", CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
             string firstPath = FilteredMoviesPath(account, kind, value, id, search, 0);
-            return CollectItems(async start => ParseItems(await SendAccount(account,
-                start == 0 ? firstPath : FilteredMoviesPath(account, kind, value, id, search, start), "GET", null, token)), token);
+            return CollectItems(start => SendAccount(account,
+                start == 0 ? firstPath : FilteredMoviesPath(account, kind, value, id, search, start), "GET", null, token, ParseItems), token);
         }
 
         private static string FilteredMoviesPath(EmbyAccount account, string kind, string value, string id, string search, int startIndex)
@@ -167,25 +167,37 @@ namespace VRPlayer
                 token.ThrowIfCancellationRequested();
                 var page = await fetchPage(start);
                 token.ThrowIfCancellationRequested();
-                var current = page?.Items ?? Array.Empty<EmbyItem>();
-                int added = 0;
-                foreach (var item in current)
-                    if (item != null && !string.IsNullOrEmpty(item.Id) && seen.Add(item.Id)) { items.Add(item); added++; }
-                int total = Math.Max(0, page?.TotalRecordCount ?? 0);
-                if (current.Length == 0)
+                // Keep request creation on Unity's context, but all library-sized work off it.
+                bool complete = await Task.Run(() =>
                 {
-                    if (start < total) throw new InvalidOperationException("Emby 媒体列表未能完整加载，请重试");
-                    break;
-                }
-                if (added == 0) throw new InvalidOperationException("Emby 媒体列表未能完整加载，请重试");
-                start = checked(start + current.Length);
-                if (start >= total && (total > 0 || current.Length < AllItemsPageSize)) break;
+                    var current = page?.Items ?? Array.Empty<EmbyItem>();
+                    int added = 0;
+                    foreach (var item in current)
+                    {
+                        token.ThrowIfCancellationRequested();
+                        if (item != null && !string.IsNullOrEmpty(item.Id) && seen.Add(item.Id)) { items.Add(item); added++; }
+                    }
+                    int total = Math.Max(0, page?.TotalRecordCount ?? 0);
+                    if (current.Length == 0)
+                    {
+                        if (start < total) throw new InvalidOperationException("Emby 媒体列表未能完整加载，请重试");
+                        return true;
+                    }
+                    if (added == 0) throw new InvalidOperationException("Emby 媒体列表未能完整加载，请重试");
+                    start = checked(start + current.Length);
+                    return start >= total && (total > 0 || current.Length < AllItemsPageSize);
+                }, token);
+                if (complete) break;
             }
             token.ThrowIfCancellationRequested();
-            // Preserve a deterministic wall when multiple pages contain equal sort names.
-            var sorted = items.OrderBy(item => string.IsNullOrEmpty(item.SortName) ? item.Name ?? "" : item.SortName, StringComparer.OrdinalIgnoreCase)
-                .ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
-            return new EmbyItemsResult { Items = sorted, TotalRecordCount = sorted.Length };
+            return await Task.Run(() =>
+            {
+                // Preserve a deterministic wall when multiple pages contain equal sort names.
+                var sorted = items.OrderBy(item => string.IsNullOrEmpty(item.SortName) ? item.Name ?? "" : item.SortName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+                token.ThrowIfCancellationRequested();
+                return new EmbyItemsResult { Items = sorted, TotalRecordCount = sorted.Length };
+            }, token);
         }
 
         public async Task<EmbyItem[]> GetAdditionalParts(EmbyAccount account, string itemId, CancellationToken token = default)
@@ -193,7 +205,7 @@ namespace VRPlayer
             token.ThrowIfCancellationRequested();
             RequireId(itemId); RequireAccount(account);
             string path = "/Videos/" + Escape(itemId) + "/AdditionalParts?UserId=" + Escape(account.userId) + "&Fields=" + Escape(Fields);
-            var parts = ParseItems(await SendAccount(account, path, "GET", null, token)).Items;
+            var parts = (await SendAccount(account, path, "GET", null, token, ParseItems)).Items;
             token.ThrowIfCancellationRequested();
             // File stacking order belongs to the server; filenames and parent folders do not identify a part's position.
             return RelatedItems(itemId, parts);
@@ -204,12 +216,12 @@ namespace VRPlayer
             token.ThrowIfCancellationRequested();
             RequireId(itemId);
             string path = UserPath(account) + "/Items/" + Escape(itemId);
-            var features = SendAccount(account, path + "/SpecialFeatures?Fields=" + Escape(Fields), "GET", null, token);
-            var trailers = SendAccount(account, path + "/LocalTrailers?Fields=" + Escape(Fields), "GET", null, token);
+            var features = SendAccount(account, path + "/SpecialFeatures?Fields=" + Escape(Fields), "GET", null, token, ParseItems);
+            var trailers = SendAccount(account, path + "/LocalTrailers?Fields=" + Escape(Fields), "GET", null, token, ParseItems);
             var responses = await Task.WhenAll(features, trailers);
             token.ThrowIfCancellationRequested();
             // Both endpoints are authoritative even when ExtraType and the optional count fields are absent.
-            return RelatedItems(itemId, ParseItems(responses[0]).Items, ParseItems(responses[1]).Items);
+            return RelatedItems(itemId, responses[0].Items, responses[1].Items);
         }
 
         private static EmbyItem[] RelatedItems(string mainId, params EmbyItem[][] groups)
@@ -225,10 +237,13 @@ namespace VRPlayer
         public async Task<EmbyItem> GetItem(EmbyAccount account, string itemId, CancellationToken token = default)
         {
             RequireId(itemId);
-            var item = Parse<EmbyItem>(await SendAccount(account, UserPath(account) + "/Items/" + Escape(itemId) + "?Fields=" + Escape(Fields), "GET", null, token));
-            if (string.IsNullOrEmpty(item?.Id)) throw new InvalidOperationException("Emby 影片资料暂不可用");
-            NormalizeItem(item);
-            return item;
+            return await SendAccount(account, UserPath(account) + "/Items/" + Escape(itemId) + "?Fields=" + Escape(Fields), "GET", null, token, json =>
+            {
+                var item = Parse<EmbyItem>(json);
+                if (string.IsNullOrEmpty(item?.Id)) throw new InvalidOperationException("Emby 影片资料暂不可用");
+                NormalizeItem(item);
+                return item;
+            });
         }
 
         public async Task<EmbyItem[]> GetPlayedStateItems(EmbyAccount account, string itemId, CancellationToken token = default)
@@ -258,7 +273,7 @@ namespace VRPlayer
         {
             token.ThrowIfCancellationRequested(); RequireId(itemId);
             string path = UserPath(account) + "/PlayedItems/" + Escape(itemId);
-            var result = Parse<EmbyUserData>(await SendAccount(account, path, played ? "POST" : "DELETE", null, token));
+            var result = await SendAccount(account, path, played ? "POST" : "DELETE", null, token, Parse<EmbyUserData>);
             token.ThrowIfCancellationRequested();
             if (result == null || result.Played != played || result.PlaybackPositionTicks != 0)
                 throw new InvalidOperationException("Emby 未确认播放状态，请刷新后重试");
@@ -271,7 +286,7 @@ namespace VRPlayer
             var item = await GetItem(account, itemId, token);
             if (item.IsBrowsable) throw new InvalidOperationException("请选择一部影片或剧集后播放");
             var request = new PlaybackInfoRequest { UserId = account.userId, StartTimeTicks = MillisecondsToTicks(startMs) };
-            var info = Parse<PlaybackInfoResponse>(await SendAccount(account, "/Items/" + Escape(itemId) + "/PlaybackInfo", "POST", JsonUtility.ToJson(request), token));
+            var info = await SendAccount(account, "/Items/" + Escape(itemId) + "/PlaybackInfo", "POST", JsonUtility.ToJson(request), token, Parse<PlaybackInfoResponse>);
             token.ThrowIfCancellationRequested();
             if (!string.IsNullOrEmpty(info?.ErrorCode)) throw new InvalidOperationException("Emby 无法提供原始视频，请检查账户播放权限");
             var source = info?.MediaSources?.FirstOrDefault(value => value != null && !string.IsNullOrEmpty(value.Id) && !value.IsInfiniteStream && !value.RequiresOpening);
@@ -420,13 +435,19 @@ namespace VRPlayer
             catch (ArgumentException) { throw new InvalidOperationException("Emby 返回的数据无法识别，请重试"); }
         }
         private Task<string> SendAccount(EmbyAccount account, string path, string method, string body, CancellationToken token)
+            => SendAccount(account, path, method, body, token, text => text);
+
+        private Task<T> SendAccount<T>(EmbyAccount account, string path, string method, string body, CancellationToken token, Func<string, T> parse)
         {
             token.ThrowIfCancellationRequested();
             RequireAccount(account);
-            return Send(account.serverUrl, path, account, method, body, token);
+            return Send(account.serverUrl, path, account, method, body, token, parse);
         }
 
-        private async Task<string> Send(string server, string path, EmbyAccount account, string method, string body, CancellationToken token, int byteLimit = JsonByteLimit)
+        private Task<string> Send(string server, string path, EmbyAccount account, string method, string body, CancellationToken token, int byteLimit = JsonByteLimit)
+            => Send(server, path, account, method, body, token, text => text, byteLimit);
+
+        private async Task<T> Send<T>(string server, string path, EmbyAccount account, string method, string body, CancellationToken token, Func<string, T> parse, int byteLimit = JsonByteLimit)
         {
             token.ThrowIfCancellationRequested();
             using var download = new BoundedDownloadHandler(byteLimit);
@@ -450,13 +471,25 @@ namespace VRPlayer
                 if (request.responseCode == 404) throw new InvalidOperationException("Emby 媒体或服务器接口已不存在");
                 if (request.result != UnityWebRequest.Result.Success)
                     throw new InvalidOperationException(request.responseCode >= 500 ? "Emby 服务器暂时不可用，请稍后重试" : "无法连接 Emby，请检查地址和网络后重试");
-                return Encoding.UTF8.GetString(download.Bytes).TrimStart('\uFEFF');
+                // ReceiveData has finished. Only managed bytes/DTOs cross to the worker;
+                // UnityWebRequest checks, abort and disposal stay on the Unity thread.
+                return await DecodeResponse(download.Payload, parse, token);
             }
             finally
             {
                 if (!operation.isDone) request.Abort();
             }
         }
+
+        private static Task<T> DecodeResponse<T>(ArraySegment<byte> payload, Func<string, T> parse, CancellationToken token)
+            => Task.Run(() =>
+            {
+                token.ThrowIfCancellationRequested();
+                string text = Encoding.UTF8.GetString(payload.Array, payload.Offset, payload.Count).TrimStart('\uFEFF');
+                var result = parse(text);
+                token.ThrowIfCancellationRequested();
+                return result;
+            }, token);
 
         private static string SafeHeaderValue(string value)
         {
@@ -469,6 +502,7 @@ namespace VRPlayer
             private readonly MemoryStream buffer = new MemoryStream();
             private readonly int byteLimit;
             public bool Overflowed { get; private set; }
+            public ArraySegment<byte> Payload => new ArraySegment<byte>(buffer.GetBuffer(), 0, (int)buffer.Length);
             public byte[] Bytes => buffer.ToArray();
             public BoundedDownloadHandler(int byteLimit) : base(new byte[32 * 1024]) { this.byteLimit = byteLimit; }
             protected override bool ReceiveData(byte[] data, int dataLength)

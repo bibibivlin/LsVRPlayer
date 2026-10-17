@@ -16,6 +16,8 @@ namespace VRPlayer.Tests
         private PlayerApp app;private PlayerUI ui;private AndroidMediaBackend backend;private string path;
         private static T Field<T>(object target,string name)=>(T)target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).GetValue(target);
         private static void Call(object target,string name)=>target.GetType().GetMethod(name,BindingFlags.Instance|BindingFlags.NonPublic).Invoke(target,null);
+        private bool BuildCard()=> (bool)typeof(EmbyBrowserUI).GetMethod("BuildNextCard",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(Field<EmbyBrowserUI>(ui,"embyBrowser"),null);
+        private void FinishCards(){for(int i=0;i<100&&BuildCard();i++){} }
         private void Set(string name,object value)=>typeof(PlayerApp).GetProperty(name).SetValue(app,value);
         [SetUp] public void Setup()
         {
@@ -97,6 +99,7 @@ namespace VRPlayer.Tests
             Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Home;
             app.EmbyState.resume=Enumerable.Range(0,6).Select(i=>new EmbyItem{Id="resume"+i,Name="Fixture "+i,Type=i%2==0?"Movie":"Episode",SeriesName="Series",ImageTags=new EmbyImageTags{Primary="poster",Thumb="thumbnail"}}).ToArray();
             ui.SelectTab("文件");var browser=Field<EmbyBrowserUI>(ui,"embyBrowser");var body=Field<RectTransform>(browser,"body");
+            FinishCards();
             var cards=body.GetComponentsInChildren<Button>().Where(button=>button.name.StartsWith("Emby resume ")).Select(button=>(RectTransform)button.transform).ToArray();
             Assert.That(cards.Length,Is.EqualTo(6));Assert.That(cards.Take(5).All(card=>Mathf.Abs(card.anchoredPosition.y-cards[0].anchoredPosition.y)<.1f),Is.True);
             Assert.That(cards[4].anchoredPosition.x+cards[4].rect.width,Is.EqualTo(body.rect.width-14).Within(.1));
@@ -122,6 +125,7 @@ namespace VRPlayer.Tests
         {
             Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Home;app.EmbyState.resume=new[]{new EmbyItem{Id="main",Type="Movie"}};
             ui.SelectTab("文件");var body=Field<RectTransform>(Field<EmbyBrowserUI>(ui,"embyBrowser"),"body");
+            FinishCards();
             var card=body.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby resume main");
             var mark=card.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby played main");
             Assert.That(((RectTransform)mark.transform).rect.size,Is.EqualTo(new Vector2(44,44)));Assert.That(mark.GetComponent<UiIconTooltip>(),Is.Not.Null);
@@ -137,7 +141,7 @@ namespace VRPlayer.Tests
             Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Library;app.EmbyState.parent=new EmbyItem{Id="library"};
             app.EmbyState.items=new[]{new EmbyItem{Id="image",Name="Fixture",Type="Movie",ImageTags=new EmbyImageTags{Primary="p",Thumb="t",Banner="b",Disc="d",Logo="l"}}};
             app.Store.Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{libraryId="library",view=view});
-            ui.SelectTab("文件");var image=Field<RectTransform>(ui,"content").GetComponentsInChildren<RawImage>().Single();var rect=(RectTransform)image.transform;var holder=(RectTransform)rect.parent;
+            ui.SelectTab("文件");FinishCards();var image=Field<RectTransform>(ui,"content").GetComponentsInChildren<RawImage>().Single();var rect=(RectTransform)image.transform;var holder=(RectTransform)rect.parent;
             var texture=new Texture2D(424,225);
             try{
                 typeof(EmbyBrowserUI).GetMethod("Assign",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{image,texture});Canvas.ForceUpdateCanvases();
@@ -149,6 +153,28 @@ namespace VRPlayer.Tests
                 typeof(EmbyBrowserUI).GetMethod("Detach",BindingFlags.Static|BindingFlags.NonPublic).Invoke(null,new object[]{image});
                 Assert.That(image.texture,Is.Null);Assert.That(holder.Find("Text").gameObject.activeSelf,Is.True);
             }finally{UnityEngine.Object.DestroyImmediate(texture);}
+        }
+        [Test] public void LargeLibraryCreatesOneCardPerStepInsteadOfBlockingItsInitialRender()
+        {
+            Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Library;
+            app.EmbyState.items=Enumerable.Range(0,1005).Select(i=>new EmbyItem{Id="film"+i,Name="Film "+i,Type="Movie"}).ToArray();
+            ui.SelectTab("文件");var browser=Field<EmbyBrowserUI>(ui,"embyBrowser");var body=Field<RectTransform>(browser,"body");
+            Assert.That(body.GetComponentsInChildren<RowBinding>().Length,Is.Zero);
+            Assert.That(BuildCard(),Is.True);Assert.That(body.GetComponentsInChildren<RowBinding>().Length,Is.EqualTo(1));
+            Assert.That(BuildCard(),Is.True);Assert.That(body.GetComponentsInChildren<RowBinding>().Length,Is.EqualTo(2));
+            FinishCards();Assert.That(body.GetComponentsInChildren<RowBinding>().Length,Is.LessThan(100));
+            Assert.That(body.GetComponentsInChildren<RowBinding>().Select(row=>row.Item.key).Distinct().Count(),Is.EqualTo(body.GetComponentsInChildren<RowBinding>().Length));
+        }
+        [Test] public void ReplacingAPageDiscardsItsPendingCards()
+        {
+            Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Home;
+            app.EmbyState.resume=Enumerable.Range(0,12).Select(i=>new EmbyItem{Id="old"+i,Name="Old"}).ToArray();
+            ui.SelectTab("文件");Assert.That(BuildCard(),Is.True);
+            Set("EmbyState",new EmbyBrowserState{page=EmbyPage.Library,items=new[]{new EmbyItem{Id="new",Name="New",Type="Movie"}}});
+            var browser=Field<EmbyBrowserUI>(ui,"embyBrowser");browser.Render(true);FinishCards();
+            var body=Field<RectTransform>(browser,"body");
+            Assert.That(body.GetComponentsInChildren<RowBinding>().Single().Item.key,Does.EndWith(":new"));
+            Assert.That(body.GetComponentsInChildren<Button>().Any(button=>button.name.StartsWith("Emby resume old")),Is.False);
         }
         [Test] public void ActiveEmbyAccountUsesTheSharedHighlightWithoutALeftStripe()
         {
