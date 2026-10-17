@@ -1,0 +1,13 @@
+L's VRPlayer
+Copyright (c) 2026 Linxyi and contributors
+
+Project-authored code and documentation are licensed under the MIT License.
+See LICENSE for the full text.
+
+Third-party software, SDKs, fonts, imported assets and bundled components retain
+their own copyright notices and license terms. The project MIT License does
+not relicense these components or establish the distribution terms of a
+complete APK containing them.
+
+See Docs/ThirdPartyNotices.md for component notices and Docs/Licensing.zh-CN.md
+for the licensing scope and outstanding binary distribution review.
