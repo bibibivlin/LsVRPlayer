@@ -15,6 +15,7 @@ Use Unity **6000.3.23f1** with Android SDK, NDK, and OpenJDK support. Install Gi
 
 - `./Tools/Build-Native.ps1`: builds the Java AAR and ARM64 rendering library. Supply `-UnityEditor` for a different installation path.
 - Unity menu **VRPlayer → Configure Project and Open Player**, then **Build Android APK**: configures the project and produces `Builds/LsVRPlayer.apk`. Use Play Mode for editor previews.
+- Signed Release: `./Tools/Build-Release.ps1`; version comes from ProjectSettings, and secrets are passed only to external signing tools. See `Docs/Release.zh-CN.md` for the self-hosted GitHub workflow, signing setup, verification gates and tag publishing.
 - Unity **Test Runner → EditMode → VRPlayer.Tests**: runs the NUnit suite.
 - Native JUnit: run the Unity-bundled Gradle task `testDebugUnitTest` against `Native/Android`; the full PowerShell command is in `Docs/BuildAndUse.zh-CN.md`.
 - `python Tools/Generate-TestMedia.py --extended`: generates fixtures; requires `imageio-ffmpeg`.

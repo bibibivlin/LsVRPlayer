@@ -1,6 +1,6 @@
 # L's VRPlayer 使用与构建
 
-开发场景：`Assets/VRPlayer/Scenes/Player.unity`。Android 包名：`com.linxyi.LsVRPlayer`。当前为个人使用的开发版 APK，ARM64 / IL2CPP / GLES3 / PICO Multiview。
+开发场景：`Assets/VRPlayer/Scenes/Player.unity`。Android 包名：`com.linxyi.LsVRPlayer`。1.0 正式版为 1.0.0 / code 7，ARM64 / IL2CPP / GLES3 / PICO Multiview。签名构建与 GitHub 发布见 [正式版本构建与发布](Release.zh-CN.md)；下述 Unity 菜单仍构建开发 APK。
 
 ## 在 PICO 4 上使用
 
