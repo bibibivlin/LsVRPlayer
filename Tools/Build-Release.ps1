@@ -23,6 +23,13 @@ $statePath=Join-Path $staging 'build-state.json'
 $intermediate=Join-Path $staging 'player-intermediate.apk'
 $secretNames=@('ANDROID_KEYSTORE_BASE64','ANDROID_KEYSTORE_PASS','ANDROID_KEYALIAS_NAME','ANDROID_KEYALIAS_PASS')
 
+function Get-ReleaseHash([string]$Path) {
+    $stream=[IO.File]::OpenRead($Path)
+    $algorithm=[Security.Cryptography.SHA256]::Create()
+    try{return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-','')}
+    finally{$stream.Dispose();$algorithm.Dispose()}
+}
+
 function Invoke-UnityTask([string[]]$TaskArguments) {
     $info=New-Object Diagnostics.ProcessStartInfo
     $info.FileName=Join-Path $UnityEditor 'Unity.exe'
@@ -77,7 +84,7 @@ try {
         }
         finally{Remove-Item Env:VRPLAYER_RELEASE_INTERMEDIATE -ErrorAction SilentlyContinue}
         if(-not (Test-Path -LiteralPath $intermediate)){throw 'Unity did not produce the intermediate APK'}
-        @{sourceCommit=$commit;version=$version;versionCode=[int]$versionCode;tests=$tests;sha256=(Get-FileHash -LiteralPath $intermediate -Algorithm SHA256).Hash} |
+        @{sourceCommit=$commit;version=$version;versionCode=[int]$versionCode;tests=$tests;sha256=(Get-ReleaseHash $intermediate)} |
             ConvertTo-Json | Set-Content -LiteralPath $statePath -Encoding UTF8
         Write-Output "Release player and tests ready: $version / $versionCode"
     }
@@ -87,7 +94,7 @@ try {
         }
         if(-not (Test-Path -LiteralPath $statePath)){throw 'Build stage must succeed before signing'}
         $state=Get-Content -LiteralPath $statePath -Raw | ConvertFrom-Json
-        if($state.sourceCommit -ne $commit -or $state.version -ne $version -or $state.versionCode -ne [int]$versionCode -or $state.sha256 -ne (Get-FileHash -LiteralPath $intermediate -Algorithm SHA256).Hash){throw 'Intermediate build is stale or has changed'}
+        if($state.sourceCommit -ne $commit -or $state.version -ne $version -or $state.versionCode -ne [int]$versionCode -or $state.sha256 -ne (Get-ReleaseHash $intermediate)){throw 'Intermediate build is stale or has changed'}
         $notes=Join-Path $root "Docs/Releases/v$version.zh-CN.md"
         if(-not (Test-Path -LiteralPath $notes)){throw 'Missing release notes for this version'}
         $buildTools=Get-ChildItem -LiteralPath (Join-Path $sdk 'build-tools') -Directory |
