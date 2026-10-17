@@ -3,6 +3,7 @@ import argparse
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -65,6 +66,19 @@ def run_tool(args):
     return result.stdout.decode("utf-8", errors="strict")
 
 
+def analyzer_command(launcher, apk):
+    if launcher.suffix.lower() == ".bat":
+        # cmdline-tools 16's .bat leaves its default toolsdir JVM option unquoted.
+        # Invoke the same Java entry point with an argument array for SDK paths
+        # containing spaces, without editing the installed SDK.
+        tools = launcher.parent.parent
+        return [Path(os.environ["JAVA_HOME"]) / "bin/java.exe",
+                "-Dcom.android.sdklib.toolsdir=" + str(tools), "-classpath",
+                tools / "lib/apkanalyzer-classpath.jar", "com.android.tools.apk.analyzer.ApkAnalyzerCli",
+                "manifest", "print", apk]
+    return [launcher, "manifest", "print", apk]
+
+
 def digest(path):
     with path.open("rb") as stream:
         return hashlib.file_digest(stream, "sha256").hexdigest()
@@ -83,7 +97,7 @@ def main():
     version, code = project_version(root)
     if not re.fullmatch(r"[0-9a-f]{40}", args.commit):
         raise ValueError("Release source commit must be a complete Git SHA")
-    verify_manifest(run_tool([args.apkanalyzer, "manifest", "print", args.apk]), version, code)
+    verify_manifest(run_tool(analyzer_command(args.apkanalyzer, args.apk)), version, code)
     signer = verify_signer(run_tool([args.apksigner, "verify", "--verbose", "--print-certs", args.apk]), args.expected_cert_sha256)
     with zipfile.ZipFile(args.apk) as apk:
         libraries = {name for name in apk.namelist() if name.startswith("lib/") and name.endswith(".so")}
