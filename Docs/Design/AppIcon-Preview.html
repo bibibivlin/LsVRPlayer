@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L's VRPlayer · A 方案图标</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:36px;background:#101b24;color:#edf5fa;font:16px/1.5 "Segoe UI","Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto}h1{font-size:28px;margin:0 0 6px}p{color:#aabdc9;margin:0 0 28px}h2{font-size:17px;margin:0 0 20px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}.card{background:#192b37;border:1px solid #2c4657;border-radius:20px;padding:24px;text-align:center}.icon{width:256px;height:256px;background:#0a1a23;overflow:hidden;position:relative;margin:auto}.icon img{position:absolute;inset:0;width:100%;height:100%;display:block}.round{border-radius:50%}.rounded{border-radius:23%}.adaptive img{width:150%;height:150%;inset:-25%}.sizes{display:flex;align-items:end;justify-content:center;gap:25px;margin-top:28px}.sample span{display:block;font-size:12px;color:#aabdc9;margin-top:8px}.small32{width:32px;height:32px}.small48{width:48px;height:48px}.small64{width:64px;height:64px}.note{font-size:13px;margin-top:24px}.accent{color:#3be0d1}@media(max-width:980px){.grid{grid-template-columns:1fr}.card{width:100%}}
+</style>
+<main>
+<h1>L's VRPlayer <span class="accent">· A 方案</span></h1>
+<p>L 字母与折叠播放箭头，沿用海绿色与深蓝配色。</p>
+<div class="grid">
+<section class="card"><h2>标准图标</h2><div class="icon rounded"><img src="../../Assets/VRPlayer/Art/AppIcon/AppIcon.png" alt="A 方案标准图标"></div><div class="sizes" data-kind="legacy"></div></section>
+<section class="card"><h2>圆形裁切</h2><div class="icon round"><img src="../../Assets/VRPlayer/Art/AppIcon/AppIcon.png" alt="A 方案圆形裁切"></div><div class="sizes" data-kind="round"></div></section>
+<section class="card"><h2>Android 自适应图标</h2><div class="icon round adaptive"><img src="../../Assets/VRPlayer/Art/AppIcon/AppIconForeground.png" alt="A 方案自适应图标合成预览"></div><div class="sizes" data-kind="adaptive"></div></section>
+</div>
+<p class="note">静态显示模拟：自适应预览按 108 dp 图层 / 72 dp 可视窗口合成。下方为 32、48、64 CSS 像素。设备启动器的裁切、缩放和动效以实机为准。</p>
+</main>
+<script>
+for(const row of document.querySelectorAll('.sizes')){
+ for(const size of [32,48,64]){
+  const sample=document.createElement('div');sample.className='sample';
+  const icon=document.createElement('div');icon.className='icon small'+size+(row.dataset.kind==='legacy'?' rounded':' round')+(row.dataset.kind==='adaptive'?' adaptive':'');
+  const image=document.createElement('img');image.src='../../Assets/VRPlayer/Art/AppIcon/'+(row.dataset.kind==='adaptive'?'AppIconForeground.png':'AppIcon.png');image.alt=size+'像素预览';icon.append(image);
+  const label=document.createElement('span');label.textContent=size+' px';sample.append(icon,label);row.append(sample);
+ }
+}
+</script>
+</html>
