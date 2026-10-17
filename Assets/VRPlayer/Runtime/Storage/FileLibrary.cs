@@ -44,12 +44,7 @@ namespace VRPlayer
             if(UnityEngine.Android.Permission.HasUserAuthorizedPermission(permission))return false;
             if(permissionPrompt==null||permissionPrompt.IsCompleted){
                 if(!requestedPermissions.Add(permission))return false;
-                var result=new TaskCompletionSource<bool>();permissionPrompt=result.Task;
-                var callbacks=new UnityEngine.Android.PermissionCallbacks();
-                callbacks.PermissionGranted+=_=>result.TrySetResult(true);
-                callbacks.PermissionDenied+=_=>result.TrySetResult(false);
-                callbacks.PermissionRequestDismissed+=_=>result.TrySetResult(false);
-                UnityEngine.Android.Permission.RequestUserPermission(permission,callbacks);
+                permissionPrompt=RequestReadPermission(permission);
             }
             var prompt=permissionPrompt;
             // Cancelling a browser/open retires only its waiter; the system dialog is shared.
@@ -59,6 +54,28 @@ namespace VRPlayer
             await Task.CompletedTask;return false;
 #endif
         }
+        public static Func<string,Task<bool>> ReadPermissionRationale;
+        public static async Task<FileResult> ExportLicenseSource(CancellationToken token)
+        {
+#if UNITY_ANDROID && !UNITY_EDITOR
+            using var unity=new AndroidJavaClass("com.unity3d.player.UnityPlayer");using var activity=unity.GetStatic<AndroidJavaObject>("currentActivity");
+            int id=AndroidBridge.Api.CallStatic<int>("beginExportLicenseSource",activity);return await AwaitResult(id,token);
+#else
+            await Task.CompletedTask;return new FileResult{error="源码随 APK 打包；请在头显中导出 / Export is available on the headset"};
+#endif
+        }
+#if UNITY_ANDROID && !UNITY_EDITOR
+        private static async Task<bool> RequestReadPermission(string permission)
+        {
+            if(ReadPermissionRationale!=null&&!await ReadPermissionRationale(permission)){requestedPermissions.Remove(permission);return false;}
+            var result=new TaskCompletionSource<bool>();
+            var callbacks=new UnityEngine.Android.PermissionCallbacks();
+            callbacks.PermissionGranted+=_=>result.TrySetResult(true);
+            callbacks.PermissionDenied+=_=>result.TrySetResult(false);
+            callbacks.PermissionRequestDismissed+=_=>result.TrySetResult(false);
+            UnityEngine.Android.Permission.RequestUserPermission(permission,callbacks);return await result.Task;
+        }
+#endif
         public async Task<FileResult> List(string uri,CancellationToken token)
         {
 #if UNITY_ANDROID && !UNITY_EDITOR

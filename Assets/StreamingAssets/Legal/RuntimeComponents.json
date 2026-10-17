@@ -1,0 +1,635 @@
+{
+  "schemaVersion": 1,
+  "runtimeComponents": [
+    {
+      "id": "androidx.annotation:annotation-experimental:1.3.1",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "annotation-experimental-1.3.1.aar",
+      "sha256": "e4d49dc3880b7b7437ea54ce71461e02897faa4e1ecc53e63ecadb1a14c20c9c",
+      "pom": "Docs/Licenses/Poms/androidx.annotation.annotation-experimental-1.3.1.pom",
+      "pomSha256": "426f94310b47bdf004dc2038daeaa943c5ce4f4b063e86f78bc536e232e3ddfc",
+      "notices": []
+    },
+    {
+      "id": "androidx.annotation:annotation-jvm:1.6.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "annotation-jvm-1.6.0.jar",
+      "sha256": "60b10b5ef5769b79570172e015b8159405c92f034ba88b9391a977589c9deb4e",
+      "pom": "Docs/Licenses/Poms/androidx.annotation.annotation-jvm-1.6.0.pom",
+      "pomSha256": "2be665ba7cdb046b41b409c79a3de0c6d9e1255242c087f6b94b2c7493be08f4",
+      "notices": []
+    },
+    {
+      "id": "androidx.arch.core:core-common:2.1.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "core-common-2.1.0.jar",
+      "sha256": "fe1237bf029d063e7f29fe39aeaf73ef74c8b0a3658486fc29d3c54326653889",
+      "pom": "Docs/Licenses/Poms/androidx.arch.core.core-common-2.1.0.pom",
+      "pomSha256": "83bbb3960eaabc600ac366c94cb59414e441532a1d6aa9388b0b8bfface5cf01",
+      "notices": []
+    },
+    {
+      "id": "androidx.arch.core:core-runtime:2.1.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "core-runtime-2.1.0.aar",
+      "sha256": "dd77615bd3dd275afb11b62df25bae46b10b4a117cd37943af45bdcbf8755852",
+      "pom": "Docs/Licenses/Poms/androidx.arch.core.core-runtime-2.1.0.pom",
+      "pomSha256": "c0c4ed0160cd2ca18390015de8b392b697c173327c6b2c0947d4e62f6958c05d",
+      "notices": []
+    },
+    {
+      "id": "androidx.collection:collection:1.2.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "collection-1.2.0.jar",
+      "sha256": "16d77e8c443fa55fe9a6074d00445d520ca5c9f913cefdbf4828356255214e42",
+      "pom": "Docs/Licenses/Poms/androidx.collection.collection-1.2.0.pom",
+      "pomSha256": "97a004946bf0581cc8fe19b48adfce4f48374deb2a52c49d53157312d05bd5ad",
+      "notices": []
+    },
+    {
+      "id": "androidx.concurrent:concurrent-futures:1.0.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "concurrent-futures-1.0.0.jar",
+      "sha256": "5595a40e278a7b39fa78a09490e3d7f3faa95c7b01447148bd38b5ade0605c35",
+      "pom": "Docs/Licenses/Poms/androidx.concurrent.concurrent-futures-1.0.0.pom",
+      "pomSha256": "4505b9a5e30a9418b59a9ad6702c3e4193aea6e691a3d03cf220c7640ad083e2",
+      "notices": []
+    },
+    {
+      "id": "androidx.core:core:1.8.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "core-1.8.0.aar",
+      "sha256": "48c64a15ec3eb11bfb33339e5ceb70ec7f821bd2dfa2eb8675ebd5353317e792",
+      "pom": "Docs/Licenses/Poms/androidx.core.core-1.8.0.pom",
+      "pomSha256": "79ecc797a5d200c4be3f6756d2cbb6fa46fe582192304377e8a6410f6066eb3e",
+      "notices": []
+    },
+    {
+      "id": "androidx.exifinterface:exifinterface:1.3.6",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "exifinterface-1.3.6.aar",
+      "sha256": "1804105e9e05fdd8f760413bad5de498c381aa329f4f9d94c851bc891ac654c6",
+      "pom": "Docs/Licenses/Poms/androidx.exifinterface.exifinterface-1.3.6.pom",
+      "pomSha256": "59cfe5bd98506c27617b778143eb09a6b986a5417a0b1b0fd8b875eaa8db4bab",
+      "notices": []
+    },
+    {
+      "id": "androidx.games:games-frame-pacing:2.1.2",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "games-frame-pacing-2.1.2.aar",
+      "sha256": "ff4836c77f9b79e447a28d548837c318490bc08f8f74fad6f7597b79ac9997c2",
+      "pom": "Docs/Licenses/Poms/androidx.games.games-frame-pacing-2.1.2.pom",
+      "pomSha256": "c0a8f0d9210c7f64384cc4486c3a1c3297b185db0948437f799c3df411f2dfed",
+      "notices": []
+    },
+    {
+      "id": "androidx.lifecycle:lifecycle-common:2.3.1",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "lifecycle-common-2.3.1.jar",
+      "sha256": "15848fb56db32f4c7cdc72b324003183d52a4884d6bf09be708ac7f587d139b5",
+      "pom": "Docs/Licenses/Poms/androidx.lifecycle.lifecycle-common-2.3.1.pom",
+      "pomSha256": "8cd23d889a14095c6ce16840d29b1a6388fa5e115144c1309d4d6d469c1bc351",
+      "notices": []
+    },
+    {
+      "id": "androidx.lifecycle:lifecycle-runtime:2.3.1",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "lifecycle-runtime-2.3.1.aar",
+      "sha256": "dd294f4a689c71ff877fd41f3b67a3a62f7760d44ce420e6130f1fc3569d8f00",
+      "pom": "Docs/Licenses/Poms/androidx.lifecycle.lifecycle-runtime-2.3.1.pom",
+      "pomSha256": "b4442a84fc397edb2e908a1fdf713c6ae7d3a87641a09ee13d10ec8ee10b331f",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-common:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-common-1.9.3.aar",
+      "sha256": "b7650e8aef0cdfe1846c04901c9b4bffa3eae8fbbc62a883618340b4b217df4b",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-common-1.9.3.pom",
+      "pomSha256": "2cbd4100066fc4126b0c5909b3028557219958072c0ac95e60dc653ee30f4117",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-container:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-container-1.9.3.aar",
+      "sha256": "f73cea4fe8a2bf9eb6462bfb7a547d1aaf55395d0007eed6fadb129b56927c0d",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-container-1.9.3.pom",
+      "pomSha256": "675cef7be79e9e31e0aa6e0eb307bdc911d5c048815740c37edd847f175310d6",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-database:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-database-1.9.3.aar",
+      "sha256": "de88a2ca8fd1efb1dbe7d8cd4c728fca15fafb629442514a689dea1788817637",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-database-1.9.3.pom",
+      "pomSha256": "47e45204c295b53cca7ca2e34e2a72788834c43f03b1be01e4bb503d16745503",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-datasource:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-datasource-1.9.3.aar",
+      "sha256": "ccaf5530a31e64dffe2a803feeeb654e7e81fc4a2597f6d929ce7a9aba7ff13e",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-datasource-1.9.3.pom",
+      "pomSha256": "36d49d23ae663c7b551db9b0b642ce73bd3ec3e7ea29e0338894667df4ef3165",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-decoder:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-decoder-1.9.3.aar",
+      "sha256": "2337461b4ed4ec3cd32330cd530d9b471d5d45b76410f6e0d66f1331c9a0bc08",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-decoder-1.9.3.pom",
+      "pomSha256": "34b8d1530c8cc0ca7943571ae9b64304174e31ccd9e24991a5e882c00200a1ba",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-exoplayer:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-exoplayer-1.9.3.aar",
+      "sha256": "a2631802546642085cb449eec02d646784f9bd4fb3a10a948b35993897c0d1a7",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-exoplayer-1.9.3.pom",
+      "pomSha256": "9b0d43d324d9c92e46ce8d16d3b74abd32a1a94778631fad7c33ebd406a313a7",
+      "notices": []
+    },
+    {
+      "id": "androidx.media3:media3-extractor:1.9.3",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "media3-extractor-1.9.3.aar",
+      "sha256": "fb1d260cea679efd3568b4b4b02c9aa1dd84cef847cd50f93f50ca02e59cb20b",
+      "pom": "Docs/Licenses/Poms/androidx.media3.media3-extractor-1.9.3.pom",
+      "pomSha256": "5a94ba0b9b0ac2786d9429f8651b930a0c7399312a8b981a3e3fbdc9bc4c9de3",
+      "notices": []
+    },
+    {
+      "id": "androidx.versionedparcelable:versionedparcelable:1.1.1",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "versionedparcelable-1.1.1.aar",
+      "sha256": "57e8d93260d18d5b9007c9eed3c64ad159de90c8609ebfc74a347cbd514535a4",
+      "pom": "Docs/Licenses/Poms/androidx.versionedparcelable.versionedparcelable-1.1.1.pom",
+      "pomSha256": "5f51e65873ca612de3838fa90d2ee95b8d040efd31b9c390a19bf94d615cdb2f",
+      "notices": []
+    },
+    {
+      "id": "com.google.code.findbugs:jsr305:3.0.2",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "jsr305-3.0.2.jar",
+      "sha256": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7",
+      "pom": "Docs/Licenses/Poms/com.google.code.findbugs.jsr305-3.0.2.pom",
+      "pomSha256": "4344b20037760d5523de7f7910d06ffefea0ec787b7837dc53217eb7c5257627",
+      "notices": []
+    },
+    {
+      "id": "com.google.code.gson:gson:2.10.1",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "Apache-2.0"
+      ],
+      "artifact": "gson-2.10.1.jar",
+      "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593",
+      "pom": "Docs/Licenses/Poms/com.google.code.gson.gson-2.10.1.pom",
+      "pomSha256": "d2b115634f5c085db4b9c9ffc2658e89e231fdbfbe2242121a1cd95d4d948dd7",
+      "notices": []
+    },
+    {
+      "id": "com.google.errorprone:error_prone_annotations:2.36.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "Apache 2.0"
+      ],
+      "artifact": "error_prone_annotations-2.36.0.jar",
+      "sha256": "77440e270b0bc9a249903c5a076c36a722c4886ca4f42675f2903a1c53ed61a5",
+      "pom": "Docs/Licenses/Poms/com.google.errorprone.error_prone_annotations-2.36.0.pom",
+      "pomSha256": "d79cfd37c85f76d6b754c7501ee1dc8447b7b2642c2382d778252166bd331e9c",
+      "notices": []
+    },
+    {
+      "id": "com.google.guava:failureaccess:1.0.2",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "failureaccess-1.0.2.jar",
+      "sha256": "8a8f81cf9b359e3f6dfa691a1e776985c061ef2f223c9b2c80753e1b458e8064",
+      "pom": "Docs/Licenses/Poms/com.google.guava.failureaccess-1.0.2.pom",
+      "pomSha256": "19ebc6f4bdb4edbb3d07b6ee994f846b54ef295582a9b5634719ffa9f31d03b2",
+      "notices": []
+    },
+    {
+      "id": "com.google.guava:guava:33.4.0-jre",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "Apache License, Version 2.0"
+      ],
+      "artifact": "guava-33.4.0-android.jar",
+      "sha256": "e335cd1678426f15e04ae4f623c58b4c176572d7258c6ea64e3437cdc01e5707",
+      "pom": "Docs/Licenses/Poms/com.google.guava.guava-33.4.0-jre.pom",
+      "pomSha256": "fa94db40022ddfc775af9ecfb130cce515b96f740daf82f20af846d95054134b",
+      "notices": []
+    },
+    {
+      "id": "com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar",
+      "sha256": "b372a037d4230aa57fbeffdef30fd6123f9c0c2db85d0aced00c91b974f33f99",
+      "pom": "Docs/Licenses/Poms/com.google.guava.listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.pom",
+      "pomSha256": "18d4b1db26153d4e55079ce1f76bb1fe05cdb862ef9954a88cbcc4ff38b8679b",
+      "notices": []
+    },
+    {
+      "id": "com.google.j2objc:j2objc-annotations:3.0.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "Apache License, Version 2.0"
+      ],
+      "artifact": "j2objc-annotations-3.0.0.jar",
+      "sha256": "88241573467ddca44ffd4d74aa04c2bbfd11bf7c17e0c342c94c9de7a70a7c64",
+      "pom": "Docs/Licenses/Poms/com.google.j2objc.j2objc-annotations-3.0.0.pom",
+      "pomSha256": "23b3d039e168ad89dd114698e6dd7be383f4a2c577b8877d82c73a6515e74a17",
+      "notices": []
+    },
+    {
+      "id": "com.hierynomus:asn-one:0.6.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache License, Version 2.0"
+      ],
+      "artifact": "asn-one-0.6.0.jar",
+      "sha256": "e4f70fd92849b52240048b8ebace0c9a17d3bb7b9c882b3c7778cec3458495f5",
+      "pom": "Docs/Licenses/Poms/com.hierynomus.asn-one-0.6.0.pom",
+      "pomSha256": "c2e7f76d229f2a35e392922a23a53a0e3110e9e9877da7e71566d3baa33d07d2",
+      "notices": []
+    },
+    {
+      "id": "com.hierynomus:smbj:0.13.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache License, Version 2.0"
+      ],
+      "artifact": "smbj-0.13.0.jar",
+      "sha256": "d9a2fb2585ec2f62d2689b894e0b98f30ac694d3da18509dbd99ed60959ab093",
+      "pom": "Docs/Licenses/Poms/com.hierynomus.smbj-0.13.0.pom",
+      "pomSha256": "67d764b3e36fac71ae16f3d828a38c3226a6639a1b74878defbdeff20786f68b",
+      "notices": []
+    },
+    {
+      "id": "com.rapid7.client:dcerpc:0.12.13",
+      "license": "BSD-3-Clause",
+      "declaredLicense": [
+        "BSD-3-Clause"
+      ],
+      "artifact": "dcerpc-0.12.13.jar",
+      "sha256": "ea3f970d4b6f5bedbca843551b9c4fe250de34942aa02e02a7f957a402f5cbb8",
+      "pom": "Docs/Licenses/Poms/com.rapid7.client.dcerpc-0.12.13.pom",
+      "pomSha256": "05868b31af39faf63d6e207161ad20e0290f11dd7289e5430617921e44deda13",
+      "notices": [
+        {
+          "path": "Docs/Licenses/SMBJ-RPC-BSD-3-Clause.txt",
+          "sha256": "ff6466b4a70e9c7abba434a4c04b8dc8f9f25056bed52fe6c7dd482f31229559"
+        }
+      ]
+    },
+    {
+      "id": "commons-io:commons-io:2.7",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "Apache License, Version 2.0"
+      ],
+      "artifact": "commons-io-2.7.jar",
+      "sha256": "4547858fff38bbf15262d520685b184a3dce96897bc1844871f055b96e8f6e95",
+      "pom": "Docs/Licenses/Poms/commons-io.commons-io-2.7.pom",
+      "pomSha256": "d83e8edf1704450a7c60f938c95d5aa479a3e2b6feb1843a92ebffa04416f59c",
+      "notices": [
+        {
+          "path": "Docs/Licenses/Artifacts/commons-io.commons-io-2.7-LICENSE.txt.txt",
+          "sha256": "8c6db340475136df3c1201d458fa5755698eace76e510471ecc9d857d6083dac"
+        },
+        {
+          "path": "Docs/Licenses/Artifacts/commons-io.commons-io-2.7-NOTICE.txt.txt",
+          "sha256": "0c59ed651be6403e5565c67a8d500e45673717edf2361b0b5f76e9e9e0895370"
+        }
+      ]
+    },
+    {
+      "id": "net.engio:mbassador:1.3.0",
+      "license": "MIT",
+      "declaredLicense": [
+        "MIT license"
+      ],
+      "artifact": "mbassador-1.3.0.jar",
+      "sha256": "f065031a490c88c9b20d34f3c9c4eb6e0dffe329c090788c383574e1ac7c6bba",
+      "pom": "Docs/Licenses/Poms/net.engio.mbassador-1.3.0.pom",
+      "pomSha256": "0bd5dd66857890df89f63f14c52ccfd8f61fcdc61f878724fd7c1c5ca8a3c1c7",
+      "notices": [
+        {
+          "path": "Docs/Licenses/MBassador-1.3.0-MIT.txt",
+          "sha256": "ab2654d8c44f6816b82afa9c45bd79a5b203b7b08634a67a95d02b26aa9a7fec"
+        }
+      ]
+    },
+    {
+      "id": "org.apache.commons:commons-lang3:3.4",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "Apache License, Version 2.0"
+      ],
+      "artifact": "commons-lang3-3.4.jar",
+      "sha256": "734c8356420cc8e30c795d64fd1fcd5d44ea9d90342a2cc3262c5158fbc6d98b",
+      "pom": "Docs/Licenses/Poms/org.apache.commons.commons-lang3-3.4.pom",
+      "pomSha256": "686e75b561a13c1031d43a7647a364e2ed3e456467050eac4527b94b06d73fd1",
+      "notices": [
+        {
+          "path": "Docs/Licenses/Artifacts/org.apache.commons.commons-lang3-3.4-LICENSE.txt.txt",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+        },
+        {
+          "path": "Docs/Licenses/Artifacts/org.apache.commons.commons-lang3-3.4-NOTICE.txt.txt",
+          "sha256": "e141031bc88de36eb113239bf9733a0c85d743964bb5509f3f00e39f144e3513"
+        }
+      ]
+    },
+    {
+      "id": "org.bouncycastle:bcprov-jdk18on:1.78.1",
+      "license": "MIT",
+      "declaredLicense": [
+        "Bouncy Castle Licence"
+      ],
+      "artifact": "bcprov-jdk18on-1.78.1.jar",
+      "sha256": "add5915e6acfc6ab5836e1fd8a5e21c6488536a8c1f21f386eeb3bf280b702d7",
+      "pom": "Docs/Licenses/Poms/org.bouncycastle.bcprov-jdk18on-1.78.1.pom",
+      "pomSha256": "28912d139f9eed141c394371fbe5ba6ffff91e78f1c9cb8348f944a24d204ed2",
+      "notices": [
+        {
+          "path": "Docs/Licenses/BouncyCastle-1.78.1-MIT.txt",
+          "sha256": "89e61e44dcdd5bf128446fcdb8b2adf41d597d5c5a3de25e91c0b682af710ed8"
+        }
+      ]
+    },
+    {
+      "id": "org.checkerframework:checker-qual:3.43.0",
+      "license": "MIT",
+      "declaredLicense": [
+        "The MIT License"
+      ],
+      "artifact": "checker-qual-3.43.0.jar",
+      "sha256": "3fbc2e98f05854c3df16df9abaa955b91b15b3ecac33623208ed6424640ef0f6",
+      "pom": "Docs/Licenses/Poms/org.checkerframework.checker-qual-3.43.0.pom",
+      "pomSha256": "9313bf53b3efd8aaca266eea8b96e307976b65c0b16510cc6f02319fbaebed43",
+      "notices": [
+        {
+          "path": "Docs/Licenses/Artifacts/org.checkerframework.checker-qual-3.43.0-LICENSE.txt.txt",
+          "sha256": "e90eaa08dea089df10f2bf7f9dba63a5f6237c01562c4741e2e86773e78582d5"
+        }
+      ]
+    },
+    {
+      "id": "org.jetbrains:annotations:13.0",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache Software License, Version 2.0"
+      ],
+      "artifact": "annotations-13.0.jar",
+      "sha256": "ace2a10dc8e2d5fd34925ecac03e4988b2c0f851650c94b8cef49ba1bd111478",
+      "pom": "Docs/Licenses/Poms/org.jetbrains.annotations-13.0.pom",
+      "pomSha256": "965aeb2bedff369819bdde1bf7a0b3b89b8247dd69c88b86375d76163bb8c397",
+      "notices": []
+    },
+    {
+      "id": "org.jetbrains.kotlin:kotlin-stdlib:2.2.10",
+      "license": "Apache-2.0",
+      "declaredLicense": [
+        "The Apache License, Version 2.0"
+      ],
+      "artifact": "kotlin-stdlib-2.2.10.jar",
+      "sha256": "9c67cc79efd6b9215b49d2a4308f5f3433537376c7c88e89bdd6729bd096e61a",
+      "pom": "Docs/Licenses/Poms/org.jetbrains.kotlin.kotlin-stdlib-2.2.10.pom",
+      "pomSha256": "454ba507a3d36b4ac253df6df96f8739bd26ea19df3f332b10b13f2c5715f787",
+      "notices": []
+    },
+    {
+      "id": "org.slf4j:slf4j-api:2.0.9",
+      "license": "MIT",
+      "declaredLicense": [
+        "MIT License"
+      ],
+      "artifact": "slf4j-api-2.0.9.jar",
+      "sha256": "0818930dc8d7debb403204611691da58e49d42c50b6ffcfdce02dadb7c3c2b6c",
+      "pom": "Docs/Licenses/Poms/org.slf4j.slf4j-api-2.0.9.pom",
+      "pomSha256": "c8c42a0cc038f9f3a78ee7819cb0165b156d03759e7a59ea005d253b1422f2d8",
+      "notices": [
+        {
+          "path": "Docs/Licenses/Artifacts/org.slf4j.slf4j-api-2.0.9-LICENSE.txt.txt",
+          "sha256": "6fbe2eaf44b193b8a40eed9208f52848572224ad8d7672dd09418aa174847e73"
+        }
+      ]
+    }
+  ],
+  "unityPackages": [
+    {
+      "id": "com.unity.inputsystem",
+      "version": "1.20.0",
+      "notices": [
+        "Docs/Licenses/Artifacts/com.unity.inputsystem-1.20.0-LICENSE.md"
+      ],
+      "bundledArtifacts": []
+    },
+    {
+      "id": "com.unity.xr.interaction.toolkit",
+      "version": "3.3.2",
+      "notices": [
+        "Docs/Licenses/Artifacts/com.unity.xr.interaction.toolkit-3.3.2-LICENSE.md",
+        "Docs/Licenses/Artifacts/com.unity.xr.interaction.toolkit-3.3.2-Third-Party-Notices.md"
+      ],
+      "bundledArtifacts": []
+    },
+    {
+      "id": "com.unity.xr.core-utils",
+      "version": "2.6.0",
+      "notices": [
+        "Docs/Licenses/Artifacts/com.unity.xr.core-utils-2.6.0-LICENSE.md"
+      ],
+      "bundledArtifacts": []
+    },
+    {
+      "id": "com.unity.xr.management",
+      "version": "4.6.1",
+      "notices": [
+        "Docs/Licenses/Artifacts/com.unity.xr.management-4.6.1-LICENSE.md"
+      ],
+      "bundledArtifacts": []
+    },
+    {
+      "id": "com.unity.ugui",
+      "version": "2.0.0",
+      "notices": [
+        "Docs/Licenses/Artifacts/com.unity.ugui-2.0.0-LICENSE.md"
+      ],
+      "bundledArtifacts": []
+    },
+    {
+      "id": "com.unity.xr.picoxr",
+      "version": "3.4.0",
+      "notices": [
+        "Docs/Licenses/Artifacts/com.unity.xr.picoxr-3.4.0-LICENSE.md"
+      ],
+      "bundledArtifacts": [
+        {
+          "artifact": "Enterprise/android/BAuthLib-1.0.0.aar",
+          "sha256": "3e0b6c637db4fff1f956e6c929a8470369bbd5b6916dabe6ff1ba83533553c6b"
+        },
+        {
+          "artifact": "Enterprise/android/CameraRenderingPlugin.aar",
+          "sha256": "d2d8caa83e740122216c01571a8781a236c8f5e03e5048e5178da7e7f0419846"
+        },
+        {
+          "artifact": "Enterprise/android/capturelib-release.aar",
+          "sha256": "a90688c1f7316caaba05c0f98911f6c9acb5245c2b7ab2796c84e36c56261575"
+        },
+        {
+          "artifact": "Enterprise/android/gson-2.10.1.jar",
+          "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593"
+        },
+        {
+          "artifact": "Enterprise/android/tob_api-release.aar",
+          "sha256": "7b499c81fe2f9d6eba1cbe278aa8e24bdcdb528c3e9b1c66778f5c651a4846b8"
+        },
+        {
+          "artifact": "Enterprise/android/tobservicelib-4.3.24.aar",
+          "sha256": "82d62b39e2d25b400a89c363bf79ea7fd3db6737a5493cf004be67b962df1a73"
+        },
+        {
+          "artifact": "Runtime/Android/LoaderForUnitySDK_1_1_0.aar",
+          "sha256": "ce8cf71b82e53a491284b7dc5d5e8b64ead13714e7cc33ebbf0a0ef4c1f44f2c"
+        },
+        {
+          "artifact": "Runtime/Android/PxrPlatform.aar",
+          "sha256": "d5e9825f90a382ae3e93d1eb065fd14171f509e84b8e59fba9f8f7a6c7b99795"
+        }
+      ]
+    }
+  ],
+  "audioDecoder": {
+    "sources": {
+      "ffmpeg": {
+        "version": "8.1.3",
+        "url": "https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz",
+        "sha256": "7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3"
+      },
+      "media3": {
+        "version": "1.9.3",
+        "commit": "9b8b13d177cf9a3ce997773ca51337acf5acc639",
+        "repository": "https://github.com/androidx/media",
+        "files": {
+          "LICENSE": {
+            "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+            "local": "upstream/Media3-LICENSE.txt"
+          },
+          "libraries/decoder_ffmpeg/README.md": {
+            "sha256": "e7dd3c51dd4a91cd23f6a6e3d38404cdff86fbf919f7809dba87c6c806f758ce",
+            "local": "upstream/Media3-README.md"
+          },
+          "libraries/decoder_ffmpeg/src/main/jni/ffmpeg_jni.cc": {
+            "sha256": "cebafb59c70cd7082d40a94d33680f8627547994758fbd8551ab4b3434d4088c",
+            "local": "ffmpeg_jni.cc"
+          },
+          "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioDecoder.java": {
+            "sha256": "1f88283be0226e9d1cab8d6b7055f75e9ca0678e74818704822b4a1d8613fb25",
+            "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioDecoder.java"
+          },
+          "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioRenderer.java": {
+            "sha256": "bb860123a49456e48761fff145eed3d156497be77346955d93286286d42a9a3f",
+            "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioRenderer.java"
+          },
+          "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegDecoderException.java": {
+            "sha256": "9e73968d0802b2d7f8add911ec4dc5a6e621777e997eca74332e173c5463ad7a",
+            "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegDecoderException.java"
+          },
+          "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegLibrary.java": {
+            "sha256": "d7d00601c1864f742c3e0d73f7e9b77d9946f2a9dbe5a6e8e255272bc54d2356",
+            "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegLibrary.java"
+          },
+          "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/package-info.java": {
+            "sha256": "1d75d02151fcec7a1c0036ee4a216e885ae91e1f85e8c9ddfbd72b4def6709be",
+            "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/package-info.java"
+          }
+        }
+      }
+    },
+    "license": "LGPL-2.1-or-later",
+    "linkage": "shared",
+    "abi": "arm64-v8a",
+    "libraries": {
+      "libavcodec.so": "df920812c687452d9884a9e8fac85032c84f5425b62866285dda4ed9d4ee1f49",
+      "libavutil.so": "13dbb56be2b473165025ba1082d5830ce6a4e34d285904badf8f1efb3609331e",
+      "libffmpegJNI.so": "73b1e76d388ffed9e71047efb93bcf96df21cc8665a451c5511b830682b05edf",
+      "libswresample.so": "b03a4183c5f6a3cc1e8ed59b2b3e0d559ac4fe84f0fa5b5766b96cdab4c8376b"
+    },
+    "sourceArchive": "ffmpeg-lgpl-corresponding-source.zip",
+    "sourceArchiveSha256": "b1b6c0f64d816d0ceda408a3c3e40143176bfa0002126f502935637f31c0c2f6"
+  }
+}

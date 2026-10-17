@@ -2,6 +2,7 @@
 import argparse
 from datetime import datetime, timezone
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,6 +13,9 @@ import zipfile
 
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 PACKAGE = "com.linxyi.LsVRPlayer"
+_spec = importlib.util.spec_from_file_location('legal_distribution',Path(__file__).with_name('Verify-LegalDistribution.py'))
+legal = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(legal)
 
 
 def project_version(root):
@@ -38,6 +42,7 @@ def verify_manifest(text, version, code):
             raise ValueError("Release APK must not enable " + flag)
     if sdk.get(ANDROID + "minSdkVersion") != "29" or sdk.get(ANDROID + "targetSdkVersion") != "35":
         raise ValueError("Unexpected Android SDK configuration")
+    legal.verify_permissions(text)
 
 
 def verify_signer(text, expected):
@@ -114,10 +119,12 @@ def main():
         "debuggable": False, "testOnly": False, "signingCertificateSha256": signer,
         "apk": args.apk.name, "apkBytes": args.apk.stat().st_size, "apkSha256": digest(args.apk),
         "editModeTests": test_summary(args.tests), "verifiedAtUtc": datetime.now(timezone.utc).isoformat(),
+        "legalDistribution": legal.verify_apk(args.apk,root),
     }
     manifest = args.apk.parent / "release-manifest.json"
     manifest.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
-    checksums = f"{record['apkSha256']}  {args.apk.name}\n{digest(manifest)}  {manifest.name}\n"
+    public = [args.apk.name,manifest.name]+legal.copy_public_materials(root,args.apk.parent)
+    checksums = ''.join(f'{digest(args.apk.parent/name)}  {name}\n' for name in public)
     (args.apk.parent / "SHA256SUMS.txt").write_text(checksums, encoding="utf-8")
     print(json.dumps(record, indent=2))
 

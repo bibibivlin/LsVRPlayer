@@ -9,18 +9,19 @@
 | AndroidX Media3 | `androidx.media3:media3-exoplayer:1.9.3`，[源码](https://github.com/androidx/media) | Apache-2.0；解复用、同步、平台硬件解码、音轨与字幕轨 |
 | SMBJ | `com.hierynomus:smbj:0.13.0`，[源码](https://github.com/hierynomus/smbj/tree/v0.13.0) | Apache-2.0；SMB2/3 目录和随机读取 |
 | SMBJ-RPC | `com.rapid7.client:dcerpc:0.12.13`，[源码](https://github.com/rapid7/smbj-rpc) | BSD-3-Clause；SRVSVC 磁盘共享枚举，排除传递 SMBJ 并沿用项目 0.13.0 |
-| Jellyfin Media3 FFmpeg decoder | `org.jellyfin.media3:media3-ffmpeg-decoder:1.9.0+1`，[源码标签](https://github.com/jellyfin/jellyfin-androidx-media/tree/v1.9.0%2B1)，提交 `af9ee4e26b2045e3ea6f2ebf4a18ac8ebfeae396` | 上游 Maven POM 标注 GPL-3.0；补充电影音轨解码，未加入软件视频解码器 |
+| FFmpeg 共享音频库 | 8.1.3，完整源码及 SHA-256 见 `Native/FFmpeg/sources.lock.json` | LGPL-2.1-or-later；关闭 GPL/nonfree/version3 和软件视频，补充电影音轨 |
+| Media3 FFmpeg 音频封装 | 1.9.3，提交 `9b8b13d177cf9a3ce997773ca51337acf5acc639` | Apache-2.0；实际 Java/JNI 源码随 APK 提供，未引入实验软件视频 renderer |
 | Noto Sans CJK SC | [Noto CJK](https://github.com/notofonts/noto-cjk) 的 `NotoSansCJKsc-Regular.otf` | SIL Open Font License 1.1；中文 UI 与字幕。许可证与字体同目录 |
 | Unity / uGUI / TMP / Input System / XRI | 项目 Packages 锁文件 | 沿用 Unity 组件各自条款；TMP Essential Resources 来自安装包 |
 | PICO Unity Integration SDK | 3.4.0，提交 `c93a59bab88d337fe0d54140499712897cedbe52` | 沿用已导入 SDK 条款；设备运行、追踪与 Multiview |
 
-Apache-2.0、SMBJ-RPC BSD-3-Clause、Jellyfin GPL-3.0 原文及 Jellyfin Maven POM 保存在 `Docs/Licenses`。SMBJ-RPC 许可证按[上游 LICENSE.txt](https://github.com/rapid7/smbj-rpc/blob/master/LICENSE.txt) 保留。Gradle 会解析 Media3、SMBJ、SMBJ-RPC 的传递依赖，包括 AndroidX、Guava、Apache Commons Lang、Bouncy Castle、SLF4J 等，具体解析结果以构建依赖报告为准。
+完整运行时清单和哈希保存在 [RuntimeComponents.json](Licenses/RuntimeComponents.json)，包含 37 个 Android 组件（35 个桥接传递依赖，加上 PICO 内附 Gson 2.10.1、Unity frame-pacing 2.1.2）及 6 个 Unity/PICO 包。清单也记录 SDK 内附 AAR/JAR 的哈希。各依赖原始 POM、随包 LICENSE/NOTICE、Bouncy Castle / MBassador / SLF4J / Checker Framework 等 MIT 版权文本、SMBJ-RPC BSD-3-Clause、字体 OFL 和 Unity/PICO 条款均保存在 `Docs/Licenses`；合并原文见 [THIRD-PARTY-NOTICES.txt](Licenses/THIRD-PARTY-NOTICES.txt)，也能在应用内离线查看。旧 Jellyfin GPL 文本及 POM 仅为历史产物追溯保留。
 
-当前 FFmpeg 扩展采用上游现成 GPL 包。其与 Unity / PICO 运行时的组合分发条件、对应源码及构建 / 再链接材料仍需针对实际产物核对。项目自有代码采用 MIT 不会消除这些要求；选择替代解码器时也需核对其实际编译配置和适用许可。当前文档不能作为完整 APK 已完成分发许可核对的证明。
+新构建采用项目可重建的 LGPL 共享音频库，替换旧 GPL 预编译依赖。完整 FFmpeg 源码、实际 Media3 音频封装、构建和共享库替换说明随 APK 提供并支持导出；发布校验检查实际二进制与源码哈希。详见 [许可说明](Licensing.zh-CN.md) 和 [音频库构建说明](../Native/FFmpeg/README.md)。原来发布的 APK 不受此次更新影响；商业编解码专利权利与软件版权许可需分别确认。
 
 `Tools/Generate-TestMedia.py` 的 imageio-ffmpeg 和 `Tools/Serve-TestSmb.py` 的 Impacket 只用于开发验证，不打入 APK；生成的测试视频不包含用户私人视频。测试服务器仅绑定 `127.0.0.1:1445`，只读暴露 `TestMedia`，通过 `adb reverse` 验证设备协议链路。
 
-`Native/Android`、`Native/Rendering` 为本次新增的可重建桥接源码，二进制分别为 `vrplayer-android.aar` 和 `libvrplayerrender.so`。AAR 不内嵌传递依赖，Unity 的 Gradle 模板与原生工程保持相同版本。
+`Native/Android`、`Native/Rendering` 为可重建桥接源码，对应 `vrplayer-android.aar` 和 `libvrplayerrender.so`。`Native/FFmpeg` 对应新增 `vrplayer-ffmpeg-lgpl.aar`。Java AAR 不内嵌 Maven 传递依赖，Unity Gradle 模板与原生工程保持相同版本。
 
 `Tools/Serve-LanTestSmb.py` 是可选的真实局域网测试工具，必须显式指定本机地址，仅只读暴露 `TestMedia/LanFixtureShare` 中按名称和扩展名筛选的生成媒体，不包含设置备份或诊断文件，默认 600 秒后退出。开发依赖 zeroconf 0.151.3（LGPL-2.1-or-later）和 ifaddr 0.2.0（MIT）只安装在忽略目录 `Tools/.runtime`，不进入 APK。`--auth` 使用公开的测试专用账号，不可用于私人共享。
 

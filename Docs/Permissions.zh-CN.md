@@ -1,0 +1,43 @@
+# L's VRPlayer 权限说明
+
+更新日期：2026 年 10 月 17 日。
+
+## 本地媒体读取（按需申请）
+
+Android 10–12：android.permission.READ_EXTERNAL_STORAGE，仅用于浏览和读取你选择的共享存储媒体及字幕。声明的 maxSdkVersion 为 32。
+
+Android 13 及以上：android.permission.READ_MEDIA_VIDEO，仅用于读取本地视频。系统对此权限不会授予任意文档或字幕的访问权；其他文件是否可读由系统目录授权和系统存储规则决定。
+
+请求前应用会解释用途，你可以拒绝。拒绝只影响受限的本地文件，SMB、Emby 和法律说明仍可使用。可在系统设置中撤回；本应用不索取 MANAGE_EXTERNAL_STORAGE，不写入、删除或改名原始媒体文件。
+
+## 你选择的目录（系统授权）
+
+Android 系统目录选择器使用只读、可持续的 content URI 授权。授权范围由你选择；应用会保存访问能力以便下次读取，不获得整个设备存储的管理权。可通过系统撤销或清除应用数据移除授权。
+
+## 网络与发现（安装时权限）
+
+android.permission.INTERNET：连接你配置的 SMB / Emby 服务器，读取媒体、字幕和海报，进行认证及回报 Emby 播放进度。它不是本地媒体权限。仅阅读隐私与许可说明不需要连接网络。
+
+android.permission.ACCESS_NETWORK_STATE：判断网络连接状态，支持连接错误处理。
+
+android.permission.ACCESS_WIFI_STATE：读取局域网地址/子网信息，用于当前 Wi-Fi 网络的 SMB 发现；不使用位置定位。
+
+android.permission.CHANGE_WIFI_MULTICAST_STATE：在你启动局域网发现时接收服务发现组播数据；离开/取消发现后释放资源。
+
+这些普通权限由 Android 在安装时授予，通常没有逐项弹窗开关。你可以不配置网络来源、停止发现，或使用系统网络控制阻止联网；这会影响相应网络功能。
+
+## 前台保持唤醒
+
+android.permission.WAKE_LOCK：由 Unity 播放环境用于观看期间保持设备唤醒。不改变系统屏幕超时设置，不代表允许后台无限播放；暂停和恢复仍遵循头显系统的生命周期与佩戴状态。
+
+## 不申请的权限
+
+在“开源许可”中主动导出源码时，应用通过 Android 10 及以上的 MediaStore 在 Download 创建自己的源码压缩包，不需要额外媒体/存储权限，也不会覆盖你的影片。
+
+不申请麦克风、相机、定位、联系人、短信、安装应用、修改系统设置或所有文件管理权限。头显/手柄追踪由 PICO XR 运行环境提供，不等于应用申请相机拍摄或录音。最终 APK 的权限由发布检查核对，不以 SDK 默认声明作为额外数据用途。
+
+## 开发者与项目
+
+开发者：[bibibivlin](https://github.com/bibibivlin)
+
+项目地址：https://github.com/bibibivlin/LsVRPlayer

@@ -9,7 +9,7 @@ using UnityEngine.UI;
 
 namespace VRPlayer
 {
-    public sealed class PlayerUI : MonoBehaviour
+    public sealed partial class PlayerUI : MonoBehaviour
     {
         public Canvas Canvas{get;private set;}
         public bool Visible=>Canvas!=null&&Canvas.gameObject.activeSelf;
@@ -61,9 +61,9 @@ namespace VRPlayer
         public bool BlocksTransport=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||modal!=""||(keyboard!=null&&keyboard.gameObject.activeSelf)||(seekGesture!=null&&seekGesture.Dragging))||Quick!=null&&Quick.BlocksTransport;
         public bool CastHovered=>Visible&&tab=="文件"&&app.Source==FileSource.Emby&&!BlocksScrolling&&embyBrowser!=null&&embyBrowser.CastHovered;
         public void ScrollCast(int direction)=>embyBrowser?.ScrollCast(direction);
-        public bool BlocksScrolling=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||keyboard!=null&&keyboard.gameObject.activeSelf||modal!="");
+        public bool BlocksScrolling=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||keyboard!=null&&keyboard.gameObject.activeSelf||modal!=""&&modal!="legal");
         private CancellationTokenSource connection;
-        public bool CanDiscover=>Visible&&tab=="文件"&&modal==""&&!keyboard.gameObject.activeSelf;
+        public bool CanDiscover=>!privacyGate&&Visible&&tab=="文件"&&modal==""&&!keyboard.gameObject.activeSelf;
         public string SelectedTab=>tab;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
         public float FullOffset=>fileList?.Offset??0;
@@ -137,6 +137,7 @@ namespace VRPlayer
         private void OnAppChanged(){if(modal!=""||keyboard.gameObject.activeSelf)return;if(tab=="文件"){if(app.Source==FileSource.Emby&&embyBrowser!=null&&fileKey==CurrentFileKey)embyBrowser.Render();else if(fileList!=null&&fileKey==CurrentFileKey)RefreshFileRows();else Draw();}else if(tab=="字幕"&&subtitlePage==0)Draw();}
         public void SelectTab(string name)
         {
+            if(privacyGate)return;
             if(!tabs.ContainsKey(name))return;
             CancelSmbConnection();app.StopDiscovery();CloseKeyboard();modal="";tab=name;if(name!="文件")subtitleFileSelection=false;Draw();
             if(CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();
@@ -178,11 +179,11 @@ namespace VRPlayer
             UpdateStatusNotice();
             if(snapshot!=null){bool current=app.Current!=null&&snapshot.generation==app.Generation;playLabel.text=current&&snapshot.playing?"暂停":"播放";playLabel.transform.parent.GetComponentInChildren<QuickIconGraphic>().Icon=current&&snapshot.playing?QuickIcon.Pause:QuickIcon.Play;if(!seekGesture.Dragging)seek.SetValueWithoutNotify(current&&snapshot.duration>0?snapshot.position/(float)snapshot.duration:0);time.text=current?Clock(snapshot.position)+" / "+Clock(snapshot.duration):"00:00 / 00:00";}
             if(infoCards!=null&&Visible&&tab=="信息"&&Time.unscaledTime>=infoRefreshAt){infoRefreshAt=Time.unscaledTime+.25f;infoCards.Update(app,snapshot);}
-            if(Visible&&app.Store.Settings.autoHide&&snapshot!=null&&snapshot.playing&&!keyboard.gameObject.activeSelf&&Time.unscaledTime-LastInteraction>18)Hide();
+            if(Visible&&modal==""&&app.Store.Settings.autoHide&&snapshot!=null&&snapshot.playing&&!keyboard.gameObject.activeSelf&&Time.unscaledTime-LastInteraction>18)Hide();
         }
         private static string Clock(long milliseconds){var duration=TimeSpan.FromMilliseconds(Math.Max(0,milliseconds));return duration.TotalHours>=1?$"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}":$"{duration.Minutes:00}:{duration.Seconds:00}";}
         public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,2);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
-        public void Hide(){CloseKeyboard();CancelSmbConnection();app.StopDiscovery();embyBrowser?.Suspend();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
+        public void Hide(){if(privacyGate)return;CancelPermissionNotice();CloseKeyboard();CancelSmbConnection();app.StopDiscovery();embyBrowser?.Suspend();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
         public void Toggle(){if(Visible)Hide();else Show();}
         public void ShowQuick(){if(Quick==null||Visible)return;Quick.Show();SurfaceRevision++;}
         public void HideQuick(){Quick?.Hide();SurfaceRevision++;app?.Store?.Save();}
@@ -192,6 +193,8 @@ namespace VRPlayer
         {
             if(!AnyVisible)return false;
             LastInteraction=Time.unscaledTime;SurfaceRevision++;
+            if(privacyGate){DrawPrivacyConsent();return true;}
+            if(modal=="storage-permission"){CompletePermissionNotice(false);return true;}
             if(Quick!=null&&Quick.Visible){if(!Quick.TryBack())HideQuick();return true;}
             if(keyboard!=null&&keyboard.gameObject.activeSelf){CompleteKeyboard();return true;}
             if(modal!=""){ReturnFromModal();return true;}
@@ -206,6 +209,7 @@ namespace VRPlayer
         public void PlaybackOpened(){SurfaceRevision++;seekGesture?.Cancel();Quick?.PlaybackOpened();if(app?.Source==FileSource.Recent)fileList?.SetOffset(0);LastInteraction=Time.unscaledTime;}
         private void Draw()
         {
+            CancelPermissionNotice();
             if(content==null)return;RememberFileOffset();fileRowsReady=false;embyBrowser?.ReleasePanel();UiFactory.Clear(content);infoScroll=null;infoBody=null;infoCards=null;address=filter=null;fileList=null;subtitleList=null;preview=brightPreview=null;scanLabel=null;undoButton=null;fullSpeedSlider=null;fullSpeedNumber=null;modal="";
             if(returningDirectory&&filePositions.TryGetValue(CurrentFileViewKey,out var parentPosition))query=parentPosition.query;
             foreach(var pair in tabs)UiFactory.SetAccent(pair.Value,pair.Key==tab);
@@ -462,7 +466,10 @@ namespace VRPlayer
         }
         private void DrawInfo()
         {
-            infoRefreshAt=0;UiFactory.Label(content,"播放信息与诊断",0,0,UiTheme.PageWidth,54,34);
+            infoRefreshAt=0;UiFactory.Label(content,"播放信息与诊断",0,0,580,54,34);
+            UiFactory.Button(content,"隐私政策",640,0,220,56,()=>ShowLegalDocument("privacy"));
+            UiFactory.Button(content,"权限说明",880,0,220,56,()=>ShowLegalDocument("permissions"));
+            UiFactory.Button(content,"开源许可",1120,0,232,56,()=>ShowLegalDocument("notices"));
             var host=UiFactory.Rect(content,"Diagnostics scroll",0,78,UiTheme.PageWidth,716);infoScroll=host.gameObject.AddComponent<ListScrollRect>();infoScroll.horizontal=false;infoScroll.movementType=ScrollRect.MovementType.Clamped;
             var viewport=UiFactory.Box(host,"Viewport",0,0,1320,716,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();infoScroll.viewport=viewport;
             infoBody=UiFactory.Rect(viewport,"Diagnostics",0,0,1320,PlaybackInfoUI.Height);infoScroll.content=infoBody;infoCards=new PlaybackInfoUI(infoBody);
@@ -471,7 +478,7 @@ namespace VRPlayer
         public void CancelSmbConnection(){connection?.Cancel();connection?.Dispose();connection=null;if(modal=="connecting")Draw();}
         private void CloseKeyboard(){keyboardTarget?.DeactivateInputField();keyboardTarget=null;if(keyboard!=null)keyboard.gameObject.SetActive(false);fileList?.Block(false);subtitleList?.Block(false);embyBrowser?.Block(false);}
         private void CompleteKeyboard(){bool search=keyboardTarget==filter;CloseKeyboard();if(search)Draw();else if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Render();}
-        private void BeginModal(string name){CancelSmbConnection();app.StopDiscovery();CloseKeyboard();RememberFileOffset();fileRowsReady=false;subtitleNavigation.gameObject.SetActive(false);UiFactory.Clear(content);fileList=null;subtitleList=null;infoScroll=null;infoBody=null;infoCards=null;preview=brightPreview=null;modal=name;}
+        private void BeginModal(string name){CancelPermissionNotice();SurfaceRevision++;CancelSmbConnection();app.StopDiscovery();CloseKeyboard();RememberFileOffset();fileRowsReady=false;subtitleNavigation.gameObject.SetActive(false);UiFactory.Clear(content);fileList=null;subtitleList=null;infoScroll=null;infoBody=null;infoCards=null;preview=brightPreview=null;modal=name;}
         private void ReturnFromModal(){CancelSmbConnection();CloseKeyboard();Draw();if(CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         private void ConnectHost(DiscoveredSmbHost host)=>_ = EnumerateShares(new SmbServer{name=host.name,host=host.host,port=host.port});
         private async Task EnumerateShares(SmbServer server)
@@ -531,6 +538,6 @@ namespace VRPlayer
             UiFactory.Button(keyboard,shift?"小写":"大写",24,404,192,64,()=>{shift=!shift;DrawKeyboard();});UiFactory.Button(keyboard,"空格",232,404,848,64,()=>Insert(" "));UiFactory.IconButton(keyboard,"退格",QuickIcon.Backspace,1096,404,()=>{if(keyboardTarget!=null&&keyboardTarget.text.Length>0)keyboardTarget.text=keyboardTarget.text.Substring(0,keyboardTarget.text.Length-1);UpdateKeyboardPreview();});UiFactory.Button(keyboard,"清空",1176,404,180,64,()=>{if(keyboardTarget!=null)keyboardTarget.text="";UpdateKeyboardPreview();});
         }
         private void Insert(string text){if(keyboardTarget==null)return;keyboardTarget.text+=text;keyboardTarget.caretPosition=keyboardTarget.text.Length;UpdateKeyboardPreview();}
-        private void OnDestroy(){CancelSmbConnection();if(app!=null){app.Changed-=OnAppChanged;app.DiscoveryChanged-=RefreshFileRows;}if(Canvas!=null)Destroy(Canvas.gameObject);if(transportRoot!=null)Destroy(transportRoot.gameObject);}
+        private void OnDestroy(){CancelPermissionNotice();legalOperations.Cancel();legalOperations.Dispose();CancelSmbConnection();if(app!=null){app.Changed-=OnAppChanged;app.DiscoveryChanged-=RefreshFileRows;}if(Canvas!=null)Destroy(Canvas.gameObject);if(transportRoot!=null)Destroy(transportRoot.gameObject);}
     }
 }

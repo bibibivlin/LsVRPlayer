@@ -1,0 +1,43 @@
+L's VRPlayer Permissions
+
+Updated October 17, 2026.
+
+On-demand local media access
+
+Android 10–12: android.permission.READ_EXTERNAL_STORAGE, declared only through API 32, reads selected shared-storage media and subtitles.
+
+Android 13+: android.permission.READ_MEDIA_VIDEO reads local videos. It does not grant arbitrary document/subtitle access; Android storage rules and selected-folder grants still apply.
+
+The app explains the purpose before the system prompt. You may refuse; restricted local files will be unavailable, while SMB, Emby and legal pages remain usable. Revoke access in system settings. The app does not request MANAGE_EXTERNAL_STORAGE or edit, rename or delete original media.
+
+Selected folders
+
+The Android folder picker grants persistent read access to the content URI you select. This does not give the app management of all device files. Revoke the grant through Android or clear app data.
+
+Network permissions granted at installation
+
+android.permission.INTERNET connects to your configured SMB/Emby servers for authentication, media, subtitles, artwork and Emby playback reporting. Offline legal pages do not require network access.
+
+android.permission.ACCESS_NETWORK_STATE supports connection-state checks and error handling.
+
+android.permission.ACCESS_WIFI_STATE supplies LAN address/subnet information for SMB discovery; the app does not use location services.
+
+android.permission.CHANGE_WIFI_MULTICAST_STATE enables service-discovery multicast while you start LAN discovery. Resources are released when discovery stops or you leave.
+
+Android normally grants these permissions without individual runtime prompts. You may avoid network sources, stop discovery or use system network controls; affected network features will then be unavailable.
+
+Foreground wake lock
+
+android.permission.WAKE_LOCK supports keeping the headset awake during foreground viewing through Unity. The app does not change the system screen-timeout setting or bypass headset pause/presence rules.
+
+Permissions not requested
+
+The optional source export uses Android 10+ MediaStore to create the app's source ZIP in Downloads without additional media/storage permission. It does not overwrite your media.
+
+No microphone, camera, location, contacts, SMS, package installation, system-setting modification or all-files-management permission is requested. PICO XR headset/controller tracking is distinct from requesting camera capture or audio recording. Release checks verify actual APK permissions.
+
+Developer and project
+
+Developer: [bibibivlin](https://github.com/bibibivlin)
+
+Project: https://github.com/bibibivlin/LsVRPlayer

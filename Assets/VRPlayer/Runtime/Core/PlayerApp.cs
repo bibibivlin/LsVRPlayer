@@ -64,6 +64,22 @@ namespace VRPlayer
             Screen.sleepTimeout=SleepTimeout.NeverSleep;Application.targetFrameRate=72;
             RenderQuality=gameObject.AddComponent<RenderQualityController>();RenderQuality.Initialize(this);
             Presenter=new GameObject("Video Presenter").AddComponent<VideoPresenter>();Presenter.Initialize(headCamera);
+            UI=gameObject.AddComponent<PlayerUI>();UI.Initialize(this,headCamera);
+            if(GetComponent<UnityEngine.EventSystems.EventSystem>()==null)gameObject.AddComponent<UnityEngine.EventSystems.EventSystem>();
+            var input=gameObject.AddComponent<VrUiInput>();input.Initialize(this,headCamera,UI.Canvas);
+            CreateCaption();
+            FileLibrary.ReadPermissionRationale=UI.ExplainStoragePermission;
+            var consent=new PrivacyConsentStore(Path.Combine(Application.persistentDataPath,"privacy-consent.json"));
+            if(consent.Accepted)InitializePlaybackServices();
+            else UI.ShowPrivacyConsent(()=>{consent.Accept();InitializePlaybackServices();});
+        }
+        private bool servicesInitialized;
+        private void InitializePlaybackServices()
+        {
+            if(servicesInitialized)return;servicesInitialized=true;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            gameObject.AddComponent<PlayerDiagnostics>();
+#endif
             try{
 #if UNITY_ANDROID && !UNITY_EDITOR
                 Backend=new AndroidMediaBackend();
@@ -72,13 +88,6 @@ namespace VRPlayer
 #endif
             }catch(Exception ex){Status="播放内核初始化失败："+ex.GetType().Name;Debug.LogException(ex);}
             InitializeEmby();
-            UI=gameObject.AddComponent<PlayerUI>();UI.Initialize(this,headCamera);
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            gameObject.AddComponent<PlayerDiagnostics>();
-#endif
-            if(GetComponent<UnityEngine.EventSystems.EventSystem>()==null)gameObject.AddComponent<UnityEngine.EventSystems.EventSystem>();
-            var input=gameObject.AddComponent<VrUiInput>();input.Initialize(this,headCamera,UI.Canvas);
-            CreateCaption();
             Backend?.SetVolume(Store.Settings.volume);Backend?.SetSpeed(Store.Settings.speed);Backend?.SetRepeat(Store.Settings.loop);
             StartCoroutine(RenderFrames());
 #if UNITY_ANDROID && !UNITY_EDITOR
@@ -109,12 +118,14 @@ namespace VRPlayer
             }else caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
             caption.Position(headCamera,Presenter.transform,Store.Settings);
             InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);PresenceKnown=head.TryGetFeatureValue(CommonUsages.userPresence,out bool present);if(PresenceKnown){if(wasPresent&&!present)Pause();wasPresent=present;}
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
             if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
                 uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,fullVisible=UI.Visible,quickVisible=UI.Quick.Visible,loading=Loading,fullOffset=UI.FullOffset,fullCount=UI.FullCount,fullModal=UI.FullModal,fullQuery=UI.FullQuery,keyboardVisible=UI.KeyboardVisible,quickOffset=UI.Quick.BrowserOffset,
 #endif
             },true));}catch{} }
+#endif
         }
         [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -317,6 +328,6 @@ namespace VRPlayer
         }
         private void OnApplicationPause(bool paused){HasFocus=!paused;if(paused){StopDiscovery();UI?.CancelSmbConnection();Pause();}else if(Source==FileSource.Smb&&UI!=null&&UI.CanDiscover)StartDiscovery();}
         private void OnApplicationFocus(bool focused){HasFocus=focused;if(!focused)Pause();}
-        private void OnDestroy(){SaveProgress();DisposeEmby();CancelStorageAccess();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
+        private void OnDestroy(){FileLibrary.ReadPermissionRationale=null;SaveProgress();DisposeEmby();CancelStorageAccess();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
     }
 }

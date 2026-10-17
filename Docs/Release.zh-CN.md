@@ -14,7 +14,7 @@
 
 密码只通过环境传递，不能填写在脚本、命令参数、版本控制文件或日志中。也可提供 `ANDROID_KEYSTORE_BASE64` 并省略 `-KeystorePath`。`-Stage All` 顺序执行构建与签名。Unity 安装路径不同时传入 `-UnityEditor <Editor目录>`。
 
-Build 阶段重建 Java AAR／ARM64 GLES 插件，运行发布工具回归、原生 JUnit 和完整 `VRPlayer.Tests` EditMode 套件，再以 ARM64／IL2CPP Release／GLES3 构建非 Development Player。中间 APK 使用开发签名，仅保存在忽略的 `Builds/.release-staging/`，不得分发。
+Build 阶段重建 LGPL 音频库／Java AAR／ARM64 GLES 插件，生成完整对应源码 ZIP、第三方许可清单和离线政策，运行发布工具回归、原生 JUnit 和完整 `VRPlayer.Tests` EditMode 套件，再以 ARM64／IL2CPP Release／GLES3 构建非 Development Player。音频库构建需要 Git for Windows；首次下载的上游源码按固定 SHA-256 验证。中间 APK 使用开发签名，仅保存在忽略的 `Builds/.release-staging/`，不得分发。
 
 EditMode 套件包含实际图像渲染断言，因此测试使用本机 Direct3D 11 图形设备，不启用 `-nographics`；不跳过这些测试。Android Player 编译仍使用无图形批处理模式。
 
@@ -43,13 +43,13 @@ Runner 安装在当前用户的 `%LOCALAPPDATA%/LsVRPlayer/actions-runner`。本
 
 ## 发布步骤
 
-APK 公开分发前先完成 [许可与依赖分发核对](Licensing.zh-CN.md)。现有签名与测试流程不检查全部第三方分发条件。
+APK 公开分发前阅读 [许可与依赖分发核对](Licensing.zh-CN.md)。发布校验额外检查权限白名单、禁止自动备份、音频库及完整源码哈希、离线政策和许可文本；输出目录附带源码 ZIP、第三方声明、组件清单和中英文政策/权限 HTML，并全部纳入 SHA256SUMS。技术校验不替代 Unity/PICO 商业条款及地区编解码专利权利确认。商店要求的公开隐私政策 URL 还需将对应 HTML 部署到公开 HTTPS 地址。
 
 1. 更新 Version 和递增 Version Code，添加 `Docs/Releases/v<版本>.zh-CN.md`，整理 `CHANGELOG.md`，同步 README 的静态版本徽章。
 2. 提交 `codex/release-*` 分支并创建 PR；工具检查与实际签名构建通过后合并至 main。
 3. 给合并提交添加与 Version 完全一致的标签（例如 `v1.0.0`）并推送。
 4. 标签工作流再次运行完整构建、测试和签名。仅已合并到 main 的提交允许发布。
-5. 发布任务检查 artifact 的 SHA-256，再创建 GitHub Release 草稿、上传 APK／校验值／清单并发布为 Latest。失败时不发布成品，不覆盖既有 Release。
+5. 发布任务检查 artifact 的 SHA-256，再创建 GitHub Release 草稿、上传 APK／源码 ZIP／第三方声明／清单／政策与权限 HTML／校验值，并发布为 Latest。失败时不发布成品，不覆盖既有 Release。
 
 `VRPlayer → Build Android APK` 仍保留开发包用途。正式包没有开发命令入口，设备自动化脚本不能替代最终正式包的手动／佩戴验收。既有开发包与新发布包跨签名安装前应备份数据。
 

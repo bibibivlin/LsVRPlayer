@@ -199,6 +199,25 @@ public final class PlayerBridge {
     }
     public static int beginList(String location){return request(()->FileAccess.list(activity,location));}
     public static int beginText(String location,String encoding){return request(()->new JSONObject().put("text",FileAccess.readText(activity,location,encoding)));}
+    public static int beginExportLicenseSource(Activity host){return request(()->{
+        android.content.ContentResolver resolver=host.getContentResolver();
+        android.content.ContentValues values=new android.content.ContentValues();
+        values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME,"LsVRPlayer-FFmpeg-LGPL-Source.zip");
+        values.put(android.provider.MediaStore.Downloads.MIME_TYPE,"application/zip");
+        values.put(android.provider.MediaStore.Downloads.IS_PENDING,1);
+        Uri destination=resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);
+        if(destination==null)throw new java.io.IOException("Source export unavailable");
+        boolean complete=false;
+        try{
+            try(java.io.InputStream input=host.getAssets().open("Legal/ffmpeg-lgpl-corresponding-source.zip");java.io.OutputStream output=resolver.openOutputStream(destination)){
+                if(output==null)throw new java.io.IOException("Source export unavailable");
+                attachResource(input);attachResource(output);byte[] buffer=new byte[65536];int count;
+                while((count=input.read(buffer))!=-1){if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();output.write(buffer,0,count);}
+            }
+            values.clear();values.put(android.provider.MediaStore.Downloads.IS_PENDING,0);resolver.update(destination,values,null,null);complete=true;
+            return new JSONObject().put("text","源码已导出至 Download / Source exported to Downloads").put("uri",destination.toString());
+        }finally{if(!complete)resolver.delete(destination,null,null);}
+    });}
     public static String takeResult(int id){String value=results.remove(id);if(value!=null)requests.remove(id);return value==null?"":value;}
     public static void cancelRequest(int id){FutureTask<Void> task=requests.remove(id);if(task!=null)task.cancel(true);closeRequest(id);results.remove(id);}
     private static void closeRequest(int id){AutoCloseable resource=requestResources.remove(id);if(resource!=null)try{resource.close();}catch(Exception ignored){}}
@@ -226,7 +245,8 @@ public final class PlayerBridge {
     }
     public static String capabilities(){JSONArray output=new JSONArray();for(MediaCodecInfo codec:new MediaCodecList(MediaCodecList.REGULAR_CODECS).getCodecInfos()){
         if(codec.isEncoder())continue;for(String type:codec.getSupportedTypes()){if(!type.startsWith("video/"))continue;try{MediaCodecInfo.VideoCapabilities video=codec.getCapabilitiesForType(type).getVideoCapabilities();output.put(new JSONObject().put("name",codec.getName()).put("mime",type).put("hardware",codec.isHardwareAccelerated()).put("widths",video.getSupportedWidths().toString()).put("heights",video.getSupportedHeights().toString()).put("rates",video.getSupportedFrameRates().toString()));}catch(Exception ignored){}}
-    }return "{\"decoders\":"+output+"}";}
+    }try{return new JSONObject().put("decoders",output).put("ffmpegAudioAvailable",androidx.media3.decoder.ffmpeg.FfmpegLibrary.isAvailable())
+        .put("ffmpegAudioVersion",androidx.media3.decoder.ffmpeg.FfmpegLibrary.getVersion()).toString();}catch(Exception ex){return "{\"decoders\":"+output+"}";}}
     private static final class RoutingDataSource implements DataSource {
         private final DefaultDataSource.Factory defaults;private final PlaybackSession session;private final DataSource.Factory authenticatedHttp;private SmbDataSource smb;private DataSource current;private final List<TransferListener> listeners=new ArrayList<>();
         RoutingDataSource(DefaultDataSource.Factory defaults,PlaybackSession session,DataSource.Factory authenticatedHttp){this.defaults=defaults;this.session=session;this.authenticatedHttp=authenticatedHttp;}

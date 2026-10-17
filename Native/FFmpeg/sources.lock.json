@@ -1,0 +1,46 @@
+{
+  "ffmpeg": {
+    "version": "8.1.3",
+    "url": "https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz",
+    "sha256": "7138d28c96d9d3e3af4ee3d8cad72741f8ffb40da90c1112235dea3ecd3178a3"
+  },
+  "media3": {
+    "version": "1.9.3",
+    "commit": "9b8b13d177cf9a3ce997773ca51337acf5acc639",
+    "repository": "https://github.com/androidx/media",
+    "files": {
+      "LICENSE": {
+        "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+        "local": "upstream/Media3-LICENSE.txt"
+      },
+      "libraries/decoder_ffmpeg/README.md": {
+        "sha256": "e7dd3c51dd4a91cd23f6a6e3d38404cdff86fbf919f7809dba87c6c806f758ce",
+        "local": "upstream/Media3-README.md"
+      },
+      "libraries/decoder_ffmpeg/src/main/jni/ffmpeg_jni.cc": {
+        "sha256": "cebafb59c70cd7082d40a94d33680f8627547994758fbd8551ab4b3434d4088c",
+        "local": "ffmpeg_jni.cc"
+      },
+      "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioDecoder.java": {
+        "sha256": "1f88283be0226e9d1cab8d6b7055f75e9ca0678e74818704822b4a1d8613fb25",
+        "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioDecoder.java"
+      },
+      "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioRenderer.java": {
+        "sha256": "bb860123a49456e48761fff145eed3d156497be77346955d93286286d42a9a3f",
+        "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegAudioRenderer.java"
+      },
+      "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegDecoderException.java": {
+        "sha256": "9e73968d0802b2d7f8add911ec4dc5a6e621777e997eca74332e173c5463ad7a",
+        "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegDecoderException.java"
+      },
+      "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegLibrary.java": {
+        "sha256": "d7d00601c1864f742c3e0d73f7e9b77d9946f2a9dbe5a6e8e255272bc54d2356",
+        "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/FfmpegLibrary.java"
+      },
+      "libraries/decoder_ffmpeg/src/main/java/androidx/media3/decoder/ffmpeg/package-info.java": {
+        "sha256": "1d75d02151fcec7a1c0036ee4a216e885ae91e1f85e8c9ddfbd72b4def6709be",
+        "local": "decoder/src/main/java/androidx/media3/decoder/ffmpeg/package-info.java"
+      }
+    }
+  }
+}

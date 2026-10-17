@@ -751,6 +751,30 @@ namespace VRPlayer.Tests
             }
         }
 
+        [Test] public void PrivacyNoticeCannotBeDismissedWithoutChoice()
+        {
+            int accepted=0;ui.ShowPrivacyConsent(()=>accepted++);
+            ui.Hide();ui.SelectTab("设置");Assert.That(ui.PrivacyNoticeVisible,Is.True);Assert.That(ui.Visible,Is.True);
+            ui.ShowLegalDocument("privacy");Assert.That(ui.FullModal,Is.EqualTo("legal"));Assert.That(ui.BlocksScrolling,Is.False);
+            ui.Back();Assert.That(ui.FullModal,Is.EqualTo("privacy-consent"));Assert.That(accepted,Is.Zero);
+            FileButton("同意并继续 / Agree");Assert.That(accepted,Is.EqualTo(1));Assert.That(ui.PrivacyNoticeVisible,Is.False);
+        }
+        [Test] public void BackDeclinesPendingMediaPermissionExplanation()
+        {
+            var permission=ui.ExplainStoragePermission("android.permission.READ_EXTERNAL_STORAGE");
+            Assert.That(permission.IsCompleted,Is.False);ui.Back();
+            Assert.That(permission.IsCompleted,Is.True);Assert.That(permission.Result,Is.False);Assert.That(ui.FullModal,Is.Empty);
+        }
+        [Test] public void HidingOrChangingPageDoesNotApproveMediaPermission()
+        {
+            var first=ui.ExplainStoragePermission("media");ui.Hide();Assert.That(first.Result,Is.False);
+            ui.Show();var second=ui.ExplainStoragePermission("media");ui.SelectTab("信息");Assert.That(second.Result,Is.False);
+        }
+        [Test] public void MediaPermissionNeedsItsContinueAction()
+        {
+            var permission=ui.ExplainStoragePermission("media");FileButton("继续系统授权 / Continue");
+            Assert.That(permission.Result,Is.True);Assert.That(ui.FullModal,Is.Empty);
+        }
         private sealed class TestBackend : IMediaBackend
         {
             public MediaSnapshot Snapshot{get;private set;}=new MediaSnapshot{tracks=new[]{new MediaTrack{id="generated",type=3,supported=true,name="Generated subtitle"}}};

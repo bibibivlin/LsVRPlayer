@@ -68,6 +68,6 @@ jobs:
         run: |
           set -euo pipefail
           sha256sum --check SHA256SUMS.txt
-          gh release create "$RELEASE_TAG" ./*.apk SHA256SUMS.txt release-manifest.json \
+          gh release create "$RELEASE_TAG" ./*.apk ./*.zip ./*.txt ./*.json ./*.html \
             --verify-tag --draft --title "L's VRPlayer ${RELEASE_TAG#v}" --notes-file release-notes.md
           gh release edit "$RELEASE_TAG" --draft=false --latest
