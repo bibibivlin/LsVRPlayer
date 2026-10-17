@@ -177,38 +177,40 @@ namespace VRPlayer.Tests
             Assert.That(path, Does.Not.Contain("ParentId="));
         }
 
-        [Test] public void FullLibraryReadsPastBothFirstThirtyAndTwoHundredItems()
+        [Test] public async Task FullLibraryReadsPastBothFirstThirtyAndTwoHundredItems()
         {
             var source = Enumerable.Range(1, 205).Select(index => new EmbyItem { Id = index.ToString(), SortName = index.ToString("D3") }).ToArray();
             var starts = new System.Collections.Generic.List<int>();
-            var result = CollectItems(start =>
+            var result = await CollectItems(start =>
             {
                 starts.Add(start);
                 return Task.FromResult(new EmbyItemsResult { Items = source.Skip(start).Take(200).ToArray(), TotalRecordCount = 205 });
-            }).GetAwaiter().GetResult();
+            });
             Assert.That(starts, Is.EqualTo(new[] { 0, 200 })); Assert.That(result.Items.Length, Is.EqualTo(205));
             Assert.That(result.TotalRecordCount, Is.EqualTo(205)); Assert.That(result.Items.Last().Id, Is.EqualTo("205"));
         }
 
-        [Test] public void FullLibraryContinuesClampedPagesAndDeduplicatesWithStableSorting()
+        [Test] public async Task FullLibraryContinuesClampedPagesAndDeduplicatesWithStableSorting()
         {
             var starts = new System.Collections.Generic.List<int>();
-            var result = CollectItems(start =>
+            var result = await CollectItems(start =>
             {
                 starts.Add(start);
                 var items = start == 0 ? new[] { new EmbyItem { Id = "b", SortName = "same" }, new EmbyItem { Id = "a", SortName = "Same" } } :
                     new[] { new EmbyItem { Id = "b", SortName = "same" }, new EmbyItem { Id = "c", SortName = "last" } };
                 return Task.FromResult(new EmbyItemsResult { Items = items, TotalRecordCount = 4 });
-            }).GetAwaiter().GetResult();
+            });
             Assert.That(starts, Is.EqualTo(new[] { 0, 2 }));
             Assert.That(result.Items.Select(item => item.Id), Is.EqualTo(new[] { "c", "a", "b" })); Assert.That(result.TotalRecordCount, Is.EqualTo(3));
         }
 
-        [Test] public void FullLibraryRejectsRepeatedOrTruncatedPagesInsteadOfReturningPartialWall()
+        [Test] public async Task FullLibraryRejectsRepeatedOrTruncatedPagesInsteadOfReturningPartialWall()
         {
             var page = new EmbyItemsResult { Items = new[] { new EmbyItem { Id = "1" } }, TotalRecordCount = 4 };
-            Assert.Throws<InvalidOperationException>(() => CollectItems(start => Task.FromResult(page)).GetAwaiter().GetResult());
-            Assert.Throws<InvalidOperationException>(() => CollectItems(start => Task.FromResult(start == 0 ? page : new EmbyItemsResult { TotalRecordCount = 4 })).GetAwaiter().GetResult());
+            try { await CollectItems(start => Task.FromResult(page)); Assert.Fail("Repeated pages must fail"); }
+            catch (InvalidOperationException) { }
+            try { await CollectItems(start => Task.FromResult(start == 0 ? page : new EmbyItemsResult { TotalRecordCount = 4 })); Assert.Fail("Truncated pages must fail"); }
+            catch (InvalidOperationException) { }
         }
 
         [Test] public void CancellingFullLibraryAfterPageResponsePreventsNextRequestAndPartialResult()

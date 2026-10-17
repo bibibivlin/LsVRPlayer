@@ -613,6 +613,7 @@ namespace VRPlayer.Tests
             var options=LibraryViewOptions(browser);
             Assert.That(options.Select(button=>button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text.TrimStart('✓',' ')),Is.EqualTo(new[]{"海报","横幅图","光盘封面","徽标","缩略图","列表","表格"}));
             options[(int)view].onClick.Invoke();
+            while((bool)typeof(EmbyBrowserUI).GetMethod("BuildNextCard",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(browser,null)){}
             Assert.That(new PlayerStore(path).GetEmbyLibraryView("fixture","movies"),Is.EqualTo(view));
             var fields=BindingFlags.Instance|BindingFlags.NonPublic;
             var scroll=(ListScrollRect)typeof(EmbyBrowserUI).GetField("scroll",fields).GetValue(browser);var body=(RectTransform)typeof(EmbyBrowserUI).GetField("body",fields).GetValue(browser);

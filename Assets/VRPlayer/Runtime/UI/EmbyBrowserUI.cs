@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using TMPro;
+using Unity.Profiling;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
@@ -16,6 +17,11 @@ namespace VRPlayer
         private static readonly Color Background=UiTheme.Background,Card=UiTheme.Surface,Green=UiTheme.Accent,Muted=UiTheme.Muted;
         private const int MaxImageBytes=2*1024*1024,MaxTextures=48,MaxTextureBytes=24*1024*1024;
         private const float ImagePreload=180;
+        private static readonly ProfilerMarker RenderMarker=new ProfilerMarker("Emby.Render");
+        private static readonly ProfilerMarker CardMarker=new ProfilerMarker("Emby.BuildCard");
+        private static readonly ProfilerMarker ImageMarker=new ProfilerMarker("Emby.DecodeImage");
+        private readonly Queue<Action> cardBuilds=new Queue<Action>();
+        private int imageDecodeFrame=-1;
         private PlayerApp app;
         private RectTransform root,body;
         private float Width=>root==null?1376:root.rect.width;
@@ -77,7 +83,7 @@ namespace VRPlayer
         }
         public void ReleasePanel()
         {
-            CaptureLogin();RememberOffset();CloseViewMenu();CancelImages();ClearPosterWall();ClearCast();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
+            CaptureLogin();RememberOffset();CloseViewMenu();cardBuilds.Clear();CancelImages();ClearPosterWall();ClearCast();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
         }
         public void Suspend(){CloseViewMenu();CancelImages();}
         public bool TryBack()
@@ -109,11 +115,15 @@ namespace VRPlayer
         }
         public void Render(bool force=false)
         {
+            using(RenderMarker.Auto())RenderPage(force);
+        }
+        private void RenderPage(bool force)
+        {
             if(root==null||app==null)return;var state=app.EmbyState;
             if(!force&&revision==state.revision)return;
             CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
             float offset=pageOffsets.TryGetValue(key,out var remembered)?remembered:0;viewKey=key;revision=state.revision;
-            CancelImages();ClearPosterWall();ClearCast();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
+            cardBuilds.Clear();CancelImages();ClearPosterWall();ClearCast();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
             UiFactory.Box(root,"Emby input surface",0,0,Width,root.rect.height,Color.clear,true);
             if(login||state.page==EmbyPage.Accounts){if(login)DrawLogin();else DrawAccounts();}
             else{
@@ -138,9 +148,18 @@ namespace VRPlayer
         private void LateUpdate()
         {
             if(root==null||!root.gameObject.activeInHierarchy)return;
+            // Each card also schedules text meshes/layout. Let those complete and
+            // controller poses advance before creating the next card.
+            BuildNextCard();
             float height=scroll==null?root.rect.height:scroll.viewport.rect.height;
             UpdateCast();
             if(imageScheduleDirty||float.IsNaN(imageOffset)||Mathf.Abs(Offset-imageOffset)>1||Mathf.Abs(height-imageViewportHeight)>1){UpdatePosterWall();ScheduleImages();}
+        }
+        private bool BuildNextCard()
+        {
+            if(cardBuilds.Count==0||body==null)return false;
+            using(CardMarker.Auto())cardBuilds.Dequeue()();
+            imageScheduleDirty=true;return true;
         }
         private void DrawHeader(string title,bool showTitle=true)
         {
@@ -247,7 +266,10 @@ namespace VRPlayer
             else{
                 int columns=Mathf.Max(1,Mathf.FloorToInt((BodyWidth-28+18)/318));
                 float width=(BodyWidth-28-(columns-1)*18)/columns,pitch=width*9f/16+88;
-                for(int i=0;i<views.Length;i++)LibraryCard(views[i],14+(i%columns)*(width+18),y+(i/columns)*pitch,width);
+                for(int i=0;i<views.Length;i++){
+                    var item=views[i];float x=14+(i%columns)*(width+18),top=y+(i/columns)*pitch;
+                    cardBuilds.Enqueue(()=>LibraryCard(item,x,top,width));
+                }
                 y+=Mathf.CeilToInt(views.Length/(float)columns)*pitch+16;
             }
             y=HomePosters("继续播放",state.resume,y,"暂无未看完的影片，播放进度会同步到 Emby",true);
@@ -264,7 +286,10 @@ namespace VRPlayer
             y=SectionTitle(title,y);items=items??Array.Empty<EmbyItem>();
             if(items.Length==0){UiFactory.Label(body,empty,18,y,BodyWidth-36,48,24).color=Muted;return y+78;}
             var layout=EmbyLibraryViews.HomeLayout(BodyWidth,thumbnails);
-            int count=Math.Min(12,items.Length);for(int i=0;i<count;i++)PosterCard(items[i],14+(i%layout.Columns)*(layout.Width+18),y+(i/layout.Columns)*layout.Pitch,layout,thumbnails);
+            int count=Math.Min(12,items.Length);for(int i=0;i<count;i++){
+                var item=items[i];float x=14+(i%layout.Columns)*(layout.Width+18),top=y+(i/layout.Columns)*layout.Pitch;
+                cardBuilds.Enqueue(()=>PosterCard(item,x,top,layout,thumbnails));
+            }
             return y+layout.ContentHeight(count)+18;
         }
         private void LibraryCard(EmbyItem item,float x,float y,float width)
@@ -352,53 +377,61 @@ namespace VRPlayer
         private float BuildPosterWall(EmbyItem[] items,float top,EmbyLibraryView view=EmbyLibraryView.Poster)
         {
             posterItems=items??Array.Empty<EmbyItem>();posterTop=top;posterFirstRow=int.MinValue;posterView=view;posterLayout=EmbyLibraryViews.Layout(view,BodyWidth);
-            var layout=posterLayout;bool list=view==EmbyLibraryView.List,table=view==EmbyLibraryView.Table;
+            var layout=posterLayout;
             int count=layout.PoolSize(posterItems.Length,scroll.viewport.rect.height,ImagePreload);
-            for(int i=0;i<count;i++){
-                var slot=new PosterSlot();var card=Button(body,"",14,top,layout.Width,layout.CardHeight,null);UiFactory.Clear(card.transform);slot.root=(RectTransform)card.transform;
-                slot.binding=slot.root.gameObject.AddComponent<RowBinding>();slot.root.gameObject.AddComponent<RowPress>().Bind(slot.binding);card.onClick.AddListener(slot.binding.Open);
-                bool alphaArtwork=view==EmbyLibraryView.Logo||view==EmbyLibraryView.Disc;
-                slot.artwork=UiFactory.RoundedBox(slot.root,"Artwork",list||table?8:0,list||table?12:0,layout.ArtworkWidth,layout.ArtworkHeight,alphaArtwork?Color.clear:UiTheme.Elevated,false,12);
-                if(!alphaArtwork)slot.artwork.gameObject.AddComponent<Mask>().showMaskGraphic=true;
-                slot.placeholder=UiFactory.Label(slot.artwork,"",4,0,layout.ArtworkWidth-8,layout.ArtworkHeight,table?14:list?17:22,TextAlignmentOptions.Center);slot.placeholder.name="Text";slot.placeholder.color=Muted;
-                var imageRect=UiFactory.Rect(slot.artwork,"Image",0,0,layout.ArtworkWidth,layout.ArtworkHeight);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.raycastTarget=false;slot.image.color=Color.clear;
-                var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=alphaArtwork?AspectRatioFitter.AspectMode.FitInParent:AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
-                slot.label=UiFactory.Label(slot.root,"",list||table?110:8,list?8:table?14:layout.ArtworkHeight+4,table?layout.Width-634:list?layout.Width-126:layout.Width-16,42,24);
-                if(table){
-                    slot.year=UiFactory.Label(slot.root,"",layout.Width-544,14,86,42,23);slot.duration=UiFactory.Label(slot.root,"",layout.Width-444,14,126,42,23);
-                    slot.rating=UiFactory.Label(slot.root,"",layout.Width-304,14,90,42,23);slot.resume=UiFactory.Label(slot.root,"",layout.Width-190,14,146,42,23);
-                }else{
-                    slot.meta=UiFactory.Label(slot.root,"",list?110:8,list?52:layout.ArtworkHeight+46,list?layout.Width-126:layout.Width-16,34,20);slot.meta.color=Muted;
-                    if(list){slot.overview=UiFactory.Label(slot.root,"",110,92,layout.Width-126,42,23);slot.overview.color=Muted;}
-                }
-                slot.progressRail=UiFactory.Box(slot.artwork,"Progress rail",0,layout.ArtworkHeight-6,layout.ArtworkWidth,6,new Color(0,0,0,.6f));slot.progress=UiFactory.Box(slot.artwork,"Progress",0,layout.ArtworkHeight-6,0,6,Green);
-                slot.watched=UiFactory.Box(slot.artwork,"Watched",layout.ArtworkWidth-48,4,44,28,Green);UiFactory.Label(slot.watched,"已看",0,0,44,28,17,TextAlignmentOptions.Center);
-                posterPool.Add(slot);
-            }
+            for(int i=0;i<count;i++)cardBuilds.Enqueue(BuildPosterCard);
             return top+layout.ContentHeight(posterItems.Length);
         }
+        private void BuildPosterCard()
+        {
+            var layout=posterLayout;var view=posterView;bool list=view==EmbyLibraryView.List,table=view==EmbyLibraryView.Table;
+            float top=posterTop;
+            var slot=new PosterSlot();var card=Button(body,"",14,top,layout.Width,layout.CardHeight,null);UiFactory.Clear(card.transform);slot.root=(RectTransform)card.transform;
+            slot.binding=slot.root.gameObject.AddComponent<RowBinding>();slot.root.gameObject.AddComponent<RowPress>().Bind(slot.binding);card.onClick.AddListener(slot.binding.Open);
+            bool alphaArtwork=view==EmbyLibraryView.Logo||view==EmbyLibraryView.Disc;
+            slot.artwork=UiFactory.RoundedBox(slot.root,"Artwork",list||table?8:0,list||table?12:0,layout.ArtworkWidth,layout.ArtworkHeight,alphaArtwork?Color.clear:UiTheme.Elevated,false,12);
+            if(!alphaArtwork)slot.artwork.gameObject.AddComponent<Mask>().showMaskGraphic=true;
+            slot.placeholder=UiFactory.Label(slot.artwork,"",4,0,layout.ArtworkWidth-8,layout.ArtworkHeight,table?14:list?17:22,TextAlignmentOptions.Center);slot.placeholder.name="Text";slot.placeholder.color=Muted;
+            var imageRect=UiFactory.Rect(slot.artwork,"Image",0,0,layout.ArtworkWidth,layout.ArtworkHeight);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.raycastTarget=false;slot.image.color=Color.clear;
+            var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=alphaArtwork?AspectRatioFitter.AspectMode.FitInParent:AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
+            slot.label=UiFactory.Label(slot.root,"",list||table?110:8,list?8:table?14:layout.ArtworkHeight+4,table?layout.Width-634:list?layout.Width-126:layout.Width-16,42,24);
+            if(table){
+                slot.year=UiFactory.Label(slot.root,"",layout.Width-544,14,86,42,23);slot.duration=UiFactory.Label(slot.root,"",layout.Width-444,14,126,42,23);
+                slot.rating=UiFactory.Label(slot.root,"",layout.Width-304,14,90,42,23);slot.resume=UiFactory.Label(slot.root,"",layout.Width-190,14,146,42,23);
+            }else{
+                slot.meta=UiFactory.Label(slot.root,"",list?110:8,list?52:layout.ArtworkHeight+46,list?layout.Width-126:layout.Width-16,34,20);slot.meta.color=Muted;
+                if(list){slot.overview=UiFactory.Label(slot.root,"",110,92,layout.Width-126,42,23);slot.overview.color=Muted;}
+            }
+            slot.progressRail=UiFactory.Box(slot.artwork,"Progress rail",0,layout.ArtworkHeight-6,layout.ArtworkWidth,6,new Color(0,0,0,.6f));slot.progress=UiFactory.Box(slot.artwork,"Progress",0,layout.ArtworkHeight-6,0,6,Green);
+            slot.watched=UiFactory.Box(slot.artwork,"Watched",layout.ArtworkWidth-48,4,44,28,Green);UiFactory.Label(slot.watched,"已看",0,0,44,28,17,TextAlignmentOptions.Center);
+            posterPool.Add(slot);
+            BindPosterCard(slot,posterPool.Count-1,FirstPosterRow());
+        }
+        private int FirstPosterRow()=>Mathf.Clamp(Mathf.FloorToInt((Offset-posterTop-ImagePreload)/posterLayout.Pitch),0,Mathf.Max(0,Mathf.CeilToInt(posterItems.Length/(float)posterLayout.Columns)-1));
         private void UpdatePosterWall()
         {
             if(posterPool.Count==0||body==null)return;
             var layout=posterLayout;
-            int first=Mathf.Clamp(Mathf.FloorToInt((Offset-posterTop-ImagePreload)/layout.Pitch),0,Mathf.Max(0,Mathf.CeilToInt(posterItems.Length/(float)layout.Columns)-1));
+            int first=FirstPosterRow();
             if(first==posterFirstRow)return;posterFirstRow=first;
-            for(int i=0;i<posterPool.Count;i++){
-                var slot=posterPool[i];UnbindImage(slot.imageBinding);slot.imageBinding=null;
-                int index=first*layout.Columns+i;var item=index<posterItems.Length?posterItems[index]:null;
-                slot.root.gameObject.SetActive(item!=null);if(item==null){slot.binding.Item=null;continue;}
-                slot.root.anchoredPosition=new Vector2(14+(i%layout.Columns)*(layout.Width+18),-(posterTop+(index/layout.Columns)*layout.Pitch));
-                slot.binding.Item=new BrowserRow{key=(app.ActiveEmbyAccount?.id??"")+":"+item.Id,open=()=>app.OpenEmbyItem(item)};
-                slot.root.GetComponent<Button>().interactable=!string.IsNullOrEmpty(item.Id);
-                slot.label.text=DisplayName(item);if(slot.meta!=null)slot.meta.text=posterView==EmbyLibraryView.List?DetailsMeta(item)+"   ·   "+PlaybackProgress(item):ItemMeta(item);
-                if(slot.overview!=null)slot.overview.text=string.IsNullOrWhiteSpace(item.Overview)?"暂无影片简介":PlainOverview(item.Overview);
-                if(slot.year!=null){slot.year.text=item.ProductionYear>0?item.ProductionYear.ToString():"—";slot.duration.text=item.RunTimeTicks>0?TicksClock(item.RunTimeTicks):"—";slot.rating.text=item.CommunityRating>0?item.CommunityRating.ToString("0.0"):"—";slot.resume.text=PlaybackProgress(item);}
-                string type=EmbyLibraryViews.ImageType(item,posterView),tag=EmbyLibraryViews.ImageTag(item,type);
-                bool available=!string.IsNullOrEmpty(tag);slot.placeholder.text=available?"Emby":item.IsBrowsable?"媒体库":posterView==EmbyLibraryView.Table?"无图片":"暂无图片";
-                slot.imageBinding=RegisterImage(slot.image,slot.artwork,item.Id,layout.ArtworkHeight,available,item,tag,type);
-                float progress=Progress(item);slot.progressRail.gameObject.SetActive(progress>0);slot.progress.gameObject.SetActive(progress>0);slot.progress.sizeDelta=new Vector2(layout.ArtworkWidth*progress,6);slot.watched.gameObject.SetActive(item.UserData?.Played==true);
-            }
+            for(int i=0;i<posterPool.Count;i++)BindPosterCard(posterPool[i],i,first);
             imageScheduleDirty=true;
+        }
+        private void BindPosterCard(PosterSlot slot,int i,int first)
+        {
+            var layout=posterLayout;UnbindImage(slot.imageBinding);slot.imageBinding=null;
+            int index=first*layout.Columns+i;var item=index<posterItems.Length?posterItems[index]:null;
+            slot.root.gameObject.SetActive(item!=null);if(item==null){slot.binding.Item=null;return;}
+            slot.root.anchoredPosition=new Vector2(14+(i%layout.Columns)*(layout.Width+18),-(posterTop+(index/layout.Columns)*layout.Pitch));
+            slot.binding.Item=new BrowserRow{key=(app.ActiveEmbyAccount?.id??"")+":"+item.Id,open=()=>app.OpenEmbyItem(item)};
+            slot.root.GetComponent<Button>().interactable=!string.IsNullOrEmpty(item.Id);
+            slot.label.text=DisplayName(item);if(slot.meta!=null)slot.meta.text=posterView==EmbyLibraryView.List?DetailsMeta(item)+"   ·   "+PlaybackProgress(item):ItemMeta(item);
+            if(slot.overview!=null)slot.overview.text=string.IsNullOrWhiteSpace(item.Overview)?"暂无影片简介":PlainOverview(item.Overview);
+            if(slot.year!=null){slot.year.text=item.ProductionYear>0?item.ProductionYear.ToString():"—";slot.duration.text=item.RunTimeTicks>0?TicksClock(item.RunTimeTicks):"—";slot.rating.text=item.CommunityRating>0?item.CommunityRating.ToString("0.0"):"—";slot.resume.text=PlaybackProgress(item);}
+            string type=EmbyLibraryViews.ImageType(item,posterView),tag=EmbyLibraryViews.ImageTag(item,type);
+            bool available=!string.IsNullOrEmpty(tag);slot.placeholder.text=available?"Emby":item.IsBrowsable?"媒体库":posterView==EmbyLibraryView.Table?"无图片":"暂无图片";
+            slot.imageBinding=RegisterImage(slot.image,slot.artwork,item.Id,layout.ArtworkHeight,available,item,tag,type);
+            float progress=Progress(item);slot.progressRail.gameObject.SetActive(progress>0);slot.progress.gameObject.SetActive(progress>0);slot.progress.sizeDelta=new Vector2(layout.ArtworkWidth*progress,6);slot.watched.gameObject.SetActive(item.UserData?.Played==true);
         }
         private void ClearPosterWall(){posterPool.Clear();posterItems=Array.Empty<EmbyItem>();posterFirstRow=int.MinValue;}
         private void ClearCast()
@@ -670,10 +703,15 @@ namespace VRPlayer
                         if(generation==imageGeneration&&job.wanted&&!job.cancelled){
                             job.failed=true;
                             if(request.result==UnityWebRequest.Result.Success){
+                                // Three downloads can finish together. Decode at most one
+                                // per frame and avoid sharing a frame with card construction.
+                                while(generation==imageGeneration&&job.wanted&&!job.cancelled&&(imageDecodeFrame==Time.frameCount||cardBuilds.Count>0))yield return null;
+                                if(generation!=imageGeneration||!job.wanted||job.cancelled)continue;
+                                imageDecodeFrame=Time.frameCount;
                                 byte[] bytes=download.Payload();
                                 if(ImageDimensions(bytes,out int width,out int height)&&width<=1024&&height<=1200&&(long)width*height<=786432){
                                     var texture=new Texture2D(2,2,TextureFormat.RGBA32,false);
-                                    bool loaded=texture.LoadImage(bytes,true);int cost=loaded?texture.width*texture.height*4:0;
+                                    bool loaded;using(ImageMarker.Auto())loaded=texture.LoadImage(bytes,true);int cost=loaded?texture.width*texture.height*4:0;
                                     if(loaded&&ReserveTexture(cost)){
                                         texture.wrapMode=TextureWrapMode.Clamp;images[job.key]=new CachedImage{texture=texture,bytes=cost,used=++accessOrder};textureBytes+=cost;job.failed=false;AssignTargets(job,texture);
                                     }else Destroy(texture);

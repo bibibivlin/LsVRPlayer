@@ -30,6 +30,24 @@ namespace VRPlayer
         private int surfaceRevision=-1;
         private Canvas activeCanvas;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
+        [System.Serializable] public sealed class InputSnapshot
+        {
+            public int processFrame,processCount,leftSamples,rightSamples,leftChanges,rightChanges;
+            public bool diagnostic,leftValid,rightValid;
+            public float maxGapMs;
+        }
+        public InputSnapshot Diagnostics{get;private set;}=new InputSnapshot();
+        private long diagnosticTick;
+        private readonly Vector3[] previousPositions=new Vector3[2];
+        private readonly Quaternion[] previousRotations=new Quaternion[2];
+        public void ResetDiagnostics(){Diagnostics=new InputSnapshot();diagnosticTick=0;}
+        private void RecordPose(int hand,bool valid)
+        {
+            bool changed=valid&&((controllerPositions[hand]-previousPositions[hand]).sqrMagnitude>1e-8f||Quaternion.Angle(controllerRotations[hand],previousRotations[hand])>.01f);
+            if(hand==0){Diagnostics.leftValid=valid;if(valid)Diagnostics.leftSamples++;if(changed)Diagnostics.leftChanges++;}
+            else{Diagnostics.rightValid=valid;if(valid)Diagnostics.rightSamples++;if(changed)Diagnostics.rightChanges++;}
+            previousPositions[hand]=controllerPositions[hand];previousRotations[hand]=controllerRotations[hand];
+        }
         private bool diagnosticInput;
         private readonly string[] diagnosticTargets=new string[3];
         private readonly float[] diagnosticValues={.5f,.5f,.5f};
@@ -75,6 +93,11 @@ namespace VRPlayer
         public override void Process()
         {
             if(app==null)return;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            long tick=System.Diagnostics.Stopwatch.GetTimestamp();
+            if(diagnosticTick!=0)Diagnostics.maxGapMs=Mathf.Max(Diagnostics.maxGapMs,(float)((tick-diagnosticTick)*1000d/System.Diagnostics.Stopwatch.Frequency));
+            diagnosticTick=tick;Diagnostics.processFrame=Time.frameCount;Diagnostics.processCount++;Diagnostics.diagnostic=diagnosticInput;
+#endif
             if(surfaceRevision!=app.UI.SurfaceRevision||activeCanvas!=app.UI.ActiveCanvas){CancelAllPointers();surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;}
             if(!app.HasFocus){backGate.Suppress();CancelAllPointers();foreach(var line in rays)line.enabled=false;foreach(var dot in dots)dot.gameObject.SetActive(false);return;}
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -86,6 +109,9 @@ namespace VRPlayer
                 bool valid=device.isValid&&device.TryGetFeatureValue(CommonUsages.devicePosition,out controllerPositions[hand])&&device.TryGetFeatureValue(CommonUsages.deviceRotation,out controllerRotations[hand]);
                 if(device.TryGetFeatureValue(CommonUsages.isTracked,out bool tracked)&&!tracked)valid=false;
                 controllerValid[hand]=valid;
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+                RecordPose(hand,valid);
+#endif
                 stickValid[hand]=valid&&device.TryGetFeatureValue(CommonUsages.primary2DAxis,out stickAxes[hand]);
                 device.TryGetFeatureValue(CommonUsages.secondaryButton,out backPressed[hand]);
                 device.TryGetFeatureValue(CommonUsages.primaryButton,out bool primary);device.TryGetFeatureValue(CommonUsages.menuButton,out bool menu);bool toggle=primary||menu;
