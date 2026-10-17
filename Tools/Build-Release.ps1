@@ -52,6 +52,7 @@ try {
         if($LASTEXITCODE -ne 0){throw 'Release tags must refer to a commit merged into main'}
     }
     if($Stage -in @('Build','All')){
+        Remove-OwnedDirectory $release (Join-Path $root 'Builds')
         Remove-OwnedDirectory $staging (Join-Path $root 'Builds')
         $null=New-Item -ItemType Directory -Path $staging -Force
         $runId=[guid]::NewGuid().ToString('N')
@@ -108,8 +109,8 @@ try {
                 [IO.File]::WriteAllBytes($key,[Convert]::FromBase64String($env:ANDROID_KEYSTORE_BASE64))
             }
             $certificatePath=Join-Path $signing 'certificate.der'
-            & (Join-Path $env:JAVA_HOME 'bin/keytool.exe') -exportcert -keystore $key -alias $env:ANDROID_KEYALIAS_NAME -storepass:env ANDROID_KEYSTORE_PASS -file $certificatePath 2>$null
-            if($LASTEXITCODE -ne 0){throw 'Unable to open the release key; check the signing password and alias'}
+            & $python (Join-Path $PSScriptRoot 'Test-SigningKey.py') --keystore $key --certificate-out $certificatePath
+            if($LASTEXITCODE -ne 0){throw 'Release key verification failed'}
             $certificate=[Security.Cryptography.X509Certificates.X509Certificate2]::new([IO.File]::ReadAllBytes($certificatePath))
             if($certificate.NotBefore -gt (Get-Date) -or $certificate.NotAfter -le (Get-Date)){throw 'Release signing certificate is outside its validity period'}
             if($certificate.Subject -match 'CN=Android Debug(?:,|$)'){throw 'Android debug certificates cannot sign a release'}

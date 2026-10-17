@@ -1,4 +1,5 @@
 """Check keystore integrity and private-key decryption without disclosing passwords."""
+import argparse
 import base64
 import hashlib
 import os
@@ -10,7 +11,13 @@ import tempfile
 
 
 def main():
-    required = ("ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASS", "ANDROID_KEYALIAS_NAME", "ANDROID_KEYALIAS_PASS")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--keystore", type=Path)
+    parser.add_argument("--certificate-out", type=Path)
+    args = parser.parse_args()
+    required = ("ANDROID_KEYSTORE_PASS", "ANDROID_KEYALIAS_NAME", "ANDROID_KEYALIAS_PASS")
+    if not args.keystore:
+        required += ("ANDROID_KEYSTORE_BASE64",)
     for name in required:
         if not os.environ.get(name):
             raise RuntimeError("Missing required GitHub Secret: " + name)
@@ -20,8 +27,9 @@ def main():
         raise RuntimeError("Java keytool is required")
     with tempfile.TemporaryDirectory(prefix="vrplayer-key-check-") as directory:
         root = Path(directory)
-        key = root / "source.p12"
-        key.write_bytes(base64.b64decode(os.environ["ANDROID_KEYSTORE_BASE64"].strip(), validate=True))
+        key = args.keystore or root / "source.p12"
+        if not args.keystore:
+            key.write_bytes(base64.b64decode(os.environ["ANDROID_KEYSTORE_BASE64"].strip(), validate=True))
         certificate = root / "certificate.der"
         result = subprocess.run([keytool, "-exportcert", "-keystore", str(key), "-alias", os.environ["ANDROID_KEYALIAS_NAME"],
                                  "-storepass:env", "ANDROID_KEYSTORE_PASS", "-file", str(certificate)],
@@ -39,6 +47,8 @@ def main():
         if result.returncode:
             raise RuntimeError("Private key decryption failed: check the alias private-key password")
         print("Private key password and decryption: verified")
+        if args.certificate_out:
+            args.certificate_out.write_bytes(certificate.read_bytes())
         print("Release certificate SHA-256: " + hashlib.sha256(certificate.read_bytes()).hexdigest())
 
 
