@@ -16,6 +16,8 @@
 
 Build 阶段重建 Java AAR／ARM64 GLES 插件，运行发布工具回归、原生 JUnit 和完整 `VRPlayer.Tests` EditMode 套件，再以 ARM64／IL2CPP Release／GLES3 构建非 Development Player。中间 APK 使用开发签名，仅保存在忽略的 `Builds/.release-staging/`，不得分发。
 
+EditMode 套件包含实际图像渲染断言，因此测试使用本机 Direct3D 11 图形设备，不启用 `-nographics`；不跳过这些测试。Android Player 编译仍使用无图形批处理模式。
+
 Sign 阶段验证所选证书有效期，使用 `apksigner` 重新签名，并核对证书、包名、版本、SDK、ARM64 库、`debuggable=false`、`testOnly=false` 和通过的测试记录。只有全部成功，`Builds/Release/` 才保留最终 APK、清单、SHA-256 与发布说明。签名临时目录在成功和失败时均清理；失败不保留可发布输出。原始 Unity 日志和测试 XML 保留在忽略的 `Docs/Validation/release/`。
 
 ## GitHub Actions

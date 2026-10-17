@@ -66,7 +66,7 @@ try {
         & $java '-classpath' (Join-Path $android 'Tools/gradle/lib/*') org.gradle.launcher.GradleMain -p (Join-Path $root 'Native/Android') testDebugUnitTest --console=plain
         if($LASTEXITCODE -ne 0){throw 'Native JUnit tests failed'}
         Write-Output 'Running complete VRPlayer EditMode test suite'
-        Invoke-UnityTask @('-batchmode','-nographics','-projectPath',$root,'-buildTarget','Android','-runTests','-testPlatform','EditMode','-assemblyNames','VRPlayer.Tests','-testResults',$tests,'-logFile',(Join-Path $records 'tests.log'))
+        Invoke-UnityTask @('-batchmode','-force-d3d11','-projectPath',$root,'-buildTarget','Android','-runTests','-testPlatform','EditMode','-assemblyNames','VRPlayer.Tests','-testResults',$tests,'-logFile',(Join-Path $records 'tests.log'))
         if(-not (Test-Path -LiteralPath $tests)){throw 'Unity did not produce test results'}
         [xml]$testReport=Get-Content -LiteralPath $tests -Raw
         if($testReport.'test-run'.result -ne 'Passed' -or [int]$testReport.'test-run'.passed -lt 1 -or [int]$testReport.'test-run'.failed -gt 0){throw 'Unity EditMode tests did not pass'}
