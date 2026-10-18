@@ -90,7 +90,7 @@ namespace VRPlayer
             {
                 foreach (var page in embyPages.Concat(new[] { EmbyState }).Distinct())
                 {
-                    foreach (var entry in page.views.Concat(page.resume).Concat(page.latest).Concat(page.items).Concat(page.parts).Concat(page.extras).Concat(new[] { page.selected }).Where(entry => entry?.Id == itemId))
+                    foreach (var entry in page.views.Concat(page.resume).Concat(page.latest).Concat(page.items).Concat(page.specialEpisodes).Concat(page.parts).Concat(page.extras).Concat(new[] { page.selected }).Where(entry => entry?.Id == itemId))
                         entry.UserData = data;
                     // The server clears resume position for both watched and unwatched actions.
                     page.resume = page.resume.Where(entry => entry?.Id != itemId).ToArray();
