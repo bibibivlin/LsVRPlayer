@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using UnityEngine;
 
 namespace VRPlayer
@@ -53,6 +54,7 @@ namespace VRPlayer
                     case "detect-apply":app.ApplyFormatSuggestion();break;
                     case "directory-vr180":app.SetDirectoryVr180Preference(command.flag);break;
                     case "inspect":break;
+                    case "localization-inspect":break;
                     case "smb-read-ahead":
 #if UNITY_ANDROID && !UNITY_EDITOR
                         AndroidBridge.Api.CallStatic("setSmbReadAhead",command.flag);
@@ -99,8 +101,22 @@ namespace VRPlayer
                     case "smb":app.SaveServer(new SmbServer{name=command.name??"Test fixture",host=command.host,share=command.share,port=command.port,username=command.username??"",password=command.password??"",remember=false});break;
                 }
                 bool presenceKnown=UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.Head).TryGetFeatureValue(UnityEngine.XR.CommonUsages.userPresence,out bool userPresent);
-                File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Result{input=app.GetComponent<VrUiInput>()?.Diagnostics,accepted=true,action=command.action,timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,files=app.Files.ToArray(),subtitles=app.SubtitleCandidates.ToArray(),tab=app.UI.SelectedTab,source=app.Source.ToString(),directory=app.DirectoryUri,discovery=app.Discovery,emby=EmbyDiagnostic.From(app),status=app.Status,loading=app.Loading,uiSurface=app.UI.Visible?"full":app.UI.Quick.Visible?"quick":"hidden",fullVisible=app.UI.Visible,quickVisible=app.UI.Quick.Visible,fullOffset=app.UI.FullOffset,fullCount=app.UI.FullCount,fullModal=app.UI.FullModal,fullQuery=app.UI.FullQuery,keyboardVisible=app.UI.KeyboardVisible,quickOffset=app.UI.Quick.BrowserOffset,quickPopup=app.UI.Quick.Popup,quickBrowserUri=app.UI.Quick.BrowserUri,quickBrowserCount=app.UI.Quick.BrowserCount,quickBrowserLoading=app.UI.Quick.BrowserLoading,hasFocus=app.HasFocus,presenceKnown=presenceKnown,userPresent=userPresent}));
+                File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Result{languagePreference=Localization.Preference.ToString(),language=Localization.Language.ToString(),systemLanguage=Application.systemLanguage.ToString(),labels=command.action=="localization-inspect"?InspectLabels():null,input=app.GetComponent<VrUiInput>()?.Diagnostics,accepted=true,action=command.action,timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,files=app.Files.ToArray(),subtitles=app.SubtitleCandidates.ToArray(),tab=app.UI.SelectedTab,source=app.Source.ToString(),directory=app.DirectoryUri,discovery=app.Discovery,emby=EmbyDiagnostic.From(app),status=app.Status,loading=app.Loading,uiSurface=app.UI.Visible?"full":app.UI.Quick.Visible?"quick":"hidden",fullVisible=app.UI.Visible,quickVisible=app.UI.Quick.Visible,fullOffset=app.UI.FullOffset,fullCount=app.UI.FullCount,fullModal=app.UI.FullModal,fullQuery=app.UI.FullQuery,keyboardVisible=app.UI.KeyboardVisible,quickOffset=app.UI.Quick.BrowserOffset,quickPopup=app.UI.Quick.Popup,quickBrowserUri=app.UI.Quick.BrowserUri,quickBrowserCount=app.UI.Quick.BrowserCount,quickBrowserLoading=app.UI.Quick.BrowserLoading,hasFocus=app.HasFocus,presenceKnown=presenceKnown,userPresent=userPresent}));
             }catch(Exception ex){File.WriteAllText(Path.Combine(commandDirectory,"command-result.json"),JsonUtility.ToJson(new Failure{error=ex.ToString()}));}
+        }
+        [Serializable] private sealed class UiLabel {public string text,parent;public bool truncated;public int missingGlyphs;}
+        private UiLabel[] InspectLabels()
+        {
+            var canvas=app.UI.ActiveCanvas;
+            if(canvas==null)return Array.Empty<UiLabel>();
+            return canvas.GetComponentsInChildren<TMPro.TextMeshProUGUI>()
+                .Where(label=>label.GetComponentInParent<TMPro.TMP_InputField>()==null)
+                .Select(label=>{
+                    label.ForceMeshUpdate();
+                    string text=label.text??string.Empty;
+                    return new UiLabel{text=text,parent=label.transform.parent.name,truncated=label.isTextTruncated,
+                        missingGlyphs=text.Count(character=>!char.IsControl(character)&&!char.IsWhiteSpace(character)&&(label.font==null||!label.font.HasCharacter(character,true)))};
+                }).ToArray();
         }
         [Serializable] private sealed class Failure {public string error;}
         private async System.Threading.Tasks.Task InspectShares(SmbServer server){var result=await app.Smb.Shares(server,System.Threading.CancellationToken.None);File.WriteAllText(Path.Combine(commandDirectory,"smb-shares-result.json"),JsonUtility.ToJson(result));}
@@ -113,7 +129,7 @@ namespace VRPlayer
                 return new EmbyDiagnostic{page=app.EmbyState.page.ToString(),accountId=app.ActiveEmbyAccount?.id??"",selectedId=app.EmbyState.selected?.Id??"",currentId=currentId??"",error=app.EmbyState.error,loading=app.EmbyState.loading,accountCount=app.EmbyAccounts.Count,viewCount=app.EmbyState.views.Length,resumeCount=app.EmbyState.resume.Length,latestCount=app.EmbyState.latest.Length,totalCount=app.EmbyState.totalCount,startIndex=app.EmbyState.startIndex,itemCount=app.EmbyState.items.Length,castCount=app.EmbyState.selected?.People?.Length??0,pendingReportCount=app.EmbyPendingReports,resumePosition=(app.EmbyState.selected?.UserData?.PlaybackPositionTicks??0)/10000,viewIds=Array.ConvertAll(app.EmbyState.views,x=>x.Id),itemIds=Array.ConvertAll(app.EmbyState.items,x=>x.Id),partCount=app.EmbyState.parts.Length,extraCount=app.EmbyState.extras.Length,partIds=Array.ConvertAll(app.EmbyState.parts,x=>x.Id),extraIds=Array.ConvertAll(app.EmbyState.extras,x=>x.Id),partPlaylistIds=app.EmbyPlaybackPartIds,partPlaylistIndex=app.EmbyPlaybackPartIndex,canNext=app.CanNavigateAdjacent(1),canPrevious=app.CanNavigateAdjacent(-1),filterKind=app.EmbyState.filterKind,filterValue=app.EmbyState.filterValue,personOverviewPresent=app.EmbyState.page==EmbyPage.Person&&!string.IsNullOrWhiteSpace(app.EmbyState.selected?.Overview),playbackQueueKind=app.EmbyPlaybackQueueKind,playbackQueueIds=app.EmbyPlaybackQueueIds,playbackQueueIndex=app.EmbyPlaybackQueueIndex,playbackMainId=app.EmbyPlaybackMainId};
             }
         }
-        [Serializable] private sealed class Result {public VrUiInput.InputSnapshot input;public bool accepted;public string action,tab,source,directory,uiSurface,fullModal,fullQuery,quickPopup,quickBrowserUri,status,timestampUtc;public int fullCount,quickBrowserCount,frame;public float fullOffset,quickOffset;public bool keyboardVisible,quickBrowserLoading,hasFocus,presenceKnown,userPresent,loading,fullVisible,quickVisible;public FileEntry[] files,subtitles;public SmbDiscoverySnapshot discovery;public EmbyDiagnostic emby;}
+        [Serializable] private sealed class Result {public string languagePreference,language,systemLanguage;public UiLabel[] labels;public VrUiInput.InputSnapshot input;public bool accepted;public string action,tab,source,directory,uiSurface,fullModal,fullQuery,quickPopup,quickBrowserUri,status,timestampUtc;public int fullCount,quickBrowserCount,frame;public float fullOffset,quickOffset;public bool keyboardVisible,quickBrowserLoading,hasFocus,presenceKnown,userPresent,loading,fullVisible,quickVisible;public FileEntry[] files,subtitles;public SmbDiscoverySnapshot discovery;public EmbyDiagnostic emby;}
 #endif
     }
 }

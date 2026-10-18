@@ -1,0 +1,3155 @@
+{
+  "entries": [
+    {
+      "zh": "文件",
+      "en": "Files",
+      "ja": "ファイル"
+    },
+    {
+      "zh": "投影",
+      "en": "Projection",
+      "ja": "投影"
+    },
+    {
+      "zh": "字幕",
+      "en": "Subtitles",
+      "ja": "字幕"
+    },
+    {
+      "zh": "设置",
+      "en": "Settings",
+      "ja": "設定"
+    },
+    {
+      "zh": "信息",
+      "en": "Info",
+      "ja": "情報"
+    },
+    {
+      "zh": "选择",
+      "en": "Select",
+      "ja": "選択"
+    },
+    {
+      "zh": "位置",
+      "en": "Position",
+      "ja": "位置"
+    },
+    {
+      "zh": "样式",
+      "en": "Style",
+      "ja": "スタイル"
+    },
+    {
+      "zh": "上一部",
+      "en": "Previous",
+      "ja": "前の動画"
+    },
+    {
+      "zh": "播放",
+      "en": "Play",
+      "ja": "再生"
+    },
+    {
+      "zh": "下一部",
+      "en": "Next",
+      "ja": "次の動画"
+    },
+    {
+      "zh": "播放进度",
+      "en": "Playback progress",
+      "ja": "再生位置"
+    },
+    {
+      "zh": "音量",
+      "en": "Volume",
+      "ja": "音量"
+    },
+    {
+      "zh": "静音 / 恢复音量",
+      "en": "Mute / Unmute",
+      "ja": "ミュート / 解除"
+    },
+    {
+      "zh": "重试",
+      "en": "Retry",
+      "ja": "再試行"
+    },
+    {
+      "zh": "重试播放",
+      "en": "Retry playback",
+      "ja": "再生を再試行"
+    },
+    {
+      "zh": "停止",
+      "en": "Stop",
+      "ja": "停止"
+    },
+    {
+      "zh": "停止播放",
+      "en": "Stop playback",
+      "ja": "再生を停止"
+    },
+    {
+      "zh": "媒体已准备好",
+      "en": "Media ready",
+      "ja": "メディアの準備完了"
+    },
+    {
+      "zh": "收藏目录",
+      "en": "Favorite folders",
+      "ja": "お気に入りのフォルダー"
+    },
+    {
+      "zh": "SMB 服务器",
+      "en": "SMB servers",
+      "ja": "SMB サーバー"
+    },
+    {
+      "zh": "选择本地目录或 SMB 服务器开始观看",
+      "en": "Select a local folder or SMB server to start watching",
+      "ja": "ローカルフォルダーまたは SMB サーバーを選択してください"
+    },
+    {
+      "zh": "字幕样式实时预览\nSubtitle preview",
+      "en": "Live subtitle preview\nSubtitle preview",
+      "ja": "字幕スタイルのプレビュー\n字幕プレビュー"
+    },
+    {
+      "zh": "暂停",
+      "en": "Pause",
+      "ja": "一時停止"
+    },
+    {
+      "zh": "本地",
+      "en": "Local",
+      "ja": "ローカル"
+    },
+    {
+      "zh": "收藏",
+      "en": "Favorites",
+      "ja": "お気に入り"
+    },
+    {
+      "zh": "最近",
+      "en": "Recent",
+      "ja": "履歴"
+    },
+    {
+      "zh": "撤销移除",
+      "en": "Undo removal",
+      "ja": "削除を取り消す"
+    },
+    {
+      "zh": "手动添加",
+      "en": "Add manually",
+      "ja": "手動で追加"
+    },
+    {
+      "zh": "添加 SMB 服务器",
+      "en": "Add SMB server",
+      "ja": "SMB サーバーを追加"
+    },
+    {
+      "zh": "重新扫描",
+      "en": "Scan again",
+      "ja": "再スキャン"
+    },
+    {
+      "zh": "停止扫描",
+      "en": "Stop scan",
+      "ja": "スキャンを停止"
+    },
+    {
+      "zh": "返回",
+      "en": "Back",
+      "ja": "戻る"
+    },
+    {
+      "zh": "上级",
+      "en": "Parent folder",
+      "ja": "上のフォルダー"
+    },
+    {
+      "zh": "输入目录或选择来源",
+      "en": "Enter a folder or select a source",
+      "ja": "フォルダーを入力するかソースを選択"
+    },
+    {
+      "zh": "打开",
+      "en": "Open",
+      "ja": "開く"
+    },
+    {
+      "zh": "打开输入的地址",
+      "en": "Open this address",
+      "ja": "入力したアドレスを開く"
+    },
+    {
+      "zh": "刷新",
+      "en": "Refresh",
+      "ja": "更新"
+    },
+    {
+      "zh": "取消读取",
+      "en": "Cancel",
+      "ja": "中止"
+    },
+    {
+      "zh": "已取消读取",
+      "en": "Loading cancelled",
+      "ja": "読み込みを中止しました"
+    },
+    {
+      "zh": "取消",
+      "en": "Cancel",
+      "ja": "キャンセル"
+    },
+    {
+      "zh": "搜索当前目录",
+      "en": "Search this folder",
+      "ja": "このフォルダーを検索"
+    },
+    {
+      "zh": "搜索",
+      "en": "Search",
+      "ja": "検索"
+    },
+    {
+      "zh": "目录",
+      "en": "Folder",
+      "ja": "フォルダー"
+    },
+    {
+      "zh": "最近优先",
+      "en": "Most recent",
+      "ja": "新しい順"
+    },
+    {
+      "zh": "名称排序",
+      "en": "Name",
+      "ja": "名前順"
+    },
+    {
+      "zh": "日期排序",
+      "en": "Date",
+      "ja": "日付順"
+    },
+    {
+      "zh": "大小排序",
+      "en": "Size",
+      "ja": "サイズ順"
+    },
+    {
+      "zh": "最近播放优先",
+      "en": "Recently played first",
+      "ja": "最近再生した順"
+    },
+    {
+      "zh": "播放历史",
+      "en": "Play history",
+      "ja": "再生履歴"
+    },
+    {
+      "zh": "字幕文件",
+      "en": "Subtitle files",
+      "ja": "字幕ファイル"
+    },
+    {
+      "zh": "视频文件",
+      "en": "Video files",
+      "ja": "動画ファイル"
+    },
+    {
+      "zh": "名称",
+      "en": "Name",
+      "ja": "名前"
+    },
+    {
+      "zh": "大小 / 操作",
+      "en": "Size / Actions",
+      "ja": "サイズ / 操作"
+    },
+    {
+      "zh": "时间未知",
+      "en": "Unknown time",
+      "ja": "日時不明"
+    },
+    {
+      "zh": " · 进度 ",
+      "en": " · Progress ",
+      "ja": " · 再生位置 "
+    },
+    {
+      "zh": "已保存的共享",
+      "en": "Saved shares",
+      "ja": "保存済みの共有"
+    },
+    {
+      "zh": "移除",
+      "en": "Remove",
+      "ja": "削除"
+    },
+    {
+      "zh": "编辑",
+      "en": "Edit",
+      "ja": "編集"
+    },
+    {
+      "zh": "影片详情",
+      "en": "Film details",
+      "ja": "作品の詳細"
+    },
+    {
+      "zh": "所在目录",
+      "en": "Open folder",
+      "ja": "保存先"
+    },
+    {
+      "zh": "局域网发现",
+      "en": "LAN discovery",
+      "ja": "LAN 検出"
+    },
+    {
+      "zh": "选择共享",
+      "en": "Select share",
+      "ja": "共有を選択"
+    },
+    {
+      "zh": "扫描已停止 / 未完成",
+      "en": "Scan stopped / Incomplete",
+      "ja": "スキャン停止 / 未完了"
+    },
+    {
+      "zh": "正在读取…",
+      "en": "Loading…",
+      "ja": "読み込み中…"
+    },
+    {
+      "zh": "没有匹配文件，可切换来源或清空搜索。",
+      "en": "No matching files. Change source or clear the search.",
+      "ja": "一致するファイルがありません。ソースを変更するか検索をクリアしてください。"
+    },
+    {
+      "zh": "已移除收藏，可在 5 秒内撤销",
+      "en": "Favorite removed. Undo within 5 seconds.",
+      "ja": "お気に入りを削除しました。5 秒以内なら取り消せます。"
+    },
+    {
+      "zh": "投影与立体布局",
+      "en": "Projection and stereo layout",
+      "ja": "投影と立体視レイアウト"
+    },
+    {
+      "zh": "画面投影",
+      "en": "Projection",
+      "ja": "映像の投影"
+    },
+    {
+      "zh": "平面 / 曲面",
+      "en": "Flat / Curved",
+      "ja": "平面 / 曲面"
+    },
+    {
+      "zh": "鱼眼",
+      "en": "Fisheye",
+      "ja": "魚眼"
+    },
+    {
+      "zh": "立体布局",
+      "en": "Stereo layout",
+      "ja": "立体視レイアウト"
+    },
+    {
+      "zh": "普通 2D",
+      "en": "Standard 2D",
+      "ja": "通常の 2D"
+    },
+    {
+      "zh": "左右 SBS",
+      "en": "Side by side",
+      "ja": "左右 SBS"
+    },
+    {
+      "zh": "上下 OU",
+      "en": "Over / Under",
+      "ja": "上下 OU"
+    },
+    {
+      "zh": "Half 半宽/半高",
+      "en": "Half width / height",
+      "ja": "半幅 / 半高"
+    },
+    {
+      "zh": "半幅",
+      "en": "Half",
+      "ja": "半幅"
+    },
+    {
+      "zh": "交换左右眼",
+      "en": "Swap eyes",
+      "ja": "左右の目を入れ替え"
+    },
+    {
+      "zh": "左右互换",
+      "en": "Swap eyes",
+      "ja": "左右交換"
+    },
+    {
+      "zh": "单眼 2D",
+      "en": "One eye 2D",
+      "ja": "片目 2D"
+    },
+    {
+      "zh": "屏幕与观看参数",
+      "en": "Screen and viewing",
+      "ja": "スクリーンと表示"
+    },
+    {
+      "zh": "全景缩放",
+      "en": "Panorama zoom",
+      "ja": "パノラマズーム"
+    },
+    {
+      "zh": "屏幕宽度",
+      "en": "Screen width",
+      "ja": "スクリーンの幅"
+    },
+    {
+      "zh": "米",
+      "en": "m",
+      "ja": "m"
+    },
+    {
+      "zh": "屏幕距离",
+      "en": "Screen distance",
+      "ja": "スクリーンの距離"
+    },
+    {
+      "zh": "屏幕高度",
+      "en": "Screen height",
+      "ja": "スクリーンの高さ"
+    },
+    {
+      "zh": "屏幕曲率",
+      "en": "Screen curvature",
+      "ja": "スクリーンの曲率"
+    },
+    {
+      "zh": "倍",
+      "en": "×",
+      "ja": "倍"
+    },
+    {
+      "zh": "鱼眼角度",
+      "en": "Fisheye angle",
+      "ja": "魚眼の画角"
+    },
+    {
+      "zh": "重置距离",
+      "en": "Reset distance",
+      "ja": "距離をリセット"
+    },
+    {
+      "zh": "重置缩放",
+      "en": "Reset zoom",
+      "ja": "ズームをリセット"
+    },
+    {
+      "zh": "格式识别",
+      "en": "Format detection",
+      "ja": "形式の認識"
+    },
+    {
+      "zh": "重新识别格式",
+      "en": "Detect again",
+      "ja": "再認識"
+    },
+    {
+      "zh": "撤销本次识别",
+      "en": "Undo detection",
+      "ja": "認識を取り消す"
+    },
+    {
+      "zh": "采用建议",
+      "en": "Apply suggestion",
+      "ja": "候補を適用"
+    },
+    {
+      "zh": "本目录优先 VR180",
+      "en": "Prefer VR180 in this folder",
+      "ja": "このフォルダーは VR180 優先"
+    },
+    {
+      "zh": "播放速度",
+      "en": "Playback speed",
+      "ja": "再生速度"
+    },
+    {
+      "zh": "重置",
+      "en": "Reset",
+      "ja": "リセット"
+    },
+    {
+      "zh": "字幕延后",
+      "en": "Subtitle delay",
+      "ja": "字幕の遅延"
+    },
+    {
+      "zh": "秒",
+      "en": "s",
+      "ja": "秒"
+    },
+    {
+      "zh": "字幕大小",
+      "en": "Subtitle size",
+      "ja": "字幕のサイズ"
+    },
+    {
+      "zh": "视觉高度",
+      "en": "Visual height",
+      "ja": "表示の高さ"
+    },
+    {
+      "zh": "字幕距离",
+      "en": "Subtitle distance",
+      "ja": "字幕の距離"
+    },
+    {
+      "zh": "−0.01 米",
+      "en": "−0.01 m",
+      "ja": "−0.01 m"
+    },
+    {
+      "zh": "+0.01 米",
+      "en": "+0.01 m",
+      "ja": "+0.01 m"
+    },
+    {
+      "zh": "字幕跟随视线",
+      "en": "Follow gaze",
+      "ja": "字幕を視線に追従"
+    },
+    {
+      "zh": "改变距离时保持视觉大小与相对高度；字号和高度可单独调整。",
+      "en": "Distance keeps the apparent size and relative height. Adjust size and height separately.",
+      "ja": "距離を変えても見かけの大きさと相対的な高さを維持します。サイズと高さは個別に調整できます。"
+    },
+    {
+      "zh": "关闭字幕",
+      "en": "Turn off subtitles",
+      "ja": "字幕をオフ"
+    },
+    {
+      "zh": "手动选择 SRT",
+      "en": "Choose SRT",
+      "ja": "SRT を選択"
+    },
+    {
+      "zh": "编码：",
+      "en": "Encoding: ",
+      "ja": "文字コード："
+    },
+    {
+      "zh": "恢复自动选择",
+      "en": "Restore auto selection",
+      "ja": "自動選択に戻す"
+    },
+    {
+      "zh": "同目录匹配字幕",
+      "en": "Matching subtitles in this folder",
+      "ja": "同じフォルダーの対応字幕"
+    },
+    {
+      "zh": "已选择",
+      "en": "Selected",
+      "ja": "選択済み"
+    },
+    {
+      "zh": "未发现匹配字幕，可手动选择 SRT 文件。",
+      "en": "No matching subtitles. You can choose an SRT file.",
+      "ja": "対応する字幕がありません。SRT ファイルを選択できます。"
+    },
+    {
+      "zh": "内嵌字幕与音轨…",
+      "en": "Embedded subtitles / Audio…",
+      "ja": "内蔵字幕と音声…"
+    },
+    {
+      "zh": "白字黑边",
+      "en": "White/black",
+      "ja": "白字黒縁"
+    },
+    {
+      "zh": "黄字黑边",
+      "en": "Yellow/black",
+      "ja": "黄字黒縁"
+    },
+    {
+      "zh": "阴影",
+      "en": "Shadow",
+      "ja": "影"
+    },
+    {
+      "zh": "半透明底",
+      "en": "Translucent",
+      "ja": "半透明の背景"
+    },
+    {
+      "zh": "预设样式",
+      "en": "Style presets",
+      "ja": "スタイルのプリセット"
+    },
+    {
+      "zh": "文字颜色",
+      "en": "Text color",
+      "ja": "文字色"
+    },
+    {
+      "zh": "描边开关",
+      "en": "Outline toggle",
+      "ja": "縁取りの切り替え"
+    },
+    {
+      "zh": "描边",
+      "en": "Outline",
+      "ja": "縁取り"
+    },
+    {
+      "zh": "描边颜色",
+      "en": "Outline color",
+      "ja": "縁取りの色"
+    },
+    {
+      "zh": "粗细",
+      "en": "Thickness",
+      "ja": "太さ"
+    },
+    {
+      "zh": "阴影开关",
+      "en": "Shadow toggle",
+      "ja": "影の切り替え"
+    },
+    {
+      "zh": "强度",
+      "en": "Strength",
+      "ja": "強さ"
+    },
+    {
+      "zh": "样式预览",
+      "en": "Style preview",
+      "ja": "スタイルのプレビュー"
+    },
+    {
+      "zh": "明亮 / 深色背景",
+      "en": "Light / Dark backgrounds",
+      "ja": "明るい背景 / 暗い背景"
+    },
+    {
+      "zh": "字幕背景",
+      "en": "Subtitle background",
+      "ja": "字幕の背景"
+    },
+    {
+      "zh": "无背景",
+      "en": "None",
+      "ja": "なし"
+    },
+    {
+      "zh": "文字底框",
+      "en": "Text box",
+      "ja": "文字の背景"
+    },
+    {
+      "zh": "整行底条",
+      "en": "Full line",
+      "ja": "行全体の背景"
+    },
+    {
+      "zh": "背景颜色",
+      "en": "Background color",
+      "ja": "背景色"
+    },
+    {
+      "zh": "背景透明度",
+      "en": "Transparency",
+      "ja": "背景の透明度"
+    },
+    {
+      "zh": "白",
+      "en": "White",
+      "ja": "白"
+    },
+    {
+      "zh": "黄",
+      "en": "Yellow",
+      "ja": "黄"
+    },
+    {
+      "zh": "绿",
+      "en": "Green",
+      "ja": "緑"
+    },
+    {
+      "zh": "青",
+      "en": "Cyan",
+      "ja": "シアン"
+    },
+    {
+      "zh": "黑",
+      "en": "Black",
+      "ja": "黒"
+    },
+    {
+      "zh": "视频亮度",
+      "en": "Video brightness",
+      "ja": "映像の明るさ"
+    },
+    {
+      "zh": "渲染画质",
+      "en": "Render quality",
+      "ja": "描画品質"
+    },
+    {
+      "zh": "均衡 1.0×",
+      "en": "Balanced 1.0×",
+      "ja": "標準 1.0×"
+    },
+    {
+      "zh": "高清 1.25×",
+      "en": "High 1.25×",
+      "ja": "高画質 1.25×"
+    },
+    {
+      "zh": "超清 1.5×",
+      "en": "Ultra 1.5×",
+      "ja": "最高画質 1.5×"
+    },
+    {
+      "zh": "播放行为",
+      "en": "Playback behavior",
+      "ja": "再生時の動作"
+    },
+    {
+      "zh": "单片循环",
+      "en": "Repeat this video",
+      "ja": "1 本をリピート"
+    },
+    {
+      "zh": "目录连播",
+      "en": "Play folder in order",
+      "ja": "フォルダーを連続再生"
+    },
+    {
+      "zh": "自动隐藏",
+      "en": "Auto hide",
+      "ja": "自動で隠す"
+    },
+    {
+      "zh": "自动隐藏面板",
+      "en": "Auto hide panel",
+      "ja": "パネルを自動で隠す"
+    },
+    {
+      "zh": "字幕与音轨",
+      "en": "Subtitles and audio",
+      "ja": "字幕と音声"
+    },
+    {
+      "zh": "自动加载同名 SRT",
+      "en": "Auto load matching SRT",
+      "ja": "同名の SRT を自動読み込み"
+    },
+    {
+      "zh": "识别影片的投影与立体布局",
+      "en": "Detect projection and stereo layout",
+      "ja": "投影と立体視レイアウトを認識"
+    },
+    {
+      "zh": "关闭",
+      "en": "Off",
+      "ja": "オフ"
+    },
+    {
+      "zh": "标签与元数据",
+      "en": "Tags / Metadata",
+      "ja": "タグとメタデータ"
+    },
+    {
+      "zh": "增强识别",
+      "en": "Enhanced",
+      "ja": "拡張認識"
+    },
+    {
+      "zh": "其他",
+      "en": "Other",
+      "ja": "その他"
+    },
+    {
+      "zh": "选择音轨 / 内嵌字幕",
+      "en": "Audio / Embedded subtitles",
+      "ja": "音声 / 内蔵字幕を選択"
+    },
+    {
+      "zh": "清空播放记录",
+      "en": "Clear play history",
+      "ja": "再生履歴を消去"
+    },
+    {
+      "zh": "音轨与内嵌字幕",
+      "en": "Audio and embedded subtitles",
+      "ja": "音声と内蔵字幕"
+    },
+    {
+      "zh": "自动音轨",
+      "en": "Auto audio",
+      "ja": "音声を自動選択"
+    },
+    {
+      "zh": "关闭内嵌字幕",
+      "en": "Disable embedded subtitles",
+      "ja": "内蔵字幕をオフ"
+    },
+    {
+      "zh": "音轨  ",
+      "en": "Audio  ",
+      "ja": "音声  "
+    },
+    {
+      "zh": "字幕  ",
+      "en": "Subtitle  ",
+      "ja": "字幕  "
+    },
+    {
+      "zh": "  [解码器不支持]",
+      "en": "  [Unsupported decoder]",
+      "ja": "  [デコーダー非対応]"
+    },
+    {
+      "zh": "请先打开视频；轨道信息将在媒体准备完成后出现。",
+      "en": "Open a video first. Tracks appear when the media is ready.",
+      "ja": "動画を開いてください。準備ができるとトラック情報が表示されます。"
+    },
+    {
+      "zh": "播放信息与诊断",
+      "en": "Playback info and diagnostics",
+      "ja": "再生情報と診断"
+    },
+    {
+      "zh": "隐私政策",
+      "en": "Privacy policy",
+      "ja": "プライバシーポリシー"
+    },
+    {
+      "zh": "权限说明",
+      "en": "Permissions",
+      "ja": "権限について"
+    },
+    {
+      "zh": "开源许可",
+      "en": "Open source licenses",
+      "ja": "OSS ライセンス"
+    },
+    {
+      "zh": "连接 SMB 服务器",
+      "en": "Connect to SMB server",
+      "ja": "SMB サーバーに接続"
+    },
+    {
+      "zh": "正在连接 ",
+      "en": "Connecting to ",
+      "ja": "接続中："
+    },
+    {
+      "zh": " 并读取共享…",
+      "en": " and loading shares…",
+      "ja": "・共有を読み込み中…"
+    },
+    {
+      "zh": "选择共享 · ",
+      "en": "Select share · ",
+      "ja": "共有を選択 · "
+    },
+    {
+      "zh": "服务器未返回可用磁盘共享，可手填共享名。",
+      "en": "No disk shares returned. Enter a share name manually.",
+      "ja": "利用できる共有がありません。共有名を手入力できます。"
+    },
+    {
+      "zh": "手填共享名 / 更换账号",
+      "en": "Enter share / Change account",
+      "ja": "共有名を入力 / アカウント変更"
+    },
+    {
+      "zh": "连接失败：",
+      "en": "Connection failed: ",
+      "ja": "接続に失敗："
+    },
+    {
+      "zh": "连接 ",
+      "en": "Connect to ",
+      "ja": "接続："
+    },
+    {
+      "zh": "用户名（空为匿名）",
+      "en": "Username (blank for guest)",
+      "ja": "ユーザー名（空欄は匿名）"
+    },
+    {
+      "zh": "密码",
+      "en": "Password",
+      "ja": "パスワード"
+    },
+    {
+      "zh": "域（可留空）",
+      "en": "Domain (optional)",
+      "ja": "ドメイン（任意）"
+    },
+    {
+      "zh": "共享名（可选）",
+      "en": "Share name (optional)",
+      "ja": "共有名（任意）"
+    },
+    {
+      "zh": "保存密码",
+      "en": "Remember password",
+      "ja": "パスワードを保存"
+    },
+    {
+      "zh": "SMB 加密",
+      "en": "SMB encryption",
+      "ja": "SMB 暗号化"
+    },
+    {
+      "zh": "列出共享",
+      "en": "List shares",
+      "ja": "共有を一覧表示"
+    },
+    {
+      "zh": "打开指定共享",
+      "en": "Open share",
+      "ja": "指定した共有を開く"
+    },
+    {
+      "zh": "请填写共享名，或选择“列出共享”",
+      "en": "Enter a share name or select “List shares”.",
+      "ja": "共有名を入力するか「共有を一覧表示」を選択してください。"
+    },
+    {
+      "zh": "编辑 SMB 服务器",
+      "en": "Edit SMB server",
+      "ja": "SMB サーバーを編集"
+    },
+    {
+      "zh": "删除配置",
+      "en": "Delete configuration",
+      "ja": "設定を削除"
+    },
+    {
+      "zh": "显示名称",
+      "en": "Display name",
+      "ja": "表示名"
+    },
+    {
+      "zh": "主机 / IP",
+      "en": "Host / IP",
+      "ja": "ホスト / IP"
+    },
+    {
+      "zh": "共享名",
+      "en": "Share name",
+      "ja": "共有名"
+    },
+    {
+      "zh": "密码（空则保留）",
+      "en": "Password (blank to keep)",
+      "ja": "パスワード（空欄で維持）"
+    },
+    {
+      "zh": "端口",
+      "en": "Port",
+      "ja": "ポート"
+    },
+    {
+      "zh": "保存并返回服务器列表",
+      "en": "Save and return to servers",
+      "ja": "保存してサーバー一覧に戻る"
+    },
+    {
+      "zh": "请输入 1–65535 之间的端口",
+      "en": "Enter a port from 1 to 65535.",
+      "ja": "1～65535 のポートを入力してください。"
+    },
+    {
+      "zh": "完成",
+      "en": "Done",
+      "ja": "完了"
+    },
+    {
+      "zh": "完成输入",
+      "en": "Finish typing",
+      "ja": "入力を完了"
+    },
+    {
+      "zh": "小写",
+      "en": "Lowercase",
+      "ja": "小文字"
+    },
+    {
+      "zh": "大写",
+      "en": "Uppercase",
+      "ja": "大文字"
+    },
+    {
+      "zh": "空格",
+      "en": "Space",
+      "ja": "スペース"
+    },
+    {
+      "zh": "退格",
+      "en": "Backspace",
+      "ja": "一文字削除"
+    },
+    {
+      "zh": "清空",
+      "en": "Clear",
+      "ja": "クリア"
+    },
+    {
+      "zh": "未打开影片",
+      "en": "No video open",
+      "ja": "動画が開かれていません"
+    },
+    {
+      "zh": "播放 / 暂停",
+      "en": "Play / Pause",
+      "ja": "再生 / 一時停止"
+    },
+    {
+      "zh": "模式切换",
+      "en": "Viewing mode",
+      "ja": "表示モード"
+    },
+    {
+      "zh": "倍速",
+      "en": "Speed",
+      "ja": "再生速度"
+    },
+    {
+      "zh": "停止并返回",
+      "en": "Stop and return",
+      "ja": "停止して戻る"
+    },
+    {
+      "zh": "字幕已关闭",
+      "en": "Subtitles off",
+      "ja": "字幕はオフです"
+    },
+    {
+      "zh": "尚未选择字幕",
+      "en": "No subtitles selected",
+      "ja": "字幕が選択されていません"
+    },
+    {
+      "zh": "内嵌字幕",
+      "en": "Embedded subtitles",
+      "ja": "内蔵字幕"
+    },
+    {
+      "zh": "外置 SRT",
+      "en": "External SRT",
+      "ja": "外部 SRT"
+    },
+    {
+      "zh": "字幕：开",
+      "en": "Subtitles: On",
+      "ja": "字幕：オン"
+    },
+    {
+      "zh": "字幕进度调节",
+      "en": "Subtitle timing",
+      "ja": "字幕のタイミング"
+    },
+    {
+      "zh": "归零",
+      "en": "Zero",
+      "ja": "0 に戻す"
+    },
+    {
+      "zh": "选择字幕文件",
+      "en": "Choose subtitle file",
+      "ja": "字幕ファイルを選択"
+    },
+    {
+      "zh": "内嵌",
+      "en": "Embedded",
+      "ja": "内蔵"
+    },
+    {
+      "zh": "不支持",
+      "en": "Unsupported",
+      "ja": "非対応"
+    },
+    {
+      "zh": "未发现字幕，请选择 SRT 文件",
+      "en": "No subtitles found. Choose an SRT file.",
+      "ja": "字幕なし。SRT を選択"
+    },
+    {
+      "zh": "全景角度",
+      "en": "Projection",
+      "ja": "パノラマの投影"
+    },
+    {
+      "zh": "画面远近",
+      "en": "Viewing distance",
+      "ja": "表示距離"
+    },
+    {
+      "zh": "画面远近 · 全景缩放",
+      "en": "Viewing distance · Panorama zoom",
+      "ja": "表示距離 · パノラマズーム"
+    },
+    {
+      "zh": "重置远近",
+      "en": "Reset view",
+      "ja": "リセット"
+    },
+    {
+      "zh": "立体效果",
+      "en": "Stereo",
+      "ja": "立体視"
+    },
+    {
+      "zh": "3D 左右",
+      "en": "3D SBS",
+      "ja": "3D 左右"
+    },
+    {
+      "zh": "3D 上下",
+      "en": "3D OU",
+      "ja": "3D 上下"
+    },
+    {
+      "zh": "调节范围 0.25–3×",
+      "en": "Range: 0.25–3×",
+      "ja": "調整範囲：0.25～3 倍"
+    },
+    {
+      "zh": "当前影片目录",
+      "en": "Current video folder",
+      "ja": "再生中の動画のフォルダー"
+    },
+    {
+      "zh": "设备存储",
+      "en": "Device storage",
+      "ja": "デバイスのストレージ"
+    },
+    {
+      "zh": "Movies 视频",
+      "en": "Movies",
+      "ja": "Movies 動画"
+    },
+    {
+      "zh": "已授权目录 ",
+      "en": "Authorized folder ",
+      "ja": "許可済みフォルダー "
+    },
+    {
+      "zh": "已保存的目录授权无法读取，请检查系统权限",
+      "en": "Could not read saved folder access. Check system permissions.",
+      "ja": "保存済みのフォルダー権限を読み込めません。システムの権限を確認してください。"
+    },
+    {
+      "zh": "共享列表读取失败，可在完整面板重新配置",
+      "en": "Could not load shares. Configure them in the full panel.",
+      "ja": "共有を読み込めません。メインパネルで再設定できます。"
+    },
+    {
+      "zh": "测试视频",
+      "en": "Test videos",
+      "ja": "テスト動画"
+    },
+    {
+      "zh": "我的视频",
+      "en": "My videos",
+      "ja": "マイビデオ"
+    },
+    {
+      "zh": "应用目录",
+      "en": "App folder",
+      "ja": "アプリのフォルダー"
+    },
+    {
+      "zh": "返回字幕",
+      "en": "Back to subtitles",
+      "ja": "字幕に戻る"
+    },
+    {
+      "zh": "来源",
+      "en": "Sources",
+      "ja": "ソース"
+    },
+    {
+      "zh": "选择一个来源",
+      "en": "Select a source",
+      "ja": "ソースを選択"
+    },
+    {
+      "zh": "正在读取目录…",
+      "en": "Loading folder…",
+      "ja": "フォルダーを読み込み中…"
+    },
+    {
+      "zh": "此目录没有 SRT 文件",
+      "en": "No SRT files in this folder",
+      "ja": "このフォルダーに SRT ファイルはありません"
+    },
+    {
+      "zh": "目录读取失败，请重试",
+      "en": "Could not load folder. Try again.",
+      "ja": "フォルダーを読み込めません。再試行してください。"
+    },
+    {
+      "zh": "目录读取失败，请刷新重试",
+      "en": "Could not load folder. Refresh to try again.",
+      "ja": "フォルダーを読み込めません。更新して再試行してください。"
+    },
+    {
+      "zh": "正在读取媒体库…",
+      "en": "Loading library…",
+      "ja": "ライブラリを読み込み中…"
+    },
+    {
+      "zh": "请稍候",
+      "en": "Please wait",
+      "ja": "しばらくお待ちください"
+    },
+    {
+      "zh": "首页",
+      "en": "Home",
+      "ja": "ホーム"
+    },
+    {
+      "zh": "账户与服务器",
+      "en": "Accounts / Servers",
+      "ja": "アカウントとサーバー"
+    },
+    {
+      "zh": "更换账户",
+      "en": "Change account",
+      "ja": "アカウントを変更"
+    },
+    {
+      "zh": "返回媒体库",
+      "en": "Back to library",
+      "ja": "ライブラリに戻る"
+    },
+    {
+      "zh": "Emby · 服务器与账户",
+      "en": "Emby · Servers and accounts",
+      "ja": "Emby · サーバーとアカウント"
+    },
+    {
+      "zh": "连接你的 Emby 媒体库",
+      "en": "Connect to your Emby library",
+      "ja": "Emby ライブラリに接続"
+    },
+    {
+      "zh": "使用已有的 Emby 账户登录，可添加多个服务器和账户。",
+      "en": "Sign in with an existing Emby account. Add multiple servers and accounts.",
+      "ja": "既存の Emby アカウントでログインできます。複数のサーバーとアカウントを追加できます。"
+    },
+    {
+      "zh": "  ·  当前",
+      "en": "  ·  Active",
+      "ja": "  ·  使用中"
+    },
+    {
+      "zh": "确认移除",
+      "en": "Confirm removal",
+      "ja": "削除を確定"
+    },
+    {
+      "zh": "添加服务器 / 账户",
+      "en": "Add server / Account",
+      "ja": "サーバー / アカウントを追加"
+    },
+    {
+      "zh": "切换账户后显示该账户可访问的媒体库",
+      "en": "Switch accounts to see their libraries",
+      "ja": "選択中のアカウントのライブラリを表示"
+    },
+    {
+      "zh": "取消登录",
+      "en": "Cancel sign in",
+      "ja": "ログインを中止"
+    },
+    {
+      "zh": "添加 Emby 服务器 / 账户",
+      "en": "Add Emby server / Account",
+      "ja": "Emby サーバー / アカウントを追加"
+    },
+    {
+      "zh": "输入服务器地址，并使用该服务器已有的账户登录",
+      "en": "Enter a server address and sign in with an existing account.",
+      "ja": "サーバーのアドレスを入力し、そのサーバーの既存アカウントでログインしてください。"
+    },
+    {
+      "zh": "连接协议",
+      "en": "Protocol",
+      "ja": "接続プロトコル"
+    },
+    {
+      "zh": "点击按钮切换 HTTP / HTTPS",
+      "en": "Click to switch HTTP / HTTPS",
+      "ja": "ボタンで HTTP / HTTPS を切り替え"
+    },
+    {
+      "zh": "地址 / IP",
+      "en": "Address / IP",
+      "ja": "アドレス / IP"
+    },
+    {
+      "zh": "IP 地址或域名",
+      "en": "IP address or domain",
+      "ja": "IP アドレスまたはドメイン"
+    },
+    {
+      "zh": "用户名",
+      "en": "Username",
+      "ja": "ユーザー名"
+    },
+    {
+      "zh": "Emby 用户名",
+      "en": "Emby username",
+      "ja": "Emby ユーザー名"
+    },
+    {
+      "zh": "账户密码",
+      "en": "Account password",
+      "ja": "アカウントのパスワード"
+    },
+    {
+      "zh": "记住登录",
+      "en": "Stay signed in",
+      "ja": "ログインを保持"
+    },
+    {
+      "zh": "可在账户列表切换或移除登录",
+      "en": "Switch or remove accounts in the account list",
+      "ja": "アカウント一覧で切り替えや削除ができます"
+    },
+    {
+      "zh": "正在登录…",
+      "en": "Signing in…",
+      "ja": "ログイン中…"
+    },
+    {
+      "zh": "正在连接…",
+      "en": "Connecting…",
+      "ja": "接続中…"
+    },
+    {
+      "zh": "登录并打开媒体库",
+      "en": "Sign in and open library",
+      "ja": "ログインしてライブラリを開く"
+    },
+    {
+      "zh": "请填写 Emby 用户名",
+      "en": "Enter your Emby username.",
+      "ja": "Emby ユーザー名を入力してください。"
+    },
+    {
+      "zh": "登录失败，请检查服务器地址与账户",
+      "en": "Sign in failed. Check the server address and account.",
+      "ja": "ログインに失敗しました。サーバーのアドレスとアカウントを確認してください。"
+    },
+    {
+      "zh": "我的媒体",
+      "en": "My media",
+      "ja": "マイメディア"
+    },
+    {
+      "zh": "此账户没有可访问的媒体库",
+      "en": "No libraries available for this account",
+      "ja": "このアカウントで利用できるライブラリはありません"
+    },
+    {
+      "zh": "继续播放",
+      "en": "Resume",
+      "ja": "続きから再生"
+    },
+    {
+      "zh": "暂无未看完的影片，播放进度会同步到 Emby",
+      "en": "No videos to resume. Playback progress syncs with Emby.",
+      "ja": "続きから再生できる動画はありません。再生位置は Emby と同期します。"
+    },
+    {
+      "zh": "最新加入",
+      "en": "Recently added",
+      "ja": "最近追加された作品"
+    },
+    {
+      "zh": "媒体库中暂无可显示的影片",
+      "en": "No videos to display in this library",
+      "ja": "表示できる動画がありません"
+    },
+    {
+      "zh": "媒体库",
+      "en": "Library",
+      "ja": "ライブラリ"
+    },
+    {
+      "zh": "搜索当前影片列表",
+      "en": "Search this video list",
+      "ja": "この動画一覧を検索"
+    },
+    {
+      "zh": "清空搜索",
+      "en": "Clear search",
+      "ja": "検索をクリア"
+    },
+    {
+      "zh": "视图 · ",
+      "en": "View · ",
+      "ja": "表示 · "
+    },
+    {
+      "zh": "此媒体库暂无影片",
+      "en": "No videos in this library",
+      "ja": "このライブラリに動画はありません"
+    },
+    {
+      "zh": "未找到匹配的影片",
+      "en": "No matching videos",
+      "ja": "一致する動画がありません"
+    },
+    {
+      "zh": "年份",
+      "en": "Year",
+      "ja": "年"
+    },
+    {
+      "zh": "时长",
+      "en": "Duration",
+      "ja": "長さ"
+    },
+    {
+      "zh": "评分",
+      "en": "Rating",
+      "ja": "評価"
+    },
+    {
+      "zh": "进度",
+      "en": "Progress",
+      "ja": "再生位置"
+    },
+    {
+      "zh": "已看",
+      "en": "Watched",
+      "ja": "視聴済み"
+    },
+    {
+      "zh": "标记为已播放",
+      "en": "Mark as played",
+      "ja": "再生済みにする"
+    },
+    {
+      "zh": "正在同步播放状态…",
+      "en": "Syncing play state…",
+      "ja": "再生状態を同期中…"
+    },
+    {
+      "zh": "暂无影片简介",
+      "en": "No video overview available",
+      "ja": "作品の概要はありません"
+    },
+    {
+      "zh": "无图片",
+      "en": "No image",
+      "ja": "画像なし"
+    },
+    {
+      "zh": "暂无图片",
+      "en": "No image",
+      "ja": "画像なし"
+    },
+    {
+      "zh": "暂无头像",
+      "en": "No photo",
+      "ja": "写真なし"
+    },
+    {
+      "zh": "无法读取影片详情",
+      "en": "Could not load video details",
+      "ja": "作品の詳細を読み込めません"
+    },
+    {
+      "zh": "简介",
+      "en": "Overview",
+      "ja": "概要"
+    },
+    {
+      "zh": "类型",
+      "en": "Genres",
+      "ja": "ジャンル"
+    },
+    {
+      "zh": "标签",
+      "en": "Tags",
+      "ja": "タグ"
+    },
+    {
+      "zh": "制片厂",
+      "en": "Studios",
+      "ja": "制作会社"
+    },
+    {
+      "zh": "影片片段",
+      "en": "Movie parts",
+      "ja": "作品のパート"
+    },
+    {
+      "zh": "演员与主创",
+      "en": "Cast and crew",
+      "ja": "キャストとスタッフ"
+    },
+    {
+      "zh": "向左浏览演员与主创",
+      "en": "Browse cast and crew left",
+      "ja": "キャストとスタッフを左へ"
+    },
+    {
+      "zh": "向右浏览演员与主创",
+      "en": "Browse cast and crew right",
+      "ja": "キャストとスタッフを右へ"
+    },
+    {
+      "zh": "花絮与预告",
+      "en": "Extras and trailers",
+      "ja": "特典と予告編"
+    },
+    {
+      "zh": "浏览季 / 剧集",
+      "en": "Browse seasons / Episodes",
+      "ja": "シーズン / エピソードを表示"
+    },
+    {
+      "zh": "上次播放",
+      "en": "Last played",
+      "ja": "前回の再生"
+    },
+    {
+      "zh": "已保存进度",
+      "en": "Saved progress",
+      "ja": "保存済みの再生位置"
+    },
+    {
+      "zh": "已播放 · ",
+      "en": "Played · ",
+      "ja": "再生済み · "
+    },
+    {
+      "zh": "已播放",
+      "en": "Played",
+      "ja": "再生済み"
+    },
+    {
+      "zh": "继续播放 · CD",
+      "en": "Resume · CD",
+      "ja": "続きから再生 · CD"
+    },
+    {
+      "zh": "播放上次 CD",
+      "en": "Play last CD",
+      "ja": "前回の CD を再生"
+    },
+    {
+      "zh": "CD1 从头播放",
+      "en": "Play CD1 from start",
+      "ja": "CD1 を最初から再生"
+    },
+    {
+      "zh": "从头播放",
+      "en": "Play from start",
+      "ja": "最初から再生"
+    },
+    {
+      "zh": "正在同步…",
+      "en": "Syncing…",
+      "ja": "同期中…"
+    },
+    {
+      "zh": "标记为未播放",
+      "en": "Mark as unplayed",
+      "ja": "未再生にする"
+    },
+    {
+      "zh": "仅继续 CD1",
+      "en": "Resume CD1 only",
+      "ja": "CD1 の続きのみ再生"
+    },
+    {
+      "zh": "播放状态应用到整部电影的全部 CD",
+      "en": "Play state applies to every CD of this movie",
+      "ja": "再生状態はこの映画のすべての CD に適用されます"
+    },
+    {
+      "zh": "无法读取人物详情",
+      "en": "Could not load person details",
+      "ja": "人物の詳細を読み込めません"
+    },
+    {
+      "zh": "未命名人物",
+      "en": "Unnamed person",
+      "ja": "名前のない人物"
+    },
+    {
+      "zh": "出生日期 · ",
+      "en": "Born · ",
+      "ja": "生年月日 · "
+    },
+    {
+      "zh": "出生地 · ",
+      "en": "Birthplace · ",
+      "ja": "出生地 · "
+    },
+    {
+      "zh": "逝世日期 · ",
+      "en": "Died · ",
+      "ja": "没年月日 · "
+    },
+    {
+      "zh": "暂无人物简介",
+      "en": "No biography available",
+      "ja": "人物の紹介はありません"
+    },
+    {
+      "zh": "暂无可显示的出演作品",
+      "en": "No filmography available",
+      "ja": "表示できる出演作品はありません"
+    },
+    {
+      "zh": "yyyy年M月d日",
+      "en": "MMM d, yyyy",
+      "ja": "yyyy年M月d日"
+    },
+    {
+      "zh": "影片部分",
+      "en": "Movie part",
+      "ja": "作品のパート"
+    },
+    {
+      "zh": "附加篇",
+      "en": "Extra",
+      "ja": "特典"
+    },
+    {
+      "zh": "时长未知",
+      "en": "Unknown duration",
+      "ja": "長さ不明"
+    },
+    {
+      "zh": "上次播放 · ",
+      "en": "Last played · ",
+      "ja": "前回の再生 · "
+    },
+    {
+      "zh": "已存进度 · ",
+      "en": "Saved progress · ",
+      "ja": "保存済みの位置 · "
+    },
+    {
+      "zh": "主片 · ",
+      "en": "Main feature · ",
+      "ja": "本編 · "
+    },
+    {
+      "zh": "暂无缩略图",
+      "en": "No thumbnail",
+      "ja": "サムネイルなし"
+    },
+    {
+      "zh": "暂无海报",
+      "en": "No poster",
+      "ja": "ポスターなし"
+    },
+    {
+      "zh": "Emby 服务器",
+      "en": "Emby server",
+      "ja": "Emby サーバー"
+    },
+    {
+      "zh": "第 ",
+      "en": "Episode ",
+      "ja": "第 "
+    },
+    {
+      "zh": " 集 · ",
+      "en": " · ",
+      "ja": " 話 · "
+    },
+    {
+      "zh": "未命名影片",
+      "en": "Unnamed video",
+      "ja": "名前のない動画"
+    },
+    {
+      "zh": "季 / 剧集",
+      "en": "Seasons / Episodes",
+      "ja": "シーズン / エピソード"
+    },
+    {
+      "zh": "剧集",
+      "en": "Series",
+      "ja": "シリーズ"
+    },
+    {
+      "zh": "视频",
+      "en": "Video",
+      "ja": "動画"
+    },
+    {
+      "zh": " 分钟",
+      "en": " min",
+      "ja": " 分"
+    },
+    {
+      "zh": "评分 ",
+      "en": "Rating ",
+      "ja": "評価 "
+    },
+    {
+      "zh": "未播放",
+      "en": "Unplayed",
+      "ja": "未再生"
+    },
+    {
+      "zh": "分辨率",
+      "en": "Resolution",
+      "ja": "解像度"
+    },
+    {
+      "zh": "编码格式",
+      "en": "Codec",
+      "ja": "コーデック"
+    },
+    {
+      "zh": "帧率",
+      "en": "Frame rate",
+      "ja": "フレームレート"
+    },
+    {
+      "zh": "视觉格式",
+      "en": "Viewing format",
+      "ja": "表示形式"
+    },
+    {
+      "zh": "播放状态",
+      "en": "Playback",
+      "ja": "再生状態"
+    },
+    {
+      "zh": "当前状态",
+      "en": "Status",
+      "ja": "現在の状態"
+    },
+    {
+      "zh": "剩余缓冲",
+      "en": "Buffer ahead",
+      "ja": "先読みバッファー"
+    },
+    {
+      "zh": "画质",
+      "en": "Quality",
+      "ja": "画質"
+    },
+    {
+      "zh": "诊断信息",
+      "en": "Diagnostics",
+      "ja": "診断情報"
+    },
+    {
+      "zh": "解码与渲染",
+      "en": "Decoding / Rendering",
+      "ja": "デコードと描画"
+    },
+    {
+      "zh": "视频内核",
+      "en": "Video decoder",
+      "ja": "映像デコーダー"
+    },
+    {
+      "zh": "音频内核",
+      "en": "Audio decoder",
+      "ja": "音声デコーダー"
+    },
+    {
+      "zh": "码率",
+      "en": "Bitrate",
+      "ja": "ビットレート"
+    },
+    {
+      "zh": "解码丢帧",
+      "en": "Dropped frames",
+      "ja": "ドロップフレーム"
+    },
+    {
+      "zh": "GPU 更新帧",
+      "en": "GPU frame updates",
+      "ja": "GPU 更新フレーム"
+    },
+    {
+      "zh": "缓冲",
+      "en": "Buffering",
+      "ja": "バッファリング"
+    },
+    {
+      "zh": "已缓冲到",
+      "en": "Buffered to",
+      "ja": "バッファー位置"
+    },
+    {
+      "zh": "正在加载",
+      "en": "Loading",
+      "ja": "読み込み中"
+    },
+    {
+      "zh": "缓冲内存",
+      "en": "Buffer memory",
+      "ja": "バッファーメモリー"
+    },
+    {
+      "zh": "意外缓冲次数",
+      "en": "Rebuffer count",
+      "ja": "再バッファー回数"
+    },
+    {
+      "zh": "意外缓冲时长",
+      "en": "Rebuffer time",
+      "ja": "再バッファー時間"
+    },
+    {
+      "zh": "网络 · SMB",
+      "en": "Network · SMB",
+      "ja": "ネットワーク · SMB"
+    },
+    {
+      "zh": "读取状态",
+      "en": "Read mode",
+      "ja": "読み取り状態"
+    },
+    {
+      "zh": "网络吞吐",
+      "en": "Throughput",
+      "ja": "転送速度"
+    },
+    {
+      "zh": "请求数",
+      "en": "Requests",
+      "ja": "リクエスト数"
+    },
+    {
+      "zh": "平均请求",
+      "en": "Avg. request",
+      "ja": "平均リクエスト"
+    },
+    {
+      "zh": "平均读取",
+      "en": "Avg. read",
+      "ja": "平均読み取り時間"
+    },
+    {
+      "zh": "P95 读取",
+      "en": "P95 read",
+      "ja": "P95 読み取り時間"
+    },
+    {
+      "zh": "网络错误",
+      "en": "Network errors",
+      "ja": "ネットワークエラー"
+    },
+    {
+      "zh": "应用",
+      "en": "App",
+      "ja": "アプリ"
+    },
+    {
+      "zh": "后端状态",
+      "en": "Backend state",
+      "ja": "バックエンドの状態"
+    },
+    {
+      "zh": "版本",
+      "en": "Version",
+      "ja": "バージョン"
+    },
+    {
+      "zh": "图形 API",
+      "en": "Graphics API",
+      "ja": "グラフィックス API"
+    },
+    {
+      "zh": "眼缓冲 / 眼",
+      "en": "Eye buffer / Eye",
+      "ja": "片目のバッファー"
+    },
+    {
+      "zh": "倍率 / MSAA",
+      "en": "Scale / MSAA",
+      "ja": "倍率 / MSAA"
+    },
+    {
+      "zh": "应用帧率",
+      "en": "App frame rate",
+      "ja": "アプリ FPS"
+    },
+    {
+      "zh": "诊断来自当前播放会话；格式支持以设备解码器与样片实测为准。",
+      "en": "Diagnostics are from this session. Format support depends on the device decoder and tested media.",
+      "ja": "診断は現在の再生セッションの情報です。形式の対応状況はデバイスのデコーダーと実測結果によります。"
+    },
+    {
+      "zh": "尚未打开影片",
+      "en": "No video open",
+      "ja": "動画が開かれていません"
+    },
+    {
+      "zh": "正在打开影片",
+      "en": "Opening video",
+      "ja": "動画を開いています"
+    },
+    {
+      "zh": "暂无会话样本",
+      "en": "No session samples",
+      "ja": "セッションのデータなし"
+    },
+    {
+      "zh": "错误：无",
+      "en": "Error: None",
+      "ja": "エラー：なし"
+    },
+    {
+      "zh": "播放异常",
+      "en": "Playback error",
+      "ja": "再生エラー"
+    },
+    {
+      "zh": "正在缓冲",
+      "en": "Buffering",
+      "ja": "バッファリング中"
+    },
+    {
+      "zh": "正在播放",
+      "en": "Playing",
+      "ja": "再生中"
+    },
+    {
+      "zh": "已暂停",
+      "en": "Paused",
+      "ja": "一時停止中"
+    },
+    {
+      "zh": "均衡",
+      "en": "Balanced",
+      "ja": "標準"
+    },
+    {
+      "zh": "高清",
+      "en": "High",
+      "ja": "高画質"
+    },
+    {
+      "zh": "超清",
+      "en": "Ultra",
+      "ja": "最高画質"
+    },
+    {
+      "zh": "未知",
+      "en": "Unknown",
+      "ja": "不明"
+    },
+    {
+      "zh": "是",
+      "en": "Yes",
+      "ja": "はい"
+    },
+    {
+      "zh": "否",
+      "en": "No",
+      "ja": "いいえ"
+    },
+    {
+      "zh": "预读",
+      "en": "Read ahead",
+      "ja": "先読み"
+    },
+    {
+      "zh": "直接读取",
+      "en": "Direct read",
+      "ja": "直接読み取り"
+    },
+    {
+      "zh": "错误：",
+      "en": "Error: ",
+      "ja": "エラー："
+    },
+    {
+      "zh": "横幅图",
+      "en": "Banner",
+      "ja": "バナー"
+    },
+    {
+      "zh": "光盘封面",
+      "en": "Disc",
+      "ja": "ディスク"
+    },
+    {
+      "zh": "徽标",
+      "en": "Logo",
+      "ja": "ロゴ"
+    },
+    {
+      "zh": "缩略图",
+      "en": "Thumbnail",
+      "ja": "サムネイル"
+    },
+    {
+      "zh": "列表",
+      "en": "List",
+      "ja": "リスト"
+    },
+    {
+      "zh": "表格",
+      "en": "Table",
+      "ja": "テーブル"
+    },
+    {
+      "zh": "海报",
+      "en": "Poster",
+      "ja": "ポスター"
+    },
+    {
+      "zh": "跟随系统",
+      "en": "System default",
+      "ja": "システムに従う"
+    },
+    {
+      "zh": "界面语言",
+      "en": "Language",
+      "ja": "表示言語"
+    },
+    {
+      "zh": "{0:0.0#} 倍",
+      "en": "{0:0.0#}×",
+      "ja": "{0:0.0#} 倍",
+      "message": true
+    },
+    {
+      "zh": "正在发现… 已探测 {0} / {1}  ·  {2} 台",
+      "en": "Scanning… {0} / {1} probed · {2} devices",
+      "ja": "検出中… {0} / {1} 確認済み · {2} 台",
+      "message": true
+    },
+    {
+      "zh": "扫描完成 · {0} 台设备",
+      "en": "Scan complete · {0} devices",
+      "ja": "スキャン完了 · {0} 台",
+      "message": true
+    },
+    {
+      "zh": "出演作品 · {0}",
+      "en": "Filmography · {0}",
+      "ja": "出演作品 · {0}",
+      "message": true
+    },
+    {
+      "zh": "{0:0.0} fps · 目标 72 Hz",
+      "en": "{0:0.0} fps · Target 72 Hz",
+      "ja": "{0:0.0} fps · 目標 72 Hz",
+      "message": true
+    },
+    {
+      "zh": "{0:0.0} 秒",
+      "en": "{0:0.0} s",
+      "ja": "{0:0.0} 秒",
+      "message": true
+    },
+    {
+      "zh": "{0} 次",
+      "en": "{0} times",
+      "ja": "{0} 回",
+      "message": true
+    },
+    {
+      "zh": "{0:0.00} 秒",
+      "en": "{0:0.00} s",
+      "ja": "{0:0.00} 秒",
+      "message": true
+    },
+    {
+      "zh": "{0:0.0} 米",
+      "en": "{0:0.0} m",
+      "ja": "{0:0.0} m",
+      "message": true
+    },
+    {
+      "zh": "{0:+0.0;-0.0;0} 秒",
+      "en": "{0:+0.0;-0.0;0} s",
+      "ja": "{0:+0.0;-0.0;0} 秒",
+      "message": true
+    },
+    {
+      "zh": "文件名标签",
+      "en": "Filename tags",
+      "ja": "ファイル名のタグ"
+    },
+    {
+      "zh": " · 投影标签冲突：",
+      "en": " · Conflicting projection tags: ",
+      "ja": " · 投影タグの競合："
+    },
+    {
+      "zh": " · 立体标签冲突：",
+      "en": " · Conflicting stereo tags: ",
+      "ja": " · 立体視タグの競合："
+    },
+    {
+      "zh": " · Half/Full 冲突",
+      "en": " · Half/Full conflict",
+      "ja": " · Half/Full の競合"
+    },
+    {
+      "zh": "；存在冲突或不支持的格式，请手动选择",
+      "en": "; Conflicting or unsupported format. Select manually.",
+      "ja": "・競合または非対応の形式があります。手動で選択してください。"
+    },
+    {
+      "zh": "分眼后显示比例",
+      "en": "Per-eye aspect ratio",
+      "ja": "片目の表示比率"
+    },
+    {
+      "zh": "播放轨道元数据",
+      "en": "Playback track metadata",
+      "ja": "再生トラックのメタデータ"
+    },
+    {
+      "zh": "网格／多视图立体排列暂不支持",
+      "en": "Mesh / Multiview stereo is not supported",
+      "ja": "メッシュ / マルチビューの立体視配列には対応していません"
+    },
+    {
+      "zh": "无法确定",
+      "en": "Undetermined",
+      "ja": "判定できません"
+    },
+    {
+      "zh": "平面",
+      "en": "Flat",
+      "ja": "平面"
+    },
+    {
+      "zh": "交换眼序",
+      "en": "Swap eyes",
+      "ja": "左右の目を入れ替え"
+    },
+    {
+      "zh": "正在缓冲…",
+      "en": "Buffering…",
+      "ja": "バッファリング中…"
+    },
+    {
+      "zh": "播放完成",
+      "en": "Playback finished",
+      "ja": "再生が終了しました"
+    },
+    {
+      "zh": "添加目录或打开设备存储；SMB 可在服务器页配置",
+      "en": "Add a folder or open device storage. Configure SMB on the servers page.",
+      "ja": "フォルダーを追加するかデバイスのストレージを開いてください。SMB はサーバーページで設定できます。"
+    },
+    {
+      "zh": "播放内核不可用",
+      "en": "Playback backend unavailable",
+      "ja": "再生バックエンドを利用できません"
+    },
+    {
+      "zh": "已继承上一部播放影片的格式；可重新识别格式",
+      "en": "Inherited the previous video's format. You can detect it again.",
+      "ja": "前の動画の形式を引き継ぎました。再認識できます。"
+    },
+    {
+      "zh": "已到目录边界",
+      "en": "End of folder reached",
+      "ja": "フォルダーの先頭または末尾です"
+    },
+    {
+      "zh": "播放已停止",
+      "en": "Playback stopped",
+      "ja": "再生を停止しました"
+    },
+    {
+      "zh": "最近播放 · 按最近播放顺序显示，选择影片恢复进度",
+      "en": "Recent · Most recently played first. Select a video to resume.",
+      "ja": "履歴 · 最近再生した順に表示します。動画を選ぶと続きから再生します。"
+    },
+    {
+      "zh": "播放记录已清空",
+      "en": "Play history cleared",
+      "ja": "再生履歴を消去しました"
+    },
+    {
+      "zh": "该记录没有可用的父目录，请重新授权或从文件来源打开",
+      "en": "This record has no available parent folder. Authorize it again or open it from Files.",
+      "ja": "この履歴の親フォルダーを開けません。再度許可するかファイルのソースから開いてください。"
+    },
+    {
+      "zh": "SMB 原生连接在 PICO Android 版本中可用",
+      "en": "SMB connections are available on PICO Android",
+      "ja": "SMB 接続は PICO Android 版で利用できます"
+    },
+    {
+      "zh": "Emby 服务器与账户",
+      "en": "Emby servers and accounts",
+      "ja": "Emby サーバーとアカウント"
+    },
+    {
+      "zh": "请重新登录此账户",
+      "en": "Sign in to this account again.",
+      "ja": "このアカウントに再ログインしてください。"
+    },
+    {
+      "zh": "正在登录 Emby…",
+      "en": "Signing in to Emby…",
+      "ja": "Emby にログイン中…"
+    },
+    {
+      "zh": "正在连接 Emby…",
+      "en": "Connecting to Emby…",
+      "ja": "Emby に接続中…"
+    },
+    {
+      "zh": "该 Emby 记录需要重新添加或登录对应账户",
+      "en": "Add or sign in to the account for this Emby record.",
+      "ja": "この Emby 履歴のアカウントを追加するか再ログインしてください。"
+    },
+    {
+      "zh": "正在准备 Emby 原始视频…",
+      "en": "Preparing Emby original video…",
+      "ja": "Emby のオリジナル動画を準備中…"
+    },
+    {
+      "zh": "请登录此播放记录对应的 Emby 账户",
+      "en": "Sign in to the Emby account for this play record.",
+      "ja": "この再生履歴の Emby アカウントにログインしてください。"
+    },
+    {
+      "zh": "影片",
+      "en": "Video",
+      "ja": "動画"
+    },
+    {
+      "zh": "Emby 播放进度同步失败，将在下次更新时重试",
+      "en": "Could not sync Emby progress. Will retry on the next update.",
+      "ja": "Emby の再生位置を同期できませんでした。次回の更新時に再試行します。"
+    },
+    {
+      "zh": "已标记为已播放",
+      "en": "Marked as played",
+      "ja": "再生済みにしました"
+    },
+    {
+      "zh": "已标记为已播放 · 包含全部 CD",
+      "en": "Marked as played · All CDs included",
+      "ja": "再生済みにしました · すべての CD を含む"
+    },
+    {
+      "zh": "已标记为未播放",
+      "en": "Marked as unplayed",
+      "ja": "未再生にしました"
+    },
+    {
+      "zh": "部分 CD 已更新，请重试以完成整部影片。",
+      "en": "Some CDs were updated. Retry to finish updating the movie.",
+      "ja": "一部の CD を更新しました。作品全体の更新を完了するには再試行してください。"
+    },
+    {
+      "zh": "服务器播放状态已更新，本地进度保存失败，请重试",
+      "en": "Server play state updated, but local progress could not be saved. Retry.",
+      "ja": "サーバーの再生状態は更新しましたが、ローカルの再生位置を保存できませんでした。再試行してください。"
+    },
+    {
+      "zh": "外部字幕",
+      "en": "External subtitles",
+      "ja": "外部字幕"
+    },
+    {
+      "zh": "此 Emby 字幕需要重新登录对应账户",
+      "en": "Sign in again to the account for this Emby subtitle.",
+      "ja": "この Emby 字幕のアカウントに再ログインしてください。"
+    },
+    {
+      "zh": "打开影片后识别格式",
+      "en": "Open a video to detect its format",
+      "ja": "動画を開くと形式を認識します"
+    },
+    {
+      "zh": "等待有效播放画面",
+      "en": "Waiting for usable video frames",
+      "ja": "有効な映像フレームを待っています"
+    },
+    {
+      "zh": "继承格式，未运行自动识别",
+      "en": "Inherited format; auto detection skipped",
+      "ja": "引き継いだ形式・自動認識なし"
+    },
+    {
+      "zh": "手动格式，未运行自动识别",
+      "en": "Manual format; auto detection skipped",
+      "ja": "手動の形式・自動認識なし"
+    },
+    {
+      "zh": "已保存格式，未运行自动识别",
+      "en": "Saved format; auto detection skipped",
+      "ja": "保存済みの形式・自動認識なし"
+    },
+    {
+      "zh": "自动识别已关闭",
+      "en": "Auto detection is off",
+      "ja": "自動認識はオフです"
+    },
+    {
+      "zh": "；可重新识别格式",
+      "en": "; You can detect the format again",
+      "ja": "・形式を再認識できます"
+    },
+    {
+      "zh": "当前仅使用标签与元数据",
+      "en": "Using tags and metadata only",
+      "ja": "タグとメタデータのみ使用中"
+    },
+    {
+      "zh": "格式字段已确认",
+      "en": "Format fields confirmed",
+      "ja": "形式を確認しました"
+    },
+    {
+      "zh": "目录偏好＋已确认左右分眼",
+      "en": "Folder preference + Confirmed SBS",
+      "ja": "フォルダーの設定＋左右分割を確認"
+    },
+    {
+      "zh": "暂未确定，使用平面 2D",
+      "en": "Undetermined; using flat 2D",
+      "ja": "未判定・平面 2D を使用"
+    },
+    {
+      "zh": "\n建议：",
+      "en": "\nSuggestion: ",
+      "ja": "\n候補："
+    },
+    {
+      "zh": "已验证文件信息的元数据缓存",
+      "en": "Metadata cache with verified file information",
+      "ja": "ファイル情報を確認済みのメタデータキャッシュ"
+    },
+    {
+      "zh": "VR180 画面候选尚待真实影片验证，可采用建议",
+      "en": "VR180 frame candidate awaits real-video validation; suggestion available",
+      "ja": "VR180 の候補は実動画での検証待ちです。候補を適用できます"
+    },
+    {
+      "zh": "已确认左右分眼，继续判断投影",
+      "en": "SBS confirmed; checking projection",
+      "ja": "左右分割を確認・投影の判定を継続"
+    },
+    {
+      "zh": "已确认上下分眼，继续判断投影",
+      "en": "OU confirmed; checking projection",
+      "ja": "上下分割を確認・投影の判定を継続"
+    },
+    {
+      "zh": "格式识别完成",
+      "en": "Format detection complete",
+      "ja": "形式の認識が完了"
+    },
+    {
+      "zh": "已保存手动格式 · ",
+      "en": "Saved manual format · ",
+      "ja": "手動の形式を保存済み · "
+    },
+    {
+      "zh": "已撤销识别并记住该片格式",
+      "en": "Detection undone; saved this video's format",
+      "ja": "認識を取り消し、この動画の形式を保存しました"
+    },
+    {
+      "zh": "暂无可采用的画面建议",
+      "en": "No frame suggestion available",
+      "ja": "適用できる映像の候補はありません"
+    },
+    {
+      "zh": "Emby 视频播放请使用 Android 头显；编辑器可继续浏览媒体库",
+      "en": "Use an Android headset for Emby playback. Library browsing is available in the editor.",
+      "ja": "Emby 動画は Android ヘッドセットで再生してください。エディターではライブラリを閲覧できます。"
+    },
+    {
+      "zh": "画面亮度或纹理不足",
+      "en": "Insufficient brightness or texture",
+      "ja": "映像の明るさまたは模様が不足"
+    },
+    {
+      "zh": " · 多区域球面边缘形变",
+      "en": " · Multi-region spherical edge distortion",
+      "ja": " · 複数領域の球面エッジの変形"
+    },
+    {
+      "zh": " · 单眼近方形，VR180 待确认",
+      "en": " · Near-square eye image; VR180 unconfirmed",
+      "ja": " · 片目はほぼ正方形・VR180 は未確認"
+    },
+    {
+      "zh": "多区域双向匹配与跨帧一致性",
+      "en": "Multi-region bidirectional matching and temporal consistency",
+      "ja": "複数領域の双方向マッチングとフレーム間の一貫性"
+    },
+    {
+      "zh": "跨帧双眼球面几何支持 VR180 SBS",
+      "en": "Cross-frame binocular spherical geometry supports VR180 SBS",
+      "ja": "フレーム間の両眼球面幾何が VR180 SBS を支持"
+    },
+    {
+      "zh": "SBS 与画面特征支持 VR180 候选，投影证据尚不足",
+      "en": "SBS and frame features suggest VR180; projection evidence insufficient",
+      "ja": "SBS と映像の特徴から VR180 を候補としますが、投影の根拠が不足"
+    },
+    {
+      "zh": "画面边界与接缝（建议）",
+      "en": "Frame boundaries and seams (suggestion)",
+      "ja": "映像の境界と継ぎ目（候補）"
+    },
+    {
+      "zh": "投影证据不足",
+      "en": "Insufficient projection evidence",
+      "ja": "投影の根拠が不足"
+    },
+    {
+      "zh": "平面或其他投影仍可解释匹配",
+      "en": "Flat or other projections can still explain the match",
+      "ja": "平面または他の投影でも一致を説明可能"
+    },
+    {
+      "zh": "双眼球面几何优于平面／鱼眼／360 候选",
+      "en": "Binocular spherical geometry outperforms flat / fisheye / 360 candidates",
+      "ja": "両眼球面幾何が平面 / 魚眼 / 360 の候補より良好"
+    },
+    {
+      "zh": "有效纹理或匹配区域不足",
+      "en": "Insufficient texture or matching regions",
+      "ja": "有効な模様または一致領域が不足"
+    },
+    {
+      "zh": "左右画面近似复制，缺少可确认视差",
+      "en": "Left/right images nearly identical; no confirmed parallax",
+      "ja": "左右の映像がほぼ同一・確認できる視差なし"
+    },
+    {
+      "zh": "左右对应不足，可能是普通分屏",
+      "en": "Insufficient left/right correspondence; possibly split screen",
+      "ja": "左右の対応が不足・通常の分割画面の可能性"
+    },
+    {
+      "zh": "多区域双向匹配与亚像素视差",
+      "en": "Multi-region bidirectional matching and subpixel parallax",
+      "ja": "複数領域の双方向マッチングとサブピクセル視差"
+    },
+    {
+      "zh": "有效画面不足，可在内容开始后重新识别",
+      "en": "Not enough usable frames. Detect again after the video starts.",
+      "ja": "有効な映像が不足しています。本編開始後に再認識できます。"
+    },
+    {
+      "zh": "本次采样结束；未确认的格式可采用建议或重新识别",
+      "en": "Sampling ended. Apply a suggestion or detect unconfirmed fields again.",
+      "ja": "サンプリングを終了しました。未確認の形式には候補の適用または再認識ができます。"
+    },
+    {
+      "zh": "设备不支持异步画面读取",
+      "en": "Device does not support asynchronous frame readback",
+      "ja": "非同期の映像読み取りに対応していません"
+    },
+    {
+      "zh": "GPU 画面回读失败",
+      "en": "GPU frame readback failed",
+      "ja": "GPU の映像読み取りに失敗"
+    },
+    {
+      "zh": "画面提交失败",
+      "en": "Frame submission failed",
+      "ja": "映像の送信に失敗"
+    },
+    {
+      "zh": "画面重复，等待新的有效内容",
+      "en": "Duplicate frame; waiting for new content",
+      "ja": "同じフレーム・新しい内容を待っています"
+    },
+    {
+      "zh": "画面过暗或纹理不足，等待内容",
+      "en": "Frame too dark or lacks texture; waiting for content",
+      "ja": "映像が暗いか模様が不足・内容を待っています"
+    },
+    {
+      "zh": "画面分析失败，保留元数据结果",
+      "en": "Frame analysis failed; keeping metadata result",
+      "ja": "映像の解析に失敗・メタデータの結果を維持"
+    },
+    {
+      "zh": "Emby 账户读取失败，请重新登录",
+      "en": "Could not load Emby accounts. Sign in again.",
+      "ja": "Emby アカウントを読み込めません。再ログインしてください。"
+    },
+    {
+      "zh": "Emby 账户无效",
+      "en": "Invalid Emby account",
+      "ja": "Emby アカウントが無効です"
+    },
+    {
+      "zh": "Emby 账户保存失败，请检查设备存储后重试",
+      "en": "Could not save Emby account. Check device storage and retry.",
+      "ja": "Emby アカウントを保存できません。ストレージを確認して再試行してください。"
+    },
+    {
+      "zh": "Emby 凭据保护失败",
+      "en": "Could not protect Emby credentials",
+      "ja": "Emby の認証情報を保護できませんでした"
+    },
+    {
+      "zh": "Emby 登录已失效，请重新登录",
+      "en": "Emby session expired. Sign in again.",
+      "ja": "Emby のログインが無効になりました。再ログインしてください。"
+    },
+    {
+      "zh": "请输入 Emby 用户名",
+      "en": "Enter your Emby username.",
+      "ja": "Emby ユーザー名を入力してください。"
+    },
+    {
+      "zh": "Emby 登录响应无效，请检查服务器后重试",
+      "en": "Invalid Emby sign-in response. Check the server and retry.",
+      "ja": "Emby のログイン応答が無効です。サーバーを確認して再試行してください。"
+    },
+    {
+      "zh": "Emby 演员资料暂不可用",
+      "en": "Emby cast information unavailable",
+      "ja": "Emby のキャスト情報を利用できません"
+    },
+    {
+      "zh": "Emby 分类标识无效",
+      "en": "Invalid Emby category",
+      "ja": "Emby のカテゴリー ID が無効です"
+    },
+    {
+      "zh": "Emby 媒体列表未能完整加载，请重试",
+      "en": "Emby media list did not load completely. Retry.",
+      "ja": "Emby のメディア一覧をすべて読み込めませんでした。再試行してください。"
+    },
+    {
+      "zh": "Emby 影片资料暂不可用",
+      "en": "Emby video information unavailable",
+      "ja": "Emby の作品情報を利用できません"
+    },
+    {
+      "zh": "请选择影片或单集后标记播放状态",
+      "en": "Select a movie or episode to mark its play state.",
+      "ja": "映画またはエピソードを選択して再生状態を設定してください。"
+    },
+    {
+      "zh": "无法确认此 CD 所属影片，请从影片详情重试",
+      "en": "Could not identify this CD's movie. Retry from movie details.",
+      "ja": "この CD の所属作品を確認できません。作品の詳細から再試行してください。"
+    },
+    {
+      "zh": "无法确认此 CD 所属电影，请从影片详情重试",
+      "en": "Could not identify this CD's movie. Retry from movie details.",
+      "ja": "この CD の所属映画を確認できません。作品の詳細から再試行してください。"
+    },
+    {
+      "zh": "此 CD 不在服务器的影片分段列表中，请刷新后重试",
+      "en": "This CD is absent from the server's movie parts. Refresh and retry.",
+      "ja": "この CD はサーバーのパート一覧にありません。更新して再試行してください。"
+    },
+    {
+      "zh": "Emby 未确认播放状态，请刷新后重试",
+      "en": "Emby did not confirm the play state. Refresh and retry.",
+      "ja": "Emby が再生状態を確認できませんでした。更新して再試行してください。"
+    },
+    {
+      "zh": "请选择一部影片或剧集后播放",
+      "en": "Select a movie or episode to play.",
+      "ja": "映画またはエピソードを選択して再生してください。"
+    },
+    {
+      "zh": "Emby 无法提供原始视频，请检查账户播放权限",
+      "en": "Emby cannot provide original video. Check account playback permissions.",
+      "ja": "Emby がオリジナル動画を提供できません。アカウントの再生権限を確認してください。"
+    },
+    {
+      "zh": "Emby 未提供可直接播放的原始文件",
+      "en": "Emby did not provide a directly playable original file",
+      "ja": "Emby が直接再生できるオリジナルファイルを提供していません"
+    },
+    {
+      "zh": "Emby 播放会话无效",
+      "en": "Invalid Emby playback session",
+      "ja": "Emby の再生セッションが無効です"
+    },
+    {
+      "zh": "Emby 字幕标识无效",
+      "en": "Invalid Emby subtitle ID",
+      "ja": "Emby の字幕 ID が無効です"
+    },
+    {
+      "zh": "Emby 图片标识无效",
+      "en": "Invalid Emby image ID",
+      "ja": "Emby の画像 ID が無効です"
+    },
+    {
+      "zh": "请输入 Emby 服务器地址",
+      "en": "Enter an Emby server address.",
+      "ja": "Emby サーバーのアドレスを入力してください。"
+    },
+    {
+      "zh": "请输入不含账户信息和查询参数的 HTTP 或 HTTPS 服务器地址",
+      "en": "Enter an HTTP or HTTPS server address without credentials or query parameters.",
+      "ja": "認証情報やクエリを含まない HTTP / HTTPS サーバーアドレスを入力してください。"
+    },
+    {
+      "zh": "Emby 操作已取消",
+      "en": "Emby operation cancelled",
+      "ja": "Emby の操作を中止しました"
+    },
+    {
+      "zh": "Emby 媒体标识无效",
+      "en": "Invalid Emby media ID",
+      "ja": "Emby のメディア ID が無効です"
+    },
+    {
+      "zh": "Emby 返回的数据无法识别，请重试",
+      "en": "Emby returned unrecognized data. Retry.",
+      "ja": "Emby の応答を認識できません。再試行してください。"
+    },
+    {
+      "zh": "Emby 返回的内容过大，请缩小媒体库后重试",
+      "en": "Emby response is too large. Narrow the library and retry.",
+      "ja": "Emby の応答が大きすぎます。ライブラリを絞り込んで再試行してください。"
+    },
+    {
+      "zh": "Emby 账户没有访问或播放权限",
+      "en": "Emby account lacks access or playback permission",
+      "ja": "Emby アカウントにアクセス権限または再生権限がありません"
+    },
+    {
+      "zh": "Emby 媒体或服务器接口已不存在",
+      "en": "Emby media or server endpoint no longer exists",
+      "ja": "Emby のメディアまたは API が存在しません"
+    },
+    {
+      "zh": "Emby 服务器暂时不可用，请稍后重试",
+      "en": "Emby server unavailable. Try again later.",
+      "ja": "Emby サーバーを利用できません。後でもう一度お試しください。"
+    },
+    {
+      "zh": "无法连接 Emby，请检查地址和网络后重试",
+      "en": "Could not connect to Emby. Check the address and network, then retry.",
+      "ja": "Emby に接続できません。アドレスとネットワークを確認して再試行してください。"
+    },
+    {
+      "zh": "Emby 操作失败，请检查网络后重试",
+      "en": "Emby operation failed. Check the network and retry.",
+      "ja": "Emby の操作に失敗しました。ネットワークを確認して再試行してください。"
+    },
+    {
+      "zh": "请输入 Emby 服务器地址、IP 或域名",
+      "en": "Enter an Emby server address, IP or domain.",
+      "ja": "Emby サーバーのアドレス、IP またはドメインを入力してください。"
+    },
+    {
+      "zh": "请选择 HTTP 或 HTTPS，地址栏无需填写协议",
+      "en": "Select HTTP or HTTPS; omit the protocol from the address field.",
+      "ja": "HTTP / HTTPS を選択してください。アドレス欄にプロトコルは不要です。"
+    },
+    {
+      "zh": "服务器地址不能包含查询参数、片段或反斜杠",
+      "en": "Server address cannot contain query parameters, fragments or backslashes.",
+      "ja": "サーバーアドレスにクエリ、フラグメント、バックスラッシュは使えません。"
+    },
+    {
+      "zh": "服务器地址包含无效字符",
+      "en": "Server address contains invalid characters",
+      "ja": "サーバーアドレスに無効な文字が含まれています"
+    },
+    {
+      "zh": "服务器地址不能包含账户信息",
+      "en": "Server address cannot contain account credentials",
+      "ja": "サーバーアドレスに認証情報は含められません"
+    },
+    {
+      "zh": "服务器 IP 或域名无效",
+      "en": "Invalid server IP or domain",
+      "ja": "サーバーの IP またはドメインが無効です"
+    },
+    {
+      "zh": "IPv6 地址的方括号不完整",
+      "en": "Incomplete brackets in IPv6 address",
+      "ja": "IPv6 アドレスの角括弧が不完全です"
+    },
+    {
+      "zh": "请将端口填入独立的端口栏",
+      "en": "Enter the port in the separate port field.",
+      "ja": "ポートは専用のポート欄に入力してください。"
+    },
+    {
+      "zh": "IPv6 地址无效",
+      "en": "Invalid IPv6 address",
+      "ja": "IPv6 アドレスが無効です"
+    },
+    {
+      "zh": "请输入 Emby 服务器端口",
+      "en": "Enter the Emby server port.",
+      "ja": "Emby サーバーのポートを入力してください。"
+    },
+    {
+      "zh": "服务器端口必须是 1 到 65535 的整数",
+      "en": "Server port must be an integer from 1 to 65535.",
+      "ja": "サーバーのポートは 1～65535 の整数で入力してください。"
+    },
+    {
+      "zh": "源码随 APK 打包；请在头显中导出 / Export is available on the headset",
+      "en": "Export is available on the headset / 源码随 APK 打包；请在头显中导出",
+      "ja": "Export is available on the headset / 源码随 APK 打包；请在头显中导出"
+    },
+    {
+      "zh": "无法读取目录，请检查系统存储权限或目录是否存在",
+      "en": "Could not read folder. Check storage permissions and that the folder exists.",
+      "ja": "フォルダーを読み込めません。ストレージの権限とフォルダーの存在を確認してください。"
+    },
+    {
+      "zh": "字幕超过 4 MB 限制",
+      "en": "Subtitle exceeds the 4 MB limit",
+      "ja": "字幕が 4 MB の上限を超えています"
+    },
+    {
+      "zh": "读取超时，请检查网络后重试",
+      "en": "Read timed out. Check the network and retry.",
+      "ja": "読み取りがタイムアウトしました。ネットワークを確認して再試行してください。"
+    },
+    {
+      "zh": "局域网发现请在 PICO Android 版本中使用",
+      "en": "LAN discovery is available on PICO Android",
+      "ja": "LAN 検出は PICO Android 版で利用できます"
+    },
+    {
+      "zh": "共享枚举超时，可重试或手填共享名",
+      "en": "Share listing timed out. Retry or enter a share name.",
+      "ja": "共有一覧の取得がタイムアウトしました。再試行するか共有名を入力してください。"
+    },
+    {
+      "zh": "共享枚举请在 PICO Android 版本中使用",
+      "en": "Share listing is available on PICO Android",
+      "ja": "共有一覧の取得は PICO Android 版で利用できます"
+    },
+    {
+      "zh": "没有可用的同名 SRT",
+      "en": "No matching SRT available",
+      "ja": "同名の SRT がありません"
+    },
+    {
+      "zh": "未找到有效 SRT 时间轴，请检查编码或文件内容",
+      "en": "No valid SRT timeline. Check the encoding and file contents.",
+      "ja": "有効な SRT タイムラインがありません。文字コードと内容を確認してください。"
+    },
+    {
+      "zh": "字幕读取失败，请检查文件或网络后重新选择",
+      "en": "Could not read subtitles. Check the file or network and select again.",
+      "ja": "字幕を読み込めません。ファイルまたはネットワークを確認して再選択してください。"
+    },
+    {
+      "zh": "正在自动选择字幕",
+      "en": "Selecting subtitles automatically",
+      "ja": "字幕を自動選択中"
+    },
+    {
+      "zh": "已恢复自动选择；可在设置中开启自动加载",
+      "en": "Auto selection restored. Enable auto loading in Settings.",
+      "ja": "自動選択に戻しました。設定で自動読み込みを有効にできます。"
+    },
+    {
+      "zh": "字幕目录读取失败，可手动选择 SRT",
+      "en": "Could not read subtitle folder. Choose an SRT manually.",
+      "ja": "字幕のフォルダーを読み込めません。SRT を手動で選択できます。"
+    },
+    {
+      "zh": "请先播放视频，再选择字幕",
+      "en": "Play a video before selecting subtitles.",
+      "ja": "動画を再生してから字幕を選択してください。"
+    },
+    {
+      "zh": "正在读取字幕…",
+      "en": "Loading subtitles…",
+      "ja": "字幕を読み込み中…"
+    },
+    {
+      "zh": "上次选择的内嵌字幕暂不可用，请重新选择",
+      "en": "Previously selected embedded subtitle unavailable. Select again.",
+      "ja": "前回選択した内蔵字幕を利用できません。再選択してください。"
+    },
+    {
+      "zh": "字幕已关闭 · 已记住该片设置",
+      "en": "Subtitles off · Saved for this video",
+      "ja": "字幕はオフ · この動画の設定を保存済み"
+    },
+    {
+      "zh": "系统目录选择器不可用，请使用本地目录权限",
+      "en": "System folder picker unavailable. Use local folder permissions.",
+      "ja": "システムのフォルダー選択を利用できません。ローカルフォルダーの権限を使用してください。"
+    },
+    {
+      "zh": "未能保存目录授权",
+      "en": "Could not save folder access",
+      "ja": "フォルダーの権限を保存できませんでした"
+    },
+    {
+      "zh": "无法读取授权目录",
+      "en": "Could not read authorized folder",
+      "ja": "許可済みフォルダーを読み込めません"
+    },
+    {
+      "zh": "无法读取目录，请先授予存储权限或添加授权目录",
+      "en": "Could not read folder. Grant storage access or add an authorized folder.",
+      "ja": "フォルダーを読み込めません。ストレージの権限を許可するか許可済みフォルダーを追加してください。"
+    },
+    {
+      "zh": "字幕读取不完整",
+      "en": "Subtitle read incomplete",
+      "ja": "字幕の読み取りが不完全です"
+    },
+    {
+      "zh": "无法打开字幕",
+      "en": "Could not open subtitles",
+      "ja": "字幕を開けません"
+    },
+    {
+      "zh": "SMB 读取位置超过文件长度",
+      "en": "SMB read position exceeds file length",
+      "ja": "SMB の読み取り位置がファイルの長さを超えています"
+    },
+    {
+      "zh": "SMB 数据源未打开",
+      "en": "SMB data source is not open",
+      "ja": "SMB のデータソースが開かれていません"
+    },
+    {
+      "zh": "SMB 读取中断，可重试播放",
+      "en": "SMB read interrupted. Retry playback.",
+      "ja": "SMB の読み取りが中断されました。再生を再試行できます。"
+    },
+    {
+      "zh": "SMB 网络读取失败",
+      "en": "SMB network read failed",
+      "ja": "SMB のネットワーク読み取りに失敗"
+    },
+    {
+      "zh": "无法选择音轨或字幕轨",
+      "en": "Could not select audio or subtitle track",
+      "ja": "音声または字幕トラックを選択できません"
+    },
+    {
+      "zh": "源码已导出至 Download / Source exported to Downloads",
+      "en": "Source exported to Downloads / 源码已导出至 Download",
+      "ja": "Source exported to Downloads / 源码已导出至 Download"
+    },
+    {
+      "zh": "无法保存服务器，请检查填写内容",
+      "en": "Could not save server. Check the entered details.",
+      "ja": "サーバーを保存できません。入力内容を確認してください。"
+    },
+    {
+      "zh": "无法打开目录选择器",
+      "en": "Could not open folder picker",
+      "ja": "フォルダー選択を開けません"
+    },
+    {
+      "zh": "SMB 身份验证失败，请检查账号和密码",
+      "en": "SMB authentication failed. Check the username and password.",
+      "ja": "SMB 認証に失敗しました。ユーザー名とパスワードを確認してください。"
+    },
+    {
+      "zh": "网络连接失败或超时，请检查服务器和 Wi-Fi",
+      "en": "Network connection failed or timed out. Check the server and Wi-Fi.",
+      "ja": "接続に失敗またはタイムアウトしました。サーバーと Wi-Fi を確認してください。"
+    },
+    {
+      "zh": "没有目录权限，请重新授权",
+      "en": "No folder access. Authorize it again.",
+      "ja": "フォルダーの権限がありません。再度許可してください。"
+    },
+    {
+      "zh": "SMB 拒绝访问，请检查共享名、权限和账号",
+      "en": "SMB access denied. Check the share name, permissions and account.",
+      "ja": "SMB のアクセスが拒否されました。共有名、権限、アカウントを確認してください。"
+    },
+    {
+      "zh": "路径或参数无效",
+      "en": "Invalid path or parameters",
+      "ja": "パスまたはパラメーターが無効です"
+    },
+    {
+      "zh": "文件不存在或无法读取",
+      "en": "File does not exist or cannot be read",
+      "ja": "ファイルが存在しないか読み取れません"
+    },
+    {
+      "zh": "未连接 Wi-Fi 或有线局域网",
+      "en": "Not connected to Wi-Fi or a wired LAN",
+      "ja": "Wi-Fi または有線 LAN に接続されていません"
+    },
+    {
+      "zh": "网络已断开，扫描已停止",
+      "en": "Network disconnected. Scan stopped.",
+      "ja": "ネットワークが切断され、スキャンを停止しました。"
+    },
+    {
+      "zh": "扫描时间已到，部分地址未完成；可重新扫描",
+      "en": "Scan timed out with some addresses unfinished. Scan again.",
+      "ja": "スキャンがタイムアウトし、一部のアドレスが未完了です。再スキャンできます。"
+    },
+    {
+      "zh": "无法完成局域网发现，请检查网络后重试",
+      "en": "Could not complete LAN discovery. Check the network and retry.",
+      "ja": "LAN 検出を完了できません。ネットワークを確認して再試行してください。"
+    },
+    {
+      "zh": "发现结果不可用",
+      "en": "Discovery results unavailable",
+      "ja": "検出結果を利用できません"
+    },
+    {
+      "zh": "请填写服务器地址和共享名",
+      "en": "Enter a server address and share name.",
+      "ja": "サーバーのアドレスと共有名を入力してください。"
+    },
+    {
+      "zh": "端口范围为 1–65535",
+      "en": "Port range is 1–65535",
+      "ja": "ポートの範囲は 1～65535 です"
+    },
+    {
+      "zh": "无法保存服务器设置",
+      "en": "Could not save server settings",
+      "ja": "サーバー設定を保存できません"
+    },
+    {
+      "zh": "找不到 SMB 服务器配置",
+      "en": "SMB server configuration not found",
+      "ja": "SMB サーバーの設定が見つかりません"
+    },
+    {
+      "zh": "无效的共享路径",
+      "en": "Invalid share path",
+      "ja": "共有パスが無効です"
+    },
+    {
+      "zh": "容器元数据",
+      "en": "Container metadata",
+      "ja": "コンテナーのメタデータ"
+    },
+    {
+      "zh": "多视频轨道，使用当前轨道标签或手动选择",
+      "en": "Multiple video tracks. Use current track tags or select manually.",
+      "ja": "複数の映像トラックがあります。現在のタグを使うか手動で選択してください。"
+    },
+    {
+      "zh": "未知立体元数据版本",
+      "en": "Unknown stereo metadata version",
+      "ja": "不明な立体視メタデータのバージョン"
+    },
+    {
+      "zh": "带方向变换的投影暂需手动选择",
+      "en": "Rotated projection requires manual selection",
+      "ja": "方向変換のある投影は手動で選択してください"
+    },
+    {
+      "zh": "VR 网格投影暂不支持，不能直接当作 VR180",
+      "en": "VR mesh projection is unsupported and cannot be assumed to be VR180",
+      "ja": "VR メッシュ投影は非対応で、VR180 として扱うことはできません"
+    },
+    {
+      "zh": "未知等距柱状版本",
+      "en": "Unknown equirectangular version",
+      "ja": "不明な正距円筒図法のバージョン"
+    },
+    {
+      "zh": "该等距柱状裁剪范围暂不支持",
+      "en": "Unsupported equirectangular crop",
+      "ja": "正距円筒図法の切り抜き範囲が非対応です"
+    },
+    {
+      "zh": "该 Cubemap 面排列或边距暂不支持",
+      "en": "Unsupported Cubemap face layout or padding",
+      "ja": "Cubemap の面配列または余白が非対応です"
+    },
+    {
+      "zh": "该立体排列暂不支持",
+      "en": "Unsupported stereo layout",
+      "ja": "この立体視配列は非対応です"
+    },
+    {
+      "zh": "旧版球面裁剪暂不支持",
+      "en": "Legacy spherical crop is unsupported",
+      "ja": "旧形式の球面の切り抜きは非対応です"
+    },
+    {
+      "zh": "旧版球面方向暂需手动选择",
+      "en": "Legacy spherical orientation requires manual selection",
+      "ja": "旧形式の球面の方向は手動で選択してください"
+    },
+    {
+      "zh": "VR 网格投影暂不支持",
+      "en": "VR mesh projection is unsupported",
+      "ja": "VR メッシュ投影は非対応です"
+    },
+    {
+      "zh": "未知投影类型",
+      "en": "Unknown projection type",
+      "ja": "不明な投影形式"
+    },
+    {
+      "zh": "投影元数据冲突",
+      "en": "Conflicting projection metadata",
+      "ja": "投影メタデータの競合"
+    },
+    {
+      "zh": "立体元数据冲突",
+      "en": "Conflicting stereo metadata",
+      "ja": "立体視メタデータの競合"
+    },
+    {
+      "zh": "（评分 ",
+      "en": " (score ",
+      "ja": "（スコア "
+    },
+    {
+      "zh": "）",
+      "en": ")",
+      "ja": "）"
+    },
+    {
+      "zh": "{0} 项",
+      "en": "{0} items",
+      "ja": "{0} 件",
+      "message": true
+    },
+    {
+      "zh": "正在打开：{0}",
+      "en": "Opening: {0}",
+      "ja": "開いています：{0}",
+      "message": true
+    },
+    {
+      "zh": "播放内核初始化失败：{0}",
+      "en": "Playback backend initialization failed: {0}",
+      "ja": "再生バックエンドの初期化に失敗：{0}",
+      "message": true
+    },
+    {
+      "zh": "无法读取目录：{0}",
+      "en": "Could not read folder: {0}",
+      "ja": "フォルダーを読み込めません：{0}",
+      "message": true,
+      "localizeArguments": true
+    },
+    {
+      "zh": "播放失败：{0}。可点重试或选择其他文件。",
+      "en": "Playback failed: {0}. Retry or choose another file.",
+      "ja": "再生に失敗：{0}。再試行するか別のファイルを選択してください。",
+      "message": true,
+      "localizeArguments": true
+    },
+    {
+      "zh": "快退 10 秒 · {0}",
+      "en": "Back 10 s · {0}",
+      "ja": "10 秒戻す · {0}",
+      "message": true
+    },
+    {
+      "zh": "快进 10 秒 · {0}",
+      "en": "Forward 10 s · {0}",
+      "ja": "10 秒進める · {0}",
+      "message": true
+    },
+    {
+      "zh": "当前设备已回退到渲染倍率 {0}",
+      "en": "Render scale reduced to {0} on this device",
+      "ja": "このデバイスでは描画倍率を {0} に下げました",
+      "message": true
+    },
+    {
+      "zh": "请重新选择字幕：{0}",
+      "en": "Select subtitles again: {0}",
+      "ja": "字幕を再選択してください：{0}",
+      "message": true,
+      "localizeArguments": true
+    },
+    {
+      "zh": "自动字幕：{0}",
+      "en": "Auto subtitles: {0}",
+      "ja": "自動字幕：{0}",
+      "message": true,
+      "localizeArguments": true
+    },
+    {
+      "zh": "字幕已加载：{0} 条",
+      "en": "Subtitles loaded: {0} cues",
+      "ja": "字幕を読み込みました：{0} 件",
+      "message": true
+    },
+    {
+      "zh": "字幕已加载：{0} 条，跳过 {1} 个损坏块",
+      "en": "Subtitles loaded: {0} cues, {1} invalid blocks skipped",
+      "ja": "字幕を読み込みました：{0} 件・破損した {1} ブロックをスキップ",
+      "message": true
+    },
+    {
+      "zh": "SMB 打开失败：{0}",
+      "en": "Could not open SMB: {0}",
+      "ja": "SMB を開けません：{0}",
+      "message": true,
+      "localizeArguments": true
+    },
+    {
+      "zh": "无法读取文件（{0}），请检查权限、路径和网络",
+      "en": "Could not read file ({0}). Check permissions, path and network.",
+      "ja": "ファイルを読み取れません（{0}）。権限、パス、ネットワークを確認してください。",
+      "message": true
+    },
+    {
+      "zh": "部分 CD 已更新，请重试以完成整部影片。{0}",
+      "en": "Some CDs were updated. Retry to finish the movie. {0}",
+      "ja": "一部の CD を更新しました。作品全体の更新には再試行してください。{0}",
+      "message": true,
+      "localizeArguments": true
+    },
+    {
+      "zh": "无法保存隐私确认，请检查应用存储后重试 / Could not save your choice",
+      "en": "Could not save your choice. Check app storage and retry. / 无法保存隐私确认，请检查应用存储后重试",
+      "ja": "Could not save your choice. Check app storage and retry. / 无法保存隐私确认，请检查应用存储后重试"
+    },
+    {
+      "zh": "正在导出源码 / Exporting source…",
+      "en": "Exporting source… / 正在导出源码",
+      "ja": "Exporting source… / 正在导出源码"
+    }
+  ]
+}

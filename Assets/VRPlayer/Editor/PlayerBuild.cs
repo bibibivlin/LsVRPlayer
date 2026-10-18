@@ -72,6 +72,7 @@ namespace VRPlayer.Editor
         {
             // Populate only shipped source text; server titles and captions use dynamic atlases.
             string alphabet=string.Concat(Directory.GetFiles("Assets/VRPlayer/Runtime","*.cs",SearchOption.AllDirectories).Select(File.ReadAllText));
+            alphabet+=File.ReadAllText("Assets/VRPlayer/Resources/Localization/Strings.json");
             string missing=new string(alphabet.Where(c=>c>=32&&!asset.HasCharacter(c)).Distinct().ToArray());
             if(missing.Length==0)return;
             asset.TryAddCharacters(missing);EditorUtility.SetDirty(asset);AssetDatabase.SaveAssets();

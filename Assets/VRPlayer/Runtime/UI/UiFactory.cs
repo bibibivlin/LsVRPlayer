@@ -40,7 +40,9 @@ namespace VRPlayer
         {
             var rect=RoundedBox(parent,text,x,y,w,h,accent?UiTheme.Selected:UiTheme.Elevated,true,12,SurfaceTreatment.Control);var button=rect.gameObject.AddComponent<Button>();button.targetGraphic=rect.GetComponent<Graphic>();
             SetColorsImmediate(button,UiTheme.ButtonColors());
-            Label(rect,text,12,0,w-24,h,26,TextAlignmentOptions.Center);button.onClick.AddListener(()=>action?.Invoke());SetAccent(button,accent);return button;
+            var label=Label(rect,text,12,0,w-24,h,26,TextAlignmentOptions.Center);
+            if(Localization.Language!=AppLanguage.Chinese){label.enableAutoSizing=true;label.fontSizeMin=18;label.fontSizeMax=26;}
+            button.onClick.AddListener(()=>action?.Invoke());SetAccent(button,accent);return button;
         }
         public static Button IconButton(Transform parent,string name,QuickIcon icon,float x,float y,Action action,bool accent=false,string tooltip=null,float size=UiTheme.IconButtonSize)
         {
@@ -58,12 +60,13 @@ namespace VRPlayer
             var rect=Box(parent,name,x,y,width,height,Color.clear,true);var button=rect.gameObject.AddComponent<UiTabButton>();button.targetGraphic=rect.GetComponent<Graphic>();
             var colors=UiTheme.ButtonColors();colors.normalColor=colors.highlightedColor=colors.pressedColor=colors.selectedColor=colors.disabledColor=Color.clear;SetColorsImmediate(button,colors);
             var group=parent.GetComponent<UiTabGroup>();if(group==null)group=parent.gameObject.AddComponent<UiTabGroup>();
-            button.Initialize(Label(rect,name,12,0,width-24,height,26,TextAlignmentOptions.Center),group);button.onClick.AddListener(()=>action?.Invoke());return button;
+            button.Initialize(Label(rect,Localization.T(name),12,0,width-24,height,26,TextAlignmentOptions.Center),group);button.onClick.AddListener(()=>action?.Invoke());return button;
         }
         public static Button SourceButton(Transform parent,string name,QuickIcon icon,float x,float y,float width,float height,Action action,bool selected)
         {
             var button=Button(parent,name,x,y,width,height,action);var nav=button.gameObject.AddComponent<UiNavState>();nav.sidebar=true;
-            var text=button.GetComponentInChildren<TextMeshProUGUI>();text.alignment=TextAlignmentOptions.MidlineLeft;text.rectTransform.anchoredPosition=new Vector2(64,0);text.rectTransform.sizeDelta=new Vector2(width-72,height);
+            var text=button.GetComponentInChildren<TextMeshProUGUI>();text.alignment=TextAlignmentOptions.MidlineLeft;
+            float textStart=Localization.Language==AppLanguage.Japanese?56:64;text.rectTransform.anchoredPosition=new Vector2(textStart,0);text.rectTransform.sizeDelta=new Vector2(width-textStart-8,height);
             Icon(button.transform,icon,16,(height-30)/2,30,TextColor);SetAccent(button,selected);return button;
         }
         public static Button OptionTile(Transform parent,string name,QuickIcon icon,float x,float y,float width,float height,Action action,bool selected=false)
@@ -149,7 +152,9 @@ namespace VRPlayer
             float gap=UiTheme.ControlGap;
             var row=Rect(parent,name+" setting",x,y,width,UiTheme.SliderHeight);
             var title=Label(row,name,0,0,width,UiTheme.SliderHeight,labelSize,labelWidth>0?TextAlignmentOptions.Right:TextAlignmentOptions.Left);
-            if(labelWidth<=0)labelWidth=Mathf.Ceil(title.preferredWidth);title.rectTransform.sizeDelta=new Vector2(labelWidth,title.rectTransform.sizeDelta.y);
+            if(labelWidth<=0)labelWidth=Mathf.Ceil(title.preferredWidth);
+            else if(Localization.Language!=AppLanguage.Chinese)labelWidth=Mathf.Max(labelWidth,Mathf.Ceil(title.preferredWidth));
+            title.rectTransform.sizeDelta=new Vector2(labelWidth,title.rectTransform.sizeDelta.y);
             var number=Label(row,format(value),width-valueWidth,0,valueWidth,UiTheme.SliderHeight,24);
             float start=labelWidth+gap;
             var slider=Slider(row,start,0,width-valueWidth-gap-start,min,max,value,v=>{changed?.Invoke(v);number.text=format(v);});slider.name=name+" slider";return slider;
