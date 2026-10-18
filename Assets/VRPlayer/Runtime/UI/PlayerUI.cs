@@ -73,6 +73,7 @@ namespace VRPlayer
         public string FullModal=>modal;
         public string FullQuery=>query;
         public bool KeyboardVisible=>keyboard!=null&&keyboard.gameObject.activeSelf;
+        public EmbyBrowserUI.WallSnapshot EmbyWall=>embyBrowser?.WallDiagnostics;
 #endif
         public void Initialize(PlayerApp owner,Camera camera)
         {
@@ -207,7 +208,8 @@ namespace VRPlayer
             if(Visible&&modal==""&&app.Store.Settings.autoHide&&snapshot!=null&&snapshot.playing&&!keyboard.gameObject.activeSelf&&Time.unscaledTime-LastInteraction>18)Hide();
         }
         private static string Clock(long milliseconds){var duration=TimeSpan.FromMilliseconds(Math.Max(0,milliseconds));return duration.TotalHours>=1?$"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}":$"{duration.Minutes:00}:{duration.Seconds:00}";}
-        public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,2);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
+        public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,app.Store.Settings.mainPanelDistance);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
+        public void MoveMainPanel(float delta){if(Visible)Canvas.transform.position+=Canvas.transform.forward*delta;}
         public void Hide(){if(privacyGate)return;CancelPermissionNotice();CloseKeyboard();CancelSmbConnection();app.StopDiscovery();embyBrowser?.Suspend();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
         public void Toggle(){if(Visible)Hide();else Show();}
         public void ShowQuick(){if(Quick==null||Visible)return;Quick.Show();SurfaceRevision++;}

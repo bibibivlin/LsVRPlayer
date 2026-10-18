@@ -14,6 +14,7 @@ namespace VRPlayer
         public int Owner=>owner;
         public float Scroll{get;private set;}
         public void Suppress(){owner=-1;axes[0]=axes[1]=3;Scroll=0;}
+        public void SuppressActive(){owner=-1;for(int hand=0;hand<2;hand++)if(axes[hand]!=0)axes[hand]=3;Scroll=0;}
         public int Update(Vector2 left,bool leftValid,Vector2 right,bool rightValid,bool blocked,float now,bool blockHorizontal=false)
         {
             Scroll=0;values[0]=left;values[1]=right;valid[0]=leftValid;valid[1]=rightValid;

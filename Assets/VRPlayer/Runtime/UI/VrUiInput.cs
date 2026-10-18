@@ -25,6 +25,7 @@ namespace VRPlayer
         private readonly StickTransportGesture transport=new StickTransportGesture();
         private readonly Vector2[] stickAxes=new Vector2[2];
         private readonly bool[] stickValid=new bool[2];
+        private readonly bool[] gripHeld=new bool[2];
         private readonly TriggerPressGate triggerGate=new TriggerPressGate();
         private readonly TriggerPressGate backGate=new TriggerPressGate();
         private int surfaceRevision=-1;
@@ -34,6 +35,7 @@ namespace VRPlayer
         {
             public int processFrame,processCount,leftSamples,rightSamples,leftChanges,rightChanges;
             public bool diagnostic,leftValid,rightValid;
+            public bool leftGrip,rightGrip;public Vector2 leftStick,rightStick;
             public float maxGapMs;
         }
         public InputSnapshot Diagnostics{get;private set;}=new InputSnapshot();
@@ -58,8 +60,9 @@ namespace VRPlayer
             if(index<0||index>=3)return;diagnosticInput=true;diagnosticTargets[index]=target;diagnosticValues[index]=Mathf.Clamp01(fraction);diagnosticPressed[index]=pressed;
         }
         public void SetDiagnosticStick(int index,Vector2 axis){if(index<0||index>=2)return;diagnosticInput=true;stickAxes[index]=Vector2.ClampMagnitude(axis,1);stickValid[index]=true;}
+        public void SetDiagnosticGrip(int index,bool pressed){if(index<0||index>=2)return;diagnosticInput=true;gripHeld[index]=pressed;}
         public void SetDiagnosticBack(int index,bool pressed,bool valid){if(index<0||index>2)return;diagnosticInput=true;for(int hand=0;hand<2;hand++)if(index==2||hand==index){diagnosticBackPressed[hand]=pressed;diagnosticBackValid[hand]=valid;}}
-        public void ResetDiagnosticInput(){diagnosticInput=false;for(int i=0;i<3;i++){diagnosticTargets[i]=null;diagnosticPressed[i]=false;}for(int i=0;i<2;i++){stickAxes[i]=Vector2.zero;stickValid[i]=false;diagnosticBackPressed[i]=diagnosticBackValid[i]=false;}backGate.Suppress();CancelAllPointers();}
+        public void ResetDiagnosticInput(){diagnosticInput=false;for(int i=0;i<3;i++){diagnosticTargets[i]=null;diagnosticPressed[i]=false;}for(int i=0;i<2;i++){stickAxes[i]=Vector2.zero;stickValid[i]=gripHeld[i]=false;diagnosticBackPressed[i]=diagnosticBackValid[i]=false;}backGate.Suppress();CancelAllPointers();}
         private void ProcessDiagnosticInput()
         {
             if(HandleControllerBack(diagnosticBackPressed[0],diagnosticBackValid[0],diagnosticBackPressed[1],diagnosticBackValid[1]))return;
@@ -79,13 +82,14 @@ namespace VRPlayer
         {
             app=owner;head=camera;canvas=target;
             for(int i=0;i<3;i++)pointers[i]=new PointerEventData(eventSystem){pointerId=-100-i,button=PointerEventData.InputButton.Left};
-            rayMaterial=new Material(Shader.Find("Unlit/Color"));rayMaterial.color=UiFactory.Accent;
+            rayMaterial=CreatePointerMaterial();
             for(int i=0;i<2;i++){
                 var ray=new GameObject(i==0?"Left UI Ray":"Right UI Ray");rays[i]=ray.AddComponent<LineRenderer>();rays[i].sharedMaterial=rayMaterial;rays[i].positionCount=2;rays[i].startWidth=.004f;rays[i].endWidth=.002f;
                 var dot=GameObject.CreatePrimitive(PrimitiveType.Sphere);dot.name="UI Pointer";Destroy(dot.GetComponent<Collider>());dot.GetComponent<Renderer>().sharedMaterial=rayMaterial;dot.transform.localScale=Vector3.one*.012f;dots[i]=dot.transform;
             }
         }
         public override bool IsModuleSupported()=>true;
+        public static Material CreatePointerMaterial()=>new Material(Shader.Find("Unlit/Color")){color=UiFactory.Accent,renderQueue=4000};
         public override bool ShouldActivateModule()=>enabled&&gameObject.activeInHierarchy;
         // Unity may stop Process immediately on focus loss; suppress before its next input tick.
         private void OnApplicationFocus(bool focused){if(!focused){backGate.Suppress();CancelAllPointers();}}
@@ -113,6 +117,8 @@ namespace VRPlayer
                 RecordPose(hand,valid);
 #endif
                 stickValid[hand]=valid&&device.TryGetFeatureValue(CommonUsages.primary2DAxis,out stickAxes[hand]);
+                device.TryGetFeatureValue(CommonUsages.gripButton,out bool gripButton);device.TryGetFeatureValue(CommonUsages.grip,out float grip);
+                gripHeld[hand]=valid&&(gripButton||grip>.6f);
                 device.TryGetFeatureValue(CommonUsages.secondaryButton,out backPressed[hand]);
                 device.TryGetFeatureValue(CommonUsages.primaryButton,out bool primary);device.TryGetFeatureValue(CommonUsages.menuButton,out bool menu);bool toggle=primary||menu;
                 if(valid&&toggle&&!menuHeld[hand])togglePanel=true;menuHeld[hand]=toggle;
@@ -159,17 +165,25 @@ namespace VRPlayer
             surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;
             foreach(var line in rays)if(line!=null)line.enabled=false;foreach(var dot in dots)if(dot!=null)dot.gameObject.SetActive(false);
         }
-        private bool castRouting;
+        private bool castRouting,panelDistanceRouting;
         private void ProcessStickControls(bool typing,float now,float deltaTime)
         {
+#if DEVELOPMENT_BUILD || UNITY_EDITOR
+            Diagnostics.leftGrip=gripHeld[0];Diagnostics.rightGrip=gripHeld[1];Diagnostics.leftStick=stickAxes[0];Diagnostics.rightStick=stickAxes[1];
+#endif
             bool blocked=!app.HasFocus||typing||held[0]||held[1]||held[2]||pointers[0].dragging||pointers[1].dragging||pointers[2].dragging;
             bool routeCast=app.UI.CastHovered;if(routeCast!=castRouting){transport.Suppress();castRouting=routeCast;}
-            int skip=transport.Update(stickAxes[0],stickValid[0],stickAxes[1],stickValid[1],blocked,now,app.UI.BlocksTransport);
+            bool panelDistance=app.UI.Visible&&(gripHeld[0]&&stickValid[0]||gripHeld[1]&&stickValid[1]);
+            if(panelDistance!=panelDistanceRouting){transport.SuppressActive();panelDistanceRouting=panelDistance;}
+            int skip=transport.Update(stickAxes[0],stickValid[0]&&(!panelDistance||gripHeld[0]),stickAxes[1],stickValid[1]&&(!panelDistance||gripHeld[1]),blocked,now,panelDistance||app.UI.BlocksTransport);
             if(skip!=0){if(routeCast)app.UI.ScrollCast(skip);else app.Skip(skip);app.UI.LastInteraction=now;}
             bool vertical=!blocked&&Mathf.Abs(transport.Scroll)>.25f;
-            if(vertical&&app.UI.AnyVisible&&!app.UI.BlocksScrolling){app.UI.ScrollList(transport.Scroll);app.UI.LastInteraction=now;}
-            if(vertical&&!app.UI.AnyVisible&&app.Current!=null)app.AdjustViewDistance(transport.Scroll,deltaTime);
-            else app.CommitViewDistance();
+            if(vertical&&panelDistance){app.AdjustMainPanelDistance(transport.Scroll,deltaTime);app.UI.LastInteraction=now;}
+            else{
+                if(vertical&&app.UI.AnyVisible&&!app.UI.BlocksScrolling){app.UI.ScrollList(transport.Scroll);app.UI.LastInteraction=now;}
+                if(vertical&&!app.UI.AnyVisible&&app.Current!=null)app.AdjustViewDistance(transport.Scroll,deltaTime);
+                else app.CommitViewDistance();
+            }
         }
         private void ProcessKeyboard(bool typing)
         {

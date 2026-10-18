@@ -24,6 +24,13 @@ namespace VRPlayer.Tests
             typeof(VrUiInput).GetMethod("ProcessStickControls",Private).Invoke(input,new object[]{typing,Time.unscaledTime,elapsed});
         }
         private ViewSettings Saved()=>new PlayerStore(path).Find(app.Current.uri).view;
+        private void Grip(int hand,bool pressed)=>((bool[])typeof(VrUiInput).GetField("gripHeld",Private).GetValue(input))[hand]=pressed;
+        private void TickHand(int hand,Vector2 axis,float elapsed=.25f,bool valid=true,bool typing=false)
+        {
+            ((Vector2[])typeof(VrUiInput).GetField("stickAxes",Private).GetValue(input))[hand]=axis;
+            ((bool[])typeof(VrUiInput).GetField("stickValid",Private).GetValue(input))[hand]=valid;
+            typeof(VrUiInput).GetMethod("ProcessStickControls",Private).Invoke(input,new object[]{typing,Time.unscaledTime,elapsed});
+        }
         [SetUp] public void Setup()
         {
             path=Path.Combine(Path.GetTempPath(),"VRPlayer-distance-"+Guid.NewGuid()+".json");store=new PlayerStore(path);store.Settings.formatDetection=FormatDetectionMode.Metadata;
@@ -78,6 +85,74 @@ namespace VRPlayer.Tests
         {
             ui.Show();Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
             ui.Hide();ui.ShowQuick();Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void EitherGripAndStickMovesOnlyTheVisibleMainPanel(int hand)
+        {
+            ui.Show();head.transform.rotation=Quaternion.Euler(12,35,0);ui.Show();
+            var before=ui.Canvas.transform.position;var rotation=ui.Canvas.transform.rotation;var scale=ui.Canvas.transform.localScale;
+            Grip(hand,true);TickHand(hand,Vector2.up);
+            Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
+            Assert.That(Vector3.Distance(ui.Canvas.transform.position,before-ui.Canvas.transform.forward*.5f),Is.LessThan(.0001));
+            Assert.That(ui.Canvas.transform.rotation,Is.EqualTo(rotation));Assert.That(ui.Canvas.transform.localScale,Is.EqualTo(scale));
+            Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));Assert.That(app.Current.formatLocked,Is.False);
+            TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.up,100);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.2f));
+            TickHand(hand,Vector2.down,100);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(6));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void PanelDistanceWorksWithoutAFilmAndPersistsAtGestureEnd(int hand)
+        {
+            Set("Current",null);ui.Show();Grip(hand,true);TickHand(hand,Vector2.down);
+            Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.zero);Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(2.5f));
+            ui.Hide();head.transform.position=new Vector3(2,1,3);ui.Show();
+            Assert.That(Vector3.Distance(ui.Canvas.transform.position,head.transform.position+new Vector3(0,-.05f,2.5f)),Is.LessThan(.0001));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void ChangingGripModeRequiresNeutralBeforeReusingAHeldStick(int hand)
+        {
+            ui.Show();TickHand(hand,Vector2.up);Grip(hand,true);TickHand(hand,Vector2.up);
+            Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));
+            Grip(hand,false);TickHand(hand,Vector2.down);
+            var gesture=(StickTransportGesture)typeof(VrUiInput).GetField("transport",Private).GetValue(input);
+            Assert.That(gesture.Scroll,Is.Zero);Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(2.5f));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);Assert.That(gesture.Scroll,Is.EqualTo(-1));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void PanelGripDoesNotSeekOrUseTheOtherHandsUnmodifiedStick(int hand)
+        {
+            ui.Show();Grip(hand,true);TickHand(hand,Vector2.right);Assert.That(backend.seeks,Is.Zero);
+            TickHand(hand,Vector2.zero);TickHand(1-hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));Assert.That(backend.seeks,Is.Zero);
+        }
+        [Test] public void TwoGrippedSticksMoveThePanelOnlyOnceAndDoNotScrollTheList()
+        {
+            ui.Show();ui.SelectTab("信息");var body=(RectTransform)typeof(PlayerUI).GetField("infoBody",Private).GetValue(ui);body.anchoredPosition=new Vector2(0,80);
+            Grip(0,true);Grip(1,true);input.SetDiagnosticStick(1,Vector2.down);Tick(Vector2.down);
+            Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));Assert.That(body.anchoredPosition.y,Is.EqualTo(80));
+        }
+        [TestCase("OnApplicationFocus",false)][TestCase("OnApplicationPause",true)]
+        public void InterruptingPanelMovementSavesAndRequiresNeutral(string message,bool value)
+        {
+            ui.Show();Grip(0,true);Tick(Vector2.up);typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{value});
+            Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(1.5f));Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
+            Tick(Vector2.zero);Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void PanelTrackingLossAndFocusedTextBlockMovement(int hand)
+        {
+            ui.Show();Grip(hand,true);TickHand(hand,Vector2.up,typing:true);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.up);TickHand(hand,Vector2.down,valid:false);
+            Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(1.5f));TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+        }
+        [Test] public void QuickAndHiddenSurfacesNeverMoveTheMainPanel()
+        {
+            Grip(0,true);Tick(Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            Tick(Vector2.zero);ui.ShowQuick();Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            Assert.That(app.AdjustMainPanelDistance(1,.25f),Is.False);
         }
         [Test] public void SurfaceChangeRequiresNeutralBeforeHiddenDistanceAdjustmentResumes()
         {

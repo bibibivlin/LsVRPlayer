@@ -26,6 +26,7 @@ namespace VRPlayer
         public int version=3;public float volume=.8f,speed=1,subtitleSize=42,subtitleOffset=-.75f,subtitleDistance=3;
         public AppLanguage language=AppLanguage.System;
         public float lastAudibleVolume=.8f;
+        public float mainPanelDistance=2;
         public bool autoLoadSubtitles;
         public FormatDetectionMode formatDetection=FormatDetectionMode.Enhanced;
         public RenderQuality renderQuality=RenderQuality.High;
@@ -55,7 +56,8 @@ namespace VRPlayer
             value.embyLibraryViews??=new List<EmbyLibraryViewPreference>();
             value.language=Localization.Normalize(value.language);
             value.embyLibraryViews.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.accountId)||string.IsNullOrEmpty(item.libraryId));
-            foreach(var item in value.embyLibraryViews)item.view=EmbyLibraryViews.Normalize(item.view);
+            foreach(var item in value.embyLibraryViews){item.view=EmbyLibraryViews.Normalize(item.view);item.size=EmbyLibraryViews.Normalize(item.size);}
+            value.mainPanelDistance=NormalizeMainPanelDistance(value.mainPanelDistance);
             float oldDistance=Finite(value.subtitleDistance,3);
             value.subtitleDistance=Mathf.Clamp(oldDistance,.1f,6);
             if(version<2){float ratio=3/Mathf.Max(.1f,oldDistance);value.subtitleSize*=ratio;value.subtitleOffset*=ratio;value.renderQuality=RenderQuality.High;value.subtitleStyle=new SubtitleStyle();}
@@ -79,6 +81,7 @@ namespace VRPlayer
         }
         private static float Finite(float value,float fallback)=>float.IsNaN(value)||float.IsInfinity(value)?fallback:value;
         public static float NormalizeZoom(float value)=>Mathf.Clamp(Finite(value,1)>0?Finite(value,1):1,.5f,2);
+        public static float NormalizeMainPanelDistance(float value)=>Mathf.Clamp(Finite(value,2)>0?Finite(value,2):2,1.2f,6);
         public Favorite RemoveFavorite(string uri,out int index)
         {
             index=Settings.favorites.FindIndex(f=>f.uri==uri);if(index<0)return null;
@@ -94,8 +97,17 @@ namespace VRPlayer
         public void SetEmbyLibraryView(string accountId,string libraryId,EmbyLibraryView view)
         {
             if(string.IsNullOrEmpty(accountId)||string.IsNullOrEmpty(libraryId))return;
+            var size=GetEmbyArtworkSize(accountId,libraryId);
             Settings.embyLibraryViews.RemoveAll(item=>item.accountId==accountId&&item.libraryId==libraryId);
-            Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId,view=EmbyLibraryViews.Normalize(view)});Save();
+            Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId,view=EmbyLibraryViews.Normalize(view),size=size});Save();
+        }
+        public EmbyArtworkSize GetEmbyArtworkSize(string accountId,string libraryId)=>EmbyLibraryViews.Normalize(Settings.embyLibraryViews.LastOrDefault(item=>item.accountId==accountId&&item.libraryId==libraryId)?.size??EmbyArtworkSize.Large);
+        public void SetEmbyArtworkSize(string accountId,string libraryId,EmbyArtworkSize size)
+        {
+            if(string.IsNullOrEmpty(accountId)||string.IsNullOrEmpty(libraryId))return;
+            var view=GetEmbyLibraryView(accountId,libraryId);
+            Settings.embyLibraryViews.RemoveAll(item=>item.accountId==accountId&&item.libraryId==libraryId);
+            Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId,view=view,size=EmbyLibraryViews.Normalize(size)});Save();
         }
         public PlaybackRecord Touch(FileEntry file,string directory)
         {

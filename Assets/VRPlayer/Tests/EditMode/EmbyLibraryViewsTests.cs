@@ -45,6 +45,52 @@ namespace VRPlayer.Tests
             Assert.That(PlayerStore.ParseSettings("{\"version\":3,\"embyLibraryViews\":null}").embyLibraryViews,Is.Empty);
         }
 
+        [TestCase(1)][TestCase(2)][TestCase(3)]
+        public void ExistingSettingsKeepTheCurrentLargestArtworkAndPanelDistance(int version)
+        {
+            var settings=PlayerStore.ParseSettings("{\"version\":"+version+",\"embyLibraryViews\":[{\"accountId\":\"a\",\"libraryId\":\"movies\",\"view\":4}]}");
+            Assert.That(settings.mainPanelDistance,Is.EqualTo(2));Assert.That(settings.embyLibraryViews.Single().size,Is.EqualTo(EmbyArtworkSize.Large));
+            Assert.That(settings.embyLibraryViews.Single().view,Is.EqualTo(EmbyLibraryView.Thumb));
+        }
+        [TestCase(-1)][TestCase(999)] public void InvalidArtworkSizeFallsBackToLarge(int size)
+        {
+            var settings=PlayerStore.ParseSettings("{\"version\":3,\"embyLibraryViews\":[{\"accountId\":\"a\",\"libraryId\":\"movies\",\"size\":"+size+"}]}");
+            Assert.That(settings.embyLibraryViews.Single().size,Is.EqualTo(EmbyArtworkSize.Large));
+        }
+        [TestCase(0,2)][TestCase(-1,2)][TestCase(.1f,1.2f)][TestCase(99,6)][TestCase(float.NaN,2)][TestCase(float.PositiveInfinity,2)]
+        public void PanelDistanceNormalizesInvalidValues(float value,float expected)=>Assert.That(PlayerStore.NormalizeMainPanelDistance(value),Is.EqualTo(expected).Within(.0001));
+        [Test] public void ArtworkSizeAndViewSurviveRestartWithoutOverwritingEachOther()
+        {
+            string path=Path.Combine(Path.GetTempPath(),"VRPlayer-size-"+Guid.NewGuid().ToString("N")+".json");
+            try{
+                var store=new PlayerStore(path);store.SetEmbyLibraryView("a","movies",EmbyLibraryView.Disc);store.SetEmbyArtworkSize("a","movies",EmbyArtworkSize.Small);
+                store.SetEmbyArtworkSize("a","shows",EmbyArtworkSize.Medium);store.SetEmbyLibraryView("a","shows",EmbyLibraryView.Thumb);
+                store.SetEmbyLibraryView("b","movies",EmbyLibraryView.Banner);store.SetEmbyArtworkSize("b","movies",EmbyArtworkSize.Medium);
+                store.SetEmbyLibraryView("a","movies",EmbyLibraryView.Poster);
+                var loaded=new PlayerStore(path);
+                Assert.That(loaded.GetEmbyArtworkSize("a","movies"),Is.EqualTo(EmbyArtworkSize.Small));Assert.That(loaded.GetEmbyLibraryView("a","movies"),Is.EqualTo(EmbyLibraryView.Poster));
+                Assert.That(loaded.GetEmbyArtworkSize("a","shows"),Is.EqualTo(EmbyArtworkSize.Medium));Assert.That(loaded.GetEmbyLibraryView("a","shows"),Is.EqualTo(EmbyLibraryView.Thumb));
+                Assert.That(loaded.GetEmbyArtworkSize("b","movies"),Is.EqualTo(EmbyArtworkSize.Medium));Assert.That(loaded.GetEmbyLibraryView("b","movies"),Is.EqualTo(EmbyLibraryView.Banner));
+                Assert.That(loaded.GetEmbyArtworkSize("new","movies"),Is.EqualTo(EmbyArtworkSize.Large));Assert.That(loaded.Settings.embyLibraryViews.Count,Is.EqualTo(3));
+            }finally{if(File.Exists(path))File.Delete(path);}
+        }
+        [TestCase(EmbyLibraryView.Poster)][TestCase(EmbyLibraryView.Banner)][TestCase(EmbyLibraryView.Disc)]
+        [TestCase(EmbyLibraryView.Logo)][TestCase(EmbyLibraryView.Thumb)][TestCase(EmbyLibraryView.List)][TestCase(EmbyLibraryView.Table)]
+        public void ThreeArtworkSizesPreserveTheLargeLayoutAndKeepVirtualizationBounded(EmbyLibraryView view)
+        {
+            foreach(float viewport in new[]{1076f,1324f}){
+                var original=EmbyLibraryViews.Layout(view,viewport);var large=EmbyLibraryViews.Layout(view,viewport,EmbyArtworkSize.Large);
+                var medium=EmbyLibraryViews.Layout(view,viewport,EmbyArtworkSize.Medium);var small=EmbyLibraryViews.Layout(view,viewport,EmbyArtworkSize.Small);
+                Assert.That(large,Is.EqualTo(original));Assert.That(large.ArtworkWidth,Is.GreaterThan(medium.ArtworkWidth));Assert.That(medium.ArtworkWidth,Is.GreaterThan(small.ArtworkWidth));
+                foreach(var layout in new[]{large,medium,small}){
+                    Assert.That(layout.ArtworkWidth/layout.ArtworkHeight,Is.EqualTo(original.ArtworkWidth/original.ArtworkHeight).Within(.001));
+                    Assert.That(layout.Columns*layout.Width+(layout.Columns-1)*18,Is.EqualTo(viewport-28).Within(.01));
+                    Assert.That(layout.PoolSize(500000,626,180),Is.EqualTo(layout.PoolSize(205,626,180)).And.LessThan(100));
+                    Assert.That(layout.PoolSize(205,626,180)/(float)layout.Columns*layout.Pitch,Is.GreaterThanOrEqualTo(986));
+                }
+            }
+        }
+
         [TestCase(EmbyLibraryView.Poster)][TestCase(EmbyLibraryView.Banner)][TestCase(EmbyLibraryView.Disc)]
         [TestCase(EmbyLibraryView.Logo)][TestCase(EmbyLibraryView.Thumb)][TestCase(EmbyLibraryView.List)][TestCase(EmbyLibraryView.Table)]
         public void LargeLibraryPoolsStayBoundedAndCoverTheViewport(EmbyLibraryView view)
