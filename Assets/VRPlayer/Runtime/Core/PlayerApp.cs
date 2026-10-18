@@ -133,6 +133,10 @@ namespace VRPlayer
 #endif
         }
         public void SetStatus(string value){Status=value;}
+        public void SetLanguage(AppLanguage language)
+        {
+            Store.Settings.language=Localization.Normalize(language);Store.Save();UI?.RefreshLanguage();
+        }
         public void Notify(){if(Source==FileSource.Recent)UpdateRecentFiles();Changed?.Invoke();}
         public void Home()
         {
@@ -327,7 +331,7 @@ namespace VRPlayer
             catch(OperationCanceledException){}
         }
         private void OnApplicationPause(bool paused){HasFocus=!paused;if(paused){StopDiscovery();UI?.CancelSmbConnection();Pause();}else if(Source==FileSource.Smb&&UI!=null&&UI.CanDiscover)StartDiscovery();}
-        private void OnApplicationFocus(bool focused){HasFocus=focused;if(!focused)Pause();}
+        private void OnApplicationFocus(bool focused){HasFocus=focused;if(!focused)Pause();else UI?.RefreshLanguage();}
         private void OnDestroy(){FileLibrary.ReadPermissionRationale=null;SaveProgress();DisposeEmby();CancelStorageAccess();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
     }
 }

@@ -24,6 +24,7 @@ namespace VRPlayer
     [Serializable] public sealed class UserSettings
     {
         public int version=3;public float volume=.8f,speed=1,subtitleSize=42,subtitleOffset=-.75f,subtitleDistance=3;
+        public AppLanguage language=AppLanguage.System;
         public float lastAudibleVolume=.8f;
         public bool autoLoadSubtitles;
         public FormatDetectionMode formatDetection=FormatDetectionMode.Enhanced;
@@ -52,6 +53,7 @@ namespace VRPlayer
             int version=JsonUtility.FromJson<VersionHeader>(json)?.version??0;
             value.history??=new List<PlaybackRecord>();value.favorites??=new List<Favorite>();value.vr180Directories??=new List<string>();
             value.embyLibraryViews??=new List<EmbyLibraryViewPreference>();
+            value.language=Localization.Normalize(value.language);
             value.embyLibraryViews.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.accountId)||string.IsNullOrEmpty(item.libraryId));
             foreach(var item in value.embyLibraryViews)item.view=EmbyLibraryViews.Normalize(item.view);
             float oldDistance=Finite(value.subtitleDistance,3);

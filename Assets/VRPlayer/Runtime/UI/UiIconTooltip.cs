@@ -13,7 +13,7 @@ namespace VRPlayer
         private string description;
         private UiIconTooltipLayer layer;
         internal bool Available=>button!=null&&button.isActiveAndEnabled&&button.IsInteractable();
-        internal string Description=>description??label?.text??gameObject.name;
+        internal string Description=>Localization.T(description??label?.text??gameObject.name);
         public void Initialize(Button target,TextMeshProUGUI source,string text=null)
         {
             button=target;label=source;description=text;

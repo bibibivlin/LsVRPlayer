@@ -25,20 +25,20 @@ namespace VRPlayer
         private void DrawPrivacyConsent()
         {
             BeginModal("privacy-consent");
-            UiFactory.Label(content,"隐私与使用说明 / Privacy",0,0,UiTheme.PageWidth,60,34);
+            UiFactory.Label(content,Localization.Bilingual("隐私与使用说明","Privacy"),0,0,UiTheme.PageWidth,60,34);
             var notice=UiFactory.Label(content,
-                "本地影片和观看设置保存在设备上。连接 SMB / Emby 时，必要数据直接发送给你选择的服务器。\n"+
+                Localization.Bilingual("本地影片和观看设置保存在设备上。连接 SMB / Emby 时，必要数据直接发送给你选择的服务器。\n"+
                 "应用会按需说明并申请媒体读取权限；不提供广告或开发者统计上传。\n\n"+
-                "请阅读隐私政策和权限说明。同意后才初始化播放与服务器功能；不同意可退出。\n\n"+
+                "请阅读隐私政策和权限说明。同意后才初始化播放与服务器功能；不同意可退出。",
                 "Local media/settings stay here; network data goes to your chosen SMB/Emby server.\n"+
-                "Read the policy and permissions. Agree to start playback/server features, or decline and exit.",
+                "Read the policy and permissions. Agree to start playback/server features, or decline and exit.","\n\n"),
                 24,90,1304,410,26,TextAlignmentOptions.TopLeft,false);
             notice.textWrappingMode=TextWrappingModes.Normal;notice.overflowMode=TextOverflowModes.Overflow;
-            UiFactory.Button(content,"隐私政策 / Policy",24,532,416,60,()=>ShowLegalDocument("privacy"));
-            UiFactory.Button(content,"权限 / Permissions",468,532,416,60,()=>ShowLegalDocument("permissions"));
-            UiFactory.Button(content,"开源许可 / Licenses",912,532,416,60,()=>ShowLegalDocument("notices"));
-            UiFactory.Button(content,"不同意并退出 / Decline",24,686,616,72,Application.Quit);
-            UiFactory.Button(content,"同意并继续 / Agree",688,686,640,72,()=>{
+            UiFactory.Button(content,Localization.Bilingual("隐私政策","Policy"),24,532,416,60,()=>ShowLegalDocument("privacy"));
+            UiFactory.Button(content,Localization.Bilingual("权限","Permissions"),468,532,416,60,()=>ShowLegalDocument("permissions"));
+            UiFactory.Button(content,Localization.Bilingual("开源许可","Licenses"),912,532,416,60,()=>ShowLegalDocument("notices"));
+            UiFactory.Button(content,Localization.Bilingual("不同意并退出","Decline"),24,686,616,72,Application.Quit);
+            UiFactory.Button(content,Localization.Bilingual("同意并继续","Agree"),688,686,640,72,()=>{
                 try{acceptPrivacy?.Invoke();privacyGate=false;acceptPrivacy=null;Draw();}
                 catch(Exception){app.SetStatus("无法保存隐私确认，请检查应用存储后重试 / Could not save your choice");}
             },true);
@@ -52,22 +52,30 @@ namespace VRPlayer
         }
         public void ShowLegalDocument(string document)
         {
+            if(modal!="legal"||legalDocument!=document)legalEnglish=Localization.EnglishLegalFirst;
             legalDocument=document;BeginModal("legal");
-            string title=document=="privacy"?"隐私政策 / Privacy":document=="permissions"?"权限说明 / Permissions":"第三方许可 / Licenses";
+            string title=document=="privacy"?Localization.Bilingual("隐私政策","Privacy"):document=="permissions"?Localization.Bilingual("权限说明","Permissions"):Localization.Bilingual("第三方许可","Licenses");
             UiFactory.IconButton(content,"返回",QuickIcon.Back,0,0,()=>{if(privacyGate)DrawPrivacyConsent();else ReturnFromModal();});
-            float actionWidth=document=="notices"?360:280,actionX=UiTheme.PageWidth-actionWidth;
+            float actionWidth=360,actionX=UiTheme.PageWidth-actionWidth;
             UiFactory.Label(content,title,80,0,actionX-80-UiTheme.ControlGap,64,32);
-            if(document=="notices")UiFactory.Button(content,"导出源码 / Sources",actionX,0,actionWidth,64,ExportLicenseSource);
-            else UiFactory.Button(content,legalEnglish?"简体中文":"English",actionX,0,actionWidth,64,()=>{legalEnglish=!legalEnglish;ShowLegalDocument(legalDocument);});
+            if(document=="notices")UiFactory.Button(content,Localization.Bilingual("导出源码","Sources"),actionX,0,actionWidth,64,ExportLicenseSource);
+            else{
+                for(int i=0;i<2;i++){
+                    bool english=i==0?Localization.EnglishLegalFirst:!Localization.EnglishLegalFirst;
+                    UiFactory.Button(content,english?"English":"简体中文",actionX+i*188,0,172,64,()=>{legalEnglish=english;ShowLegalDocument(legalDocument);},legalEnglish==english);
+                }
+            }
             string resource=document=="notices"?"notices":document+"-"+(legalEnglish?"en":"zh-CN");
             var asset=Resources.Load<TextAsset>("Legal/"+resource);
-            string text=asset!=null?asset.text:"说明文件不可用 / Document unavailable.\n\n"+DeveloperLink+"\n\n"+ProjectUrl+"\n\n隐私联系 / Privacy: linyoc@outlook.com";
+            string text=asset!=null?asset.text:Localization.Bilingual("说明文件不可用","Document unavailable.")+"\n\n"+DeveloperLink+"\n\n"+ProjectUrl+"\n\n"+Localization.Bilingual("隐私联系","Privacy")+": linyoc@outlook.com";
             var host=UiFactory.Rect(content,"Legal scroll",0,86,UiTheme.PageWidth,708);
             infoScroll=host.gameObject.AddComponent<ListScrollRect>();infoScroll.horizontal=false;infoScroll.movementType=ScrollRect.MovementType.Clamped;
             var viewport=UiFactory.Box(host,"Viewport",0,0,1320,708,Color.clear,true);viewport.gameObject.AddComponent<RectMask2D>();infoScroll.viewport=viewport;
             infoBody=UiFactory.Rect(viewport,"Legal document",0,0,1320,708);infoScroll.content=infoBody;
-            float y=16;
-            foreach(string paragraph in text.Replace("\r","").Split(new[]{"\n\n"},StringSplitOptions.RemoveEmptyEntries)){
+            float y=16;bool licenseIntro=document=="notices";
+            foreach(string original in text.Replace("\r","").Split(new[]{"\n\n"},StringSplitOptions.RemoveEmptyEntries)){
+                if(original=="运行时组件 / Runtime components")licenseIntro=false;
+                string paragraph=document=="notices"?OrderLicenseParagraph(original,licenseIntro):original;
                 string profile=paragraph.Trim();
                 if(profile==DeveloperLink||profile=="开发者："+DeveloperLink||profile=="Developer: "+DeveloperLink){
                     string prefix=profile.Substring(0,profile.Length-DeveloperLink.Length);float x=16;
@@ -84,6 +92,17 @@ namespace VRPlayer
             var handle=UiFactory.Box(rail,"Handle",0,0,10,708,UiTheme.Muted,true);handle.anchorMin=Vector2.zero;handle.anchorMax=Vector2.one;handle.offsetMin=handle.offsetMax=Vector2.zero;
             bar.handleRect=handle;bar.targetGraphic=handle.GetComponent<Image>();bar.direction=Scrollbar.Direction.BottomToTop;infoScroll.verticalScrollbar=bar;
         }
+        private static string OrderLicenseParagraph(string paragraph,bool introductory)
+        {
+            if(!Localization.EnglishLegalFirst)return paragraph;
+            if(paragraph=="L's VRPlayer — 第三方组件与许可 / Third-party notices")return "L's VRPlayer — "+Localization.Bilingual("第三方组件与许可","Third-party notices");
+            if(paragraph=="运行时组件 / Runtime components")return Localization.Bilingual("运行时组件","Runtime components");
+            if(paragraph=="开发者与项目 / Developer and project")return Localization.Bilingual("开发者与项目","Developer and project");
+            // Only the app's introductory Chinese/English pairs change order.
+            // Component inventory and third-party license paragraphs remain verbatim.
+            int newline=paragraph.IndexOf('\n');
+            return introductory&&newline>0?paragraph.Substring(newline+1)+"\n"+paragraph.Substring(0,newline):paragraph;
+        }
         private static TextMeshProUGUI LegalLink(Transform parent,string text,string url,float x,float y,float size)
         {
             var label=UiFactory.Label(parent,text,x,y,1288,size*1.6f,size,TextAlignmentOptions.TopLeft,false);
@@ -95,14 +114,14 @@ namespace VRPlayer
         public Task<bool> ExplainStoragePermission(string permission)
         {
             Show();BeginModal("storage-permission");permissionNotice=new TaskCompletionSource<bool>();var result=permissionNotice.Task;
-            UiFactory.Label(content,"本地媒体访问 / Local media access",0,0,1280,64,32);
-            string message="为读取你选择的本地影片，需要媒体读取权限。应用不会修改或上传本地文件。\n\n"+
-                "拒绝后仍可使用 SMB、Emby 和离线说明；你可以稍后在系统设置中修改授权。\n\n"+
+            UiFactory.Label(content,Localization.Bilingual("本地媒体访问","Local media access"),0,0,1280,64,32);
+            string message=Localization.Bilingual("为读取你选择的本地影片，需要媒体读取权限。应用不会修改或上传本地文件。\n\n"+
+                "拒绝后仍可使用 SMB、Emby 和离线说明；你可以稍后在系统设置中修改授权。",
                 "Read access is needed for selected local media. Files are not modified or uploaded.\n"+
-                "You may refuse and continue using network sources and offline legal pages.\n\n"+permission;
+                "You may refuse and continue using network sources and offline legal pages.","\n\n")+"\n\n"+permission;
             var label=UiFactory.Label(content,message,24,112,1304,400,28,TextAlignmentOptions.TopLeft,false);label.textWrappingMode=TextWrappingModes.Normal;label.overflowMode=TextOverflowModes.Overflow;
-            UiFactory.Button(content,"暂不允许 / Not now",24,642,616,72,()=>CompletePermissionNotice(false));
-            UiFactory.Button(content,"继续系统授权 / Continue",688,642,640,72,()=>CompletePermissionNotice(true),true);
+            UiFactory.Button(content,Localization.Bilingual("暂不允许","Not now"),24,642,616,72,()=>CompletePermissionNotice(false));
+            UiFactory.Button(content,Localization.Bilingual("继续系统授权","Continue"),688,642,640,72,()=>CompletePermissionNotice(true),true);
             return result;
         }
         private void CompletePermissionNotice(bool allow)

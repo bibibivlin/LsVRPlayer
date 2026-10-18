@@ -35,14 +35,14 @@ namespace VRPlayer.Editor
                 }
             }
         }
-        [Serializable] private sealed class LabelAlignment {public string text,parent;public float fontSize,width,height,inkOffset,fontMiddleInkOffset;public int lines;}
+        [Serializable] private sealed class LabelAlignment {public string text,parent;public float fontSize,width,height,inkOffset,fontMiddleInkOffset,preferredWidth;public int lines;public bool truncated;}
         [Serializable] private sealed class AlignmentCapture {public LabelAlignment[] labels;}
         private static LabelAlignment MeasureAlignment(TMPro.TextMeshProUGUI text)
         {
             float bottom=float.PositiveInfinity,top=float.NegativeInfinity;
             for(int i=0;i<text.textInfo.characterCount;i++){var character=text.textInfo.characterInfo[i];if(!character.isVisible)continue;bottom=Mathf.Min(bottom,character.bottomLeft.y);top=Mathf.Max(top,character.topRight.y);}
             float center=(bottom+top)*.5f;
-            return new LabelAlignment{text=text.text,parent=text.transform.parent.name,fontSize=text.fontSize,width=text.rectTransform.rect.width,height=text.rectTransform.rect.height,inkOffset=center-text.rectTransform.rect.center.y,fontMiddleInkOffset=center-text.textBounds.center.y,lines=text.textInfo.lineCount};
+            return new LabelAlignment{text=text.text,parent=text.transform.parent.name,fontSize=text.fontSize,width=text.rectTransform.rect.width,height=text.rectTransform.rect.height,inkOffset=center-text.rectTransform.rect.center.y,fontMiddleInkOffset=center-text.textBounds.center.y,lines=text.textInfo.lineCount,preferredWidth=text.preferredWidth,truncated=text.isTextTruncated};
         }
         public static void ExportBatch()
         {
@@ -57,7 +57,11 @@ namespace VRPlayer.Editor
             var owner=new GameObject("UI validation fixture"){hideFlags=HideFlags.HideAndDontSave};owner.SetActive(false);var app=owner.AddComponent<PlayerApp>();
             PlayerUI ui=null;GameObject cameraObject=null;RenderTexture rt=null;var fixtureTextures=new Dictionary<string,Texture2D>();bool artworkFixtures=Environment.GetCommandLineArgs().Contains("-uiArtworkFixtures");
             try{
-                var store=new PlayerStore(path);Set(app,"Store",store);var backend=new AndroidMediaBackend();Set(app,"Backend",backend);Set(app,"Generation",1);
+                var store=new PlayerStore(path);store.Settings.language=AppLanguage.Chinese;
+                string[] arguments=Environment.GetCommandLineArgs();for(int i=0;i<arguments.Length-1;i++)if(arguments[i]=="-uiPreviewLanguage"){
+                    if(!Enum.TryParse(arguments[i+1],true,out AppLanguage language)||!Enum.IsDefined(typeof(AppLanguage),language))throw new ArgumentException("Unknown preview language");store.Settings.language=language;
+                }
+                Set(app,"Store",store);var backend=new AndroidMediaBackend();Set(app,"Backend",backend);Set(app,"Generation",1);
                 backend.Snapshot.generation=1;backend.Snapshot.duration=7200000;backend.Snapshot.position=2310000;backend.Snapshot.playing=true;backend.Snapshot.width=3840;backend.Snapshot.height=2160;backend.Snapshot.decoder="Editor fixture";backend.Snapshot.codec="HEVC";backend.Snapshot.fps=24;
                 Set(app,"Current",store.Touch(new FileEntry{name="远方的风景 · 演示影片.mp4",uri="file:///ui-fixture.mp4"},""));
                 Set(app,"Presenter",owner.AddComponent<VideoPresenter>());Set(app,"RenderQuality",owner.AddComponent<RenderQualityController>());
@@ -66,6 +70,9 @@ namespace VRPlayer.Editor
                 rt=new RenderTexture(1800,1320,24){antiAliasing=4};rt.Create();camera.targetTexture=rt;
                 void Save(string name)
                 {
+                    var browser=Field<EmbyBrowserUI>(ui,"embyBrowser");
+                    var build=typeof(EmbyBrowserUI).GetMethod("BuildNextCard",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic);
+                    for(int i=0;i<256&&(bool)build.Invoke(browser,null);i++){}
                     if(artworkFixtures)FixtureArtwork(ui.ActiveCanvas.transform,fixtureTextures);
                     Canvas.ForceUpdateCanvases();foreach(var text in ui.ActiveCanvas.GetComponentsInChildren<TMPro.TextMeshProUGUI>())text.ForceMeshUpdate();Canvas.ForceUpdateCanvases();camera.Render();
                     File.WriteAllText(Path.Combine(folder,name+"-alignment.json"),JsonUtility.ToJson(new AlignmentCapture{labels=ui.ActiveCanvas.GetComponentsInChildren<TMPro.TextMeshProUGUI>().Where(text=>!string.IsNullOrWhiteSpace(text.text)&&text.GetComponentInParent<CaptionPresenter>()==null).Select(MeasureAlignment).ToArray()},true));
@@ -76,7 +83,7 @@ namespace VRPlayer.Editor
                 typeof(PlayerUI).GetMethod("ShowKeyboard",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(ui,new object[]{Field<TMPro.TMP_InputField>(ui,"address")});Save("23-Keyboard");Call(ui,"CloseKeyboard");
                 Set(app,"Source",FileSource.Smb);Set(app,"DirectoryUri","");Set(app,"Files",new List<FileEntry>{new FileEntry{name="客厅媒体库",uri="smb://preview-share/",directory=true},new FileEntry{name="纪录片与旅行",uri="smb://preview-share-two/",directory=true}});
                 app.Discovery.complete=true;app.Discovery.hosts=new[]{new DiscoveredSmbHost{name="演示工作站",host="192.0.2.10"},new DiscoveredSmbHost{name="演示媒体服务器",host="192.0.2.20"}};Call(ui,"Draw");Save("33-SmbGroups");
-                var editHint=Field<VirtualFileList>(ui,"fileList").GetComponentsInChildren<UiIconTooltip>().First(hint=>hint.name=="编辑");editHint.OnPointerEnter(pointer);System.Threading.Thread.Sleep(360);Call(ui.Canvas.GetComponent<UiIconTooltipLayer>(),"LateUpdate");Save("34-SmbEditHint");editHint.OnPointerExit(pointer);
+                var editHint=Field<VirtualFileList>(ui,"fileList").GetComponentsInChildren<UiIconTooltip>().First(hint=>hint.name==Localization.T("编辑"));editHint.OnPointerEnter(pointer);System.Threading.Thread.Sleep(360);Call(ui.Canvas.GetComponent<UiIconTooltipLayer>(),"LateUpdate");Save("34-SmbEditHint");editHint.OnPointerExit(pointer);
                 Set(app,"Source",FileSource.Favorites);Set(app,"Files",new List<FileEntry>{new FileEntry{name="旅行记录",uri="file:///fixture/favorites/",directory=true},new FileEntry{name="远方的风景.mp4",uri="file:///fixture/landscape.mp4"}});ui.SelectTab("文件");Save("35-FavoriteActions");
                 ui.SelectTab("投影");Save("02-Projection");
                 app.ChangeFormat(view=>view.projection=Projection.Fisheye);ui.SelectTab("投影");Save("31-FisheyeGeometry");
@@ -89,7 +96,7 @@ namespace VRPlayer.Editor
                 var tabPointer=new UnityEngine.EventSystems.PointerEventData(null){pointerId=-102};var subtitleHover=Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<UiTabButton>().Single(button=>button.name=="选择");subtitleHover.OnPointerEnter(tabPointer);Save("19-SubtitleTabHover");subtitleHover.OnPointerExit(tabPointer);
                 var primaryHover=ui.Canvas.GetComponentsInChildren<UiTabButton>().Single(button=>button.name=="文件");primaryHover.OnPointerEnter(tabPointer);Save("20-PrimaryTabHover");primaryHover.OnPointerExit(tabPointer);
                 Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<UnityEngine.UI.Button>().Single(b=>b.name=="样式").onClick.Invoke();Call(ui,"Update");Save("04-SubtitleStyle");
-                ui.SelectTab("设置");Save("05-Settings");ui.SelectTab("信息");Call(ui,"Update");Save("06-Info");Field<RectTransform>(ui,"infoBody").anchoredPosition=new Vector2(0,PlaybackInfoUI.Height-Field<ListScrollRect>(ui,"infoScroll").viewport.rect.height);Save("14-InfoDiagnostics");
+                ui.SelectTab("设置");Save("05-Settings");Call(ui,"DrawLanguageSelection");Save("40-Language");ui.SelectTab("信息");Call(ui,"Update");Save("06-Info");Field<RectTransform>(ui,"infoBody").anchoredPosition=new Vector2(0,PlaybackInfoUI.Height-Field<ListScrollRect>(ui,"infoScroll").viewport.rect.height);Save("14-InfoDiagnostics");
                 Set(app,"Source",FileSource.Emby);app.EmbyState.title="演示媒体库";app.EmbyState.page=EmbyPage.Home;
                 app.EmbyState.views=Enumerable.Range(0,3).Select(i=>new EmbyItem{Id="library"+i,Name=new[]{"音乐","电影","番剧"}[i],Type="CollectionFolder",IsFolder=true}).ToArray();
                 app.EmbyState.resume=Enumerable.Range(0,8).Select(i=>new EmbyItem{Id="resume"+i,Name="演示影片 "+(i+1),SeriesName=i>1?"演示剧集 "+(i-1):null,Type=i>1?"Episode":"Movie",ParentIndexNumber=1,IndexNumber=i,ProductionYear=2024,RunTimeTicks=TimeSpan.FromMinutes(24).Ticks,UserData=new EmbyUserData{PlaybackPositionTicks=TimeSpan.FromMinutes(3+i).Ticks}}).ToArray();
@@ -116,7 +123,9 @@ namespace VRPlayer.Editor
                 ui.Quick.TogglePopup("advanced");Call(ui.Quick,"LateUpdate");Save("18-QuickSpeed");
                 app.SetSpeed(.25f);Call(ui.Quick,"LateUpdate");Save("29-QuickSpeedMinimum");app.SetSpeed(3);Call(ui.Quick,"LateUpdate");Save("30-QuickSpeedMaximum");app.SetSpeed(1);
                 ui.Quick.TogglePopup("files");Call(ui.Quick,"LateUpdate");Save("21-QuickSubtitleBrowser");
-                    File.WriteAllText(Path.Combine(folder,"capture-result.txt"),"35 native uGUI fixture captures using synthetic metadata only");
+                ui.HideQuick();ui.Show();cameraObject.transform.position=Vector3.zero;camera.orthographicSize=.86f;
+                ui.ShowPrivacyConsent(()=>{});Save("41-Consent");ui.ShowLegalDocument("privacy");Save("42-Privacy");ui.ShowLegalDocument("permissions");Save("43-Permissions");ui.ShowLegalDocument("notices");Save("44-Licenses");
+                File.WriteAllText(Path.Combine(folder,"capture-result.txt"),store.Settings.language+" native uGUI fixture captures using synthetic metadata only");
             }finally{
                 if(ui!=null){
                     if(ui.Quick!=null&&ui.Quick.Canvas!=null){var quick=ui.Quick.Canvas;typeof(QuickControlsUI).GetProperty("Canvas").SetValue(ui.Quick,null);UnityEngine.Object.DestroyImmediate(quick.gameObject);}
