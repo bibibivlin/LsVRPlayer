@@ -253,7 +253,7 @@ namespace VRPlayer.Tests
                 Assert.That(control.targetGraphic.color.a,Is.Zero);
             }
             Assert.That(app.Store.Settings.loop,Is.EqualTo(controls.Single(c=>c.name=="单片循环").Value));
-            Assert.That(app.Store.Settings.autoLoadSubtitles,Is.EqualTo(controls.Single(c=>c.name=="自动加载同名 SRT").Value));
+            Assert.That(app.Store.Settings.autoLoadSubtitles,Is.EqualTo(controls.Single(c=>c.name=="自动加载同名字幕").Value));
         }
         [Test] public void SubtitleEffectsAndPresetSelectionUpdateWithoutRebuildingTheStylePage()
         {

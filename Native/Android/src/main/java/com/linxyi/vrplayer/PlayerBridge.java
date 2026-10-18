@@ -35,6 +35,7 @@ public final class PlayerBridge {
     private static final ConcurrentHashMap<Integer,AutoCloseable> requestResources=new ConcurrentHashMap<>();
     private static final ThreadLocal<Integer> currentRequest=new ThreadLocal<>();
     private static ExoPlayer player;
+    private static AssRenderersFactory assRenderers;
     private static DefaultAllocator allocator;
     private static DefaultDataSource.Factory defaultSources;
     private static PlaybackSession playbackSession;
@@ -43,7 +44,8 @@ public final class PlayerBridge {
     private static Surface videoSurface;
     private static volatile String snapshot="{}";
     private static String error="",decoder="",audioDecoder="",embeddedSubtitle="";
-    private static int dropped=0,generation=0;
+    private static int dropped=0;
+    private static volatile int generation=0;
     private static boolean running=false;
     private static volatile boolean formatProbeEnabled=true;
     private static int probeId,probeRun;
@@ -64,7 +66,8 @@ public final class PlayerBridge {
             allocator=new DefaultAllocator(true,C.DEFAULT_BUFFER_SEGMENT_SIZE);
             // Keep the existing buffering policy unchanged while measuring the SMB read fix.
             DefaultLoadControl loadControl=new DefaultLoadControl.Builder().setAllocator(allocator).setBufferDurationsMs(12000,45000,800,2500).setTargetBufferBytes(64*1024*1024).setPrioritizeTimeOverSizeThresholds(false).build();
-            player=new ExoPlayer.Builder(host,new DefaultRenderersFactory(host).setEnableDecoderFallback(true).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)).setLoadControl(loadControl).build();
+            assRenderers=new AssRenderersFactory(host);
+            player=new ExoPlayer.Builder(host,assRenderers.setEnableDecoderFallback(true).setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON)).setLoadControl(loadControl).build();
             java.io.File diagnostics=host.getExternalFilesDir(null);telemetry=new PlaybackTelemetry(diagnostics==null?host.getFilesDir():diagnostics);
             player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),true);
             if(videoSurface!=null)player.setVideoSurface(videoSurface);
@@ -111,7 +114,7 @@ public final class PlayerBridge {
         currentProbeToken=accessToken;
         DataSource.Factory http=accessToken.isEmpty()?null:()->new EmbyDataSource(session,uri,accessToken);
         DataSource.Factory factory=()->new RoutingDataSource(defaultSources,session,http);
-        player.setMediaSource(new DefaultMediaSourceFactory(activity).setDataSourceFactory(factory).createMediaSource(MediaItem.fromUri(uri)),Math.max(0,position));
+        player.setMediaSource(new DefaultMediaSourceFactory(factory,AssRenderersFactory.extractors()).createMediaSource(MediaItem.fromUri(uri)),Math.max(0,position));
         player.prepare();player.play();if(formatProbeEnabled)startProbe(uri,accessToken);
     });}
     public static void play(){main.post(()->{if(player!=null)player.play();});}
@@ -137,6 +140,12 @@ public final class PlayerBridge {
         }catch(Exception ex){error="无法选择音轨或字幕轨";}
     });}
     public static String getSnapshot(){return snapshot;}
+    public static String getEmbeddedAss(int expectedGeneration){
+        if(expectedGeneration!=generation||assRenderers==null)return "";
+        AssTextRenderer.State value=assRenderers.ass.state();
+        try{return new JSONObject().put("stream",value.stream).put("revision",value.revision).put("script",value.script).toString();}
+        catch(JSONException ignored){return "";}
+    }
     public static String getLaunchUri(){return activity.getIntent().getStringExtra("video");}
     public static String getLaunchMode(){return activity.getIntent().getStringExtra("projection");}
     public static void release(){SmbDiscovery.stopAll();main.post(()->{running=false;main.removeCallbacks(update);if(player!=null){cancelProbe();retirePlayback();player.release();player=null;}if(telemetry!=null){telemetry.close();telemetry=null;}videoSurface=null;});for(Integer id:requests.keySet())cancelRequest(id);}
@@ -150,6 +159,7 @@ public final class PlayerBridge {
             }
             JSONObject info=new JSONObject().put("generation",generation).put("state",player.getPlaybackState()).put("playing",player.isPlaying()).put("position",Math.max(0,player.getCurrentPosition())).put("duration",Math.max(0,player.getDuration())).put("buffered",Math.max(0,player.getBufferedPosition())).put("width",size.width).put("height",size.height).put("pixelRatio",size.pixelWidthHeightRatio).put("error",error).put("decoder",decoder).put("dropped",dropped).put("embeddedSubtitle",embeddedSubtitle);
             long now=SystemClock.elapsedRealtime();PlaybackSession session=playbackSession;
+            AssTextRenderer.State ass=assRenderers.ass.state();info.put("assStream",ass.stream).put("assRevision",ass.revision);
             JSONObject transport=new JSONObject().put("generation",generation).put("monotonicMs",now).put("state",player.getPlaybackState()).put("playing",player.isPlaying())
                 .put("playWhenReady",player.getPlayWhenReady()).put("suppressionReason",player.getPlaybackSuppressionReason()).put("loading",player.isLoading())
                 .put("position",Math.max(0,player.getCurrentPosition())).put("bufferAheadMs",Math.max(0,player.getTotalBufferedDuration())).put("allocatedBufferBytes",allocator.getTotalBytesAllocated())
@@ -161,7 +171,7 @@ public final class PlayerBridge {
             JSONArray tracks=new JSONArray();int groupIndex=0;
             for(Tracks.Group group:player.getCurrentTracks().getGroups()){
                 if(group.getType()==C.TRACK_TYPE_AUDIO||group.getType()==C.TRACK_TYPE_TEXT){for(int i=0;i<group.length;i++){
-                    Format track=group.getTrackFormat(i);tracks.put(new JSONObject().put("id",groupIndex+":"+i).put("type",group.getType()).put("name",(track.label==null?"":track.label+" ")+(track.language==null?"und":track.language)+" · "+(track.sampleMimeType==null?"":track.sampleMimeType)).put("selected",group.isTrackSelected(i)).put("supported",group.isTrackSupported(i)));
+                    Format track=group.getTrackFormat(i);tracks.put(new JSONObject().put("id",groupIndex+":"+i).put("type",group.getType()).put("codec",track.sampleMimeType==null?"":track.sampleMimeType).put("name",(track.label==null?"":track.label+" ")+(track.language==null?"und":track.language)+" · "+(track.sampleMimeType==null?"":track.sampleMimeType)).put("selected",group.isTrackSelected(i)).put("supported",group.isTrackSupported(i)));
                 }}groupIndex++;
             }
             snapshot=info.put("tracks",tracks).toString();
@@ -202,17 +212,25 @@ public final class PlayerBridge {
     public static int beginExportLicenseSource(Activity host){return request(()->{
         android.content.ContentResolver resolver=host.getContentResolver();
         android.content.ContentValues values=new android.content.ContentValues();
-        values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME,"LsVRPlayer-FFmpeg-LGPL-Source.zip");
+        values.put(android.provider.MediaStore.Downloads.DISPLAY_NAME,"LsVRPlayer-LGPL-Sources.zip");
         values.put(android.provider.MediaStore.Downloads.MIME_TYPE,"application/zip");
         values.put(android.provider.MediaStore.Downloads.IS_PENDING,1);
         Uri destination=resolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);
         if(destination==null)throw new java.io.IOException("Source export unavailable");
         boolean complete=false;
         try{
-            try(java.io.InputStream input=host.getAssets().open("Legal/ffmpeg-lgpl-corresponding-source.zip");java.io.OutputStream output=resolver.openOutputStream(destination)){
-                if(output==null)throw new java.io.IOException("Source export unavailable");
-                attachResource(input);attachResource(output);byte[] buffer=new byte[65536];int count;
-                while((count=input.read(buffer))!=-1){if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();output.write(buffer,0,count);}
+            try(java.io.OutputStream output=resolver.openOutputStream(destination)){
+                if(output==null)throw new java.io.IOException("Source export unavailable");attachResource(output);
+                try(java.util.zip.ZipOutputStream zip=new java.util.zip.ZipOutputStream(output)){
+                    byte[] buffer=new byte[65536];int count;
+                    for(String name:new String[]{"ffmpeg-lgpl-corresponding-source.zip","ass-corresponding-source.zip"}){
+                        zip.putNextEntry(new java.util.zip.ZipEntry(name));
+                        try(java.io.InputStream input=host.getAssets().open("Legal/"+name)){
+                            attachResource(input);
+                            while((count=input.read(buffer))!=-1){if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException();zip.write(buffer,0,count);}
+                        }zip.closeEntry();
+                    }
+                }
             }
             values.clear();values.put(android.provider.MediaStore.Downloads.IS_PENDING,0);resolver.update(destination,values,null,null);complete=true;
             return new JSONObject().put("text","源码已导出至 Download / Source exported to Downloads").put("uri",destination.toString());

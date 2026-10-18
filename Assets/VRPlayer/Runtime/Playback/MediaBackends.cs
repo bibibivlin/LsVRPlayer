@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Video;
@@ -31,7 +32,15 @@ namespace VRPlayer
             }
         }
         private Texture2D texture;
+        public AssDocument EmbeddedAss{get;private set;}
+        public string EmbeddedAssTrack{get;private set;}="";
+        public long PresentationPosition=>Snapshot.position+(Snapshot.playing?(long)(Math.Min(.3,Time.realtimeSinceStartupAsDouble-snapshotTime)*1000*playbackSpeed):0);
+        private double snapshotTime;
+        private float playbackSpeed=1;
 #if UNITY_ANDROID && !UNITY_EDITOR
+        private MediaSnapshot clockSnapshot;
+        private int assStream=-1,assRevision=-1;
+        [Serializable] private sealed class EmbeddedAssPacket {public int stream,revision;public string script;}
         private int textureHandle,textureEpoch=-1;
         private float nextPoll;
 #endif
@@ -43,6 +52,17 @@ namespace VRPlayer
         public void Tick(){
 #if UNITY_ANDROID && !UNITY_EDITOR
             if(Time.unscaledTime>=nextPoll){nextPoll=Time.unscaledTime+.15f;string json=AndroidBridge.Api.CallStatic<string>("getSnapshot");if(!string.IsNullOrEmpty(json))Snapshot=JsonUtility.FromJson<MediaSnapshot>(json)??new MediaSnapshot();}
+            if(!ReferenceEquals(clockSnapshot,Snapshot)){
+                snapshotTime=Time.realtimeSinceStartupAsDouble;clockSnapshot=Snapshot;
+                var ass=(Snapshot.tracks??Array.Empty<MediaTrack>()).FirstOrDefault(t=>t.type==3&&t.selected&&t.codec=="text/x-ssa");
+                EmbeddedAssTrack=ass?.id??"";
+                if(ass==null){EmbeddedAss=null;assStream=assRevision=-1;}
+                else if(assStream!=Snapshot.assStream||assRevision!=Snapshot.assRevision){
+                    string data=AndroidBridge.Api.CallStatic<string>("getEmbeddedAss",Snapshot.generation);
+                    var script=string.IsNullOrEmpty(data)?null:JsonUtility.FromJson<EmbeddedAssPacket>(data);
+                    if(script!=null){assStream=script.stream;assRevision=script.revision;EmbeddedAss=AssDocument.FromEmbedded(script.script,Snapshot.generation+"/"+script.stream);}
+                }
+            }
             int w=Snapshot.width>0?Snapshot.width:1280,h=Snapshot.height>0?Snapshot.height:720;
             SetVideoSize(w,h);
             int handle=GetVideoTexture(),epoch=GetTextureEpoch();
@@ -76,7 +96,7 @@ namespace VRPlayer
         }
         public void Seek(long millis)=>Command("seek",millis);
         public void SetVolume(float value)=>Command("volume",value);
-        public void SetSpeed(float value)=>Command("speed",value);
+        public void SetSpeed(float value){playbackSpeed=value;Command("speed",value);}
         public void SetRepeat(bool value)=>Command("repeat",value);
         public void SelectTrack(string id,int type)=>Command("selectTrack",id,type);
         public void Dispose(){

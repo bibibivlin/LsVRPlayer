@@ -394,6 +394,11 @@ namespace VRPlayer
         {
             for(int i=0;i<subtitleTabs.Count;i++)UiFactory.SetAccent(subtitleTabs[i],subtitlePage==i);
             var settings=app.Store.Settings;
+            if(app.AssSubtitlesSelected&&subtitlePage!=0){
+                var panel=UiFactory.RoundedBox(content,"ASS script settings",0,76,UiTheme.PageWidth,240,UiTheme.Surface);
+                Setting(panel,L.T("字幕延后"),24,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,L.T("秒"));
+                UiFactory.Label(panel,L.T(app.AssSubtitleNotice),24,116,1304,100,25);return;
+            }
             if(subtitlePage==2){DrawSubtitleStyle();return;}
             if(subtitlePage==1){var panel=UiFactory.RoundedBox(content,"Subtitle position settings",0,76,UiTheme.PageWidth,386,UiTheme.Surface);
                 Setting(panel,L.T("字幕延后"),24,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,L.T("秒"));
@@ -408,15 +413,15 @@ namespace VRPlayer
             var choices=UiFactory.RoundedBox(content,"Subtitle selection",0,76,UiTheme.PageWidth,718,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
             const float actionWidth=314,actionPitch=330;
             UiFactory.Button(choices,L.T("关闭字幕"),24,24,actionWidth,64,app.DisableSubtitles);
-            UiFactory.Button(choices,L.T("手动选择 SRT"),24+actionPitch,24,actionWidth,64,()=>{subtitleBrowserEntry=app.BrowserHistoryPosition;subtitleBrowse=true;subtitleFileSelection=true;SelectTab("文件");});
+            UiFactory.Button(choices,L.T("手动选择字幕"),24+actionPitch,24,actionWidth,64,()=>{subtitleBrowserEntry=app.BrowserHistoryPosition;subtitleBrowse=true;subtitleFileSelection=true;SelectTab("文件");});
             string[] encodings={"Auto","UTF-8","GB18030","UTF-16LE"};int encoding=Array.IndexOf(encodings,app.SubtitleEncoding);
             UiFactory.Button(choices,L.T("编码：")+app.SubtitleEncoding,24+2*actionPitch,24,actionWidth,64,()=>{app.SubtitleEncoding=encodings[(encoding+1)%encodings.Length];if(app.Current!=null&&!string.IsNullOrEmpty(app.Current.subtitle)&&!app.Current.subtitle.StartsWith("track:"))_ = app.LoadSubtitle(app.Current.subtitle);Draw();});
             UiFactory.Button(choices,L.T("恢复自动选择"),24+3*actionPitch,24,actionWidth,64,app.RestoreAutomaticSubtitles);
             UiFactory.Label(choices,L.T("同目录匹配字幕"),24,120,1304,48,30);
             var candidates=app.SubtitleCandidates;
             var listRoot=UiFactory.Rect(choices,"Subtitle choices",24,184,1304,406);subtitleList=listRoot.gameObject.AddComponent<VirtualFileList>();subtitleList.Initialize(1304,406,fullWidthRows:true);
-            var rows=candidates.Select(item=>new BrowserRow{key=item.uri,label=item.name,detail=app.Current?.subtitle==item.uri?L.T("已选择"):"SRT",selected=app.Current?.subtitle==item.uri,open=()=>_ = app.LoadSubtitle(item.uri)}).ToList();
-            if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label=L.T("未发现匹配字幕，可手动选择 SRT 文件。")});subtitleList.SetRows(rows);
+            var rows=candidates.Select(item=>new BrowserRow{key=item.uri,label=item.name,detail=app.Current?.subtitle==item.uri?L.T("已选择"):SubtitleFormat.Label(item.name),selected=app.Current?.subtitle==item.uri,open=()=>_ = app.LoadSubtitle(item.uri)}).ToList();
+            if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label=L.T("未发现匹配字幕，可手动选择字幕 文件。")});subtitleList.SetRows(rows);
             UiFactory.Button(choices,L.T("内嵌字幕与音轨…"),468,630,416,64,DrawTracks);
         }
         private void DrawSubtitleStyle()
@@ -475,7 +480,7 @@ namespace VRPlayer
             UiFactory.ToggleRow(behavior,L.T("自动隐藏"),L.T("自动隐藏面板"),()=>app.Store.Settings.autoHide,24,220,616,value=>app.Store.Settings.autoHide=value,56);
             var subtitles=UiFactory.RoundedBox(content,"Subtitle settings",0,638,664,156,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
             UiFactory.Label(subtitles,L.T("字幕与音轨"),24,24,616,44,30);
-            UiFactory.ToggleRow(subtitles,L.T("自动加载同名 SRT"),L.T("自动加载同名 SRT"),()=>app.Store.Settings.autoLoadSubtitles,24,80,616,app.SetAutoLoadSubtitles,52);
+            UiFactory.ToggleRow(subtitles,L.T("自动加载同名字幕"),L.T("自动加载同名字幕"),()=>app.Store.Settings.autoLoadSubtitles,24,80,616,app.SetAutoLoadSubtitles,52);
             var recognition=UiFactory.RoundedBox(content,"Recognition settings",688,312,664,216,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
             UiFactory.Label(recognition,L.T("格式识别"),24,24,616,48,30);UiFactory.Label(recognition,L.T("识别影片的投影与立体布局"),24,80,616,40,23).color=UiTheme.Muted;
             string[] detection={L.T("关闭"),L.T("标签与元数据"),L.T("增强识别")};

@@ -1,0 +1,39 @@
+{
+  "sources": {
+    "libass": {
+      "version": "0.17.5",
+      "url": "https://codeload.github.com/libass/libass/tar.gz/refs/tags/0.17.5",
+      "sha256": "fa286fc9ee1ba3b932703a3df7b8474d01dc8abe29ec69b6fa68781dc4bf7acc"
+    },
+    "freetype": {
+      "version": "2.13.3",
+      "url": "https://codeload.github.com/freetype/freetype/tar.gz/refs/tags/VER-2-13-3",
+      "sha256": "bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103"
+    },
+    "fribidi": {
+      "version": "1.0.16",
+      "url": "https://codeload.github.com/fribidi/fribidi/tar.gz/refs/tags/v1.0.16",
+      "sha256": "5a1d187a33daa58fcee2ad77f0eb9d136dd6fa4096239199ba31e850d397e8a8"
+    },
+    "harfbuzz": {
+      "version": "10.4.0",
+      "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/refs/tags/10.4.0",
+      "sha256": "0d25a3f74af4e8744700ac19050af5a80ae330378a5802a5cd71e523bb6fda1f"
+    }
+  },
+  "linkage": "shared",
+  "sourceArchive": "ass-corresponding-source.zip",
+  "sourceArchiveSha256": "b5766e3d9d5210225a74655ccf920be8a1f4ef7b06a1d0bb6c6aa1d50ef654f4",
+  "libraries": {
+    "libvrplayerass.so": "9eb94834a3db9407566705c3d69c7185b8f576b6ea97178f83f423cfb415f5eb",
+    "vrplayerass.dll": "f4f3c6c6500b7f514ff2143dc7de27d00e1d6afbbfeca5f5f0c2073533293ca8"
+  },
+  "rebuildFiles": {
+    "Native/ASS/meson.build": "62dc4cdb448a1068a192fce4da4fa8e695306dd5bc28261b83adb4bce2e08474",
+    "Native/ASS/AssBridge.c": "35ceea7c348cb8a151993564b0317cabe4f1e53bcc8390b5938a4fa907f15571",
+    "Native/ASS/sources.lock.json": "c9aec2ec49b05b75d2df17fcfbfa97a1bb04e6d0e7009a38118be50861bd8f64",
+    "Native/ASS/README.md": "7ff3e70e00c0ac64b8fda7c177da478447db7b6969872e95cf9fce36f0b8a2c2",
+    "Tools/Build-Ass.py": "3a13df0967820b559c0cdf73a9d408a66201e12859f2d5ac4613c617abd7bfd0",
+    "Docs/Licenses/ASS/Unicode-3.0.txt": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96"
+  }
+}

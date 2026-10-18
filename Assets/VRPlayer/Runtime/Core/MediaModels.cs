@@ -25,7 +25,7 @@ namespace VRPlayer
             return Mathf.Clamp(aspect,.25f,8);
         }
     }
-    [Serializable] public sealed class MediaTrack { public string id,name;public int type;public bool selected,supported; }
+    [Serializable] public sealed class MediaTrack { public string id,name,codec;public int type;public bool selected,supported; }
     [Serializable] public sealed class NetworkReadSnapshot
     {
         public int generation;
@@ -36,6 +36,7 @@ namespace VRPlayer
     [Serializable] public sealed class MediaSnapshot
     {
         public int generation,state,width,height,dropped,stereoMode=-1;
+        public int assStream,assRevision;
         public bool playing;
         public long position,duration,buffered;
         public long monotonicMs,bufferAheadMs,allocatedBufferBytes,rebufferMs;
@@ -56,7 +57,7 @@ namespace VRPlayer
         [NonSerialized] public bool metadataVerified; // Only a live directory listing supplies file identity.
         [NonSerialized] public string formatName; // Server titles need not contain the source file's VR tags.
         public bool IsVideo=>!directory&&((uri??"").StartsWith("emby://",StringComparison.OrdinalIgnoreCase)||Regex.IsMatch(name??"",@"\.(mp4|mkv|m4v|mov|webm|ts|m2ts|avi|wmv|mpg|mpeg)$",RegexOptions.IgnoreCase));
-        public bool IsSubtitle=>!directory&&(name??"").EndsWith(".srt",StringComparison.OrdinalIgnoreCase);
+        public bool IsSubtitle=>!directory&&SubtitleFormat.IsSupported(name??"");
     }
     [Serializable] public sealed class FileResult { public bool ok;public string error,text;public FileEntry[] entries; }
     [Serializable] public sealed class SmbServer

@@ -59,6 +59,23 @@ def verify_apk(apk_path,root):
             if (legal/f'{topic}-{language}.txt').read_text(encoding='utf-8')!=re.sub(r'^#+\s+','',canonical,flags=re.M):
                 raise ValueError('Privacy/permission documents must be synchronized before release')
     with zipfile.ZipFile(apk_path) as apk:
+        ass=json.loads((root/'Native/ASS/binary-manifest.json').read_text())
+        ass_lock=json.loads((root/'Native/ASS/sources.lock.json').read_text())
+        if ass['sources']!=ass_lock or ass['linkage']!='shared' or catalog.get('assRenderer')!=ass:
+            raise ValueError('ASS renderer inventory is stale')
+        if sha(apk.read('lib/arm64-v8a/libvrplayerass.so'))!=ass['libraries']['libvrplayerass.so']:
+            raise ValueError('APK ASS renderer does not match corresponding-source record')
+        ass_source=apk.read('assets/Legal/'+ass['sourceArchive'])
+        if sha(ass_source)!=ass['sourceArchiveSha256']:
+            raise ValueError('APK ASS corresponding-source checksum mismatch')
+        with zipfile.ZipFile(io.BytesIO(ass_source)) as archive:
+            for name,definition in ass_lock.items():
+                if sha(archive.read(name+'-'+definition['version']+'.tar.gz'))!=definition['sha256']:
+                    raise ValueError('Incomplete ASS dependency source: '+name)
+            for name,expected in ass['rebuildFiles'].items():
+                data=archive.read(name)
+                if sha(data)!=expected or data!=(root/name).read_bytes().replace(b'\r\n',b'\n'):
+                    raise ValueError('ASS rebuild instructions are stale: '+name)
         for name,expected in binary['libraries'].items():
             if sha(apk.read('lib/arm64-v8a/'+name))!=expected:
                 raise ValueError('APK audio library does not match corresponding-source record: '+name)
@@ -88,6 +105,7 @@ def verify_apk(apk_path,root):
 
 def copy_public_materials(root,destination):
     sources=[root/'Assets/StreamingAssets/Legal/ffmpeg-lgpl-corresponding-source.zip',
+        root/'Assets/StreamingAssets/Legal/ass-corresponding-source.zip',
         root/'Docs/Licenses/THIRD-PARTY-NOTICES.txt',root/'Docs/Licenses/RuntimeComponents.json']
     sources+=[root/'Builds/Compliance'/f'{topic}-{language}.html' for topic in ('privacy','permissions') for language in ('zh-CN','en')]
     for source in sources:

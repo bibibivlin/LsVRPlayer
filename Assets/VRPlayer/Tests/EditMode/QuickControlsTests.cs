@@ -447,7 +447,7 @@ namespace VRPlayer.Tests
         [Test] public void BackFromManualSubtitleSourcesRestoresSubtitlePage()
         {
             app.Home();ui.SelectTab("字幕");var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
-            foreach(var button in content.GetComponentsInChildren<Button>())if(button.name=="手动选择 SRT"){button.onClick.Invoke();break;}
+            foreach(var button in content.GetComponentsInChildren<Button>())if(button.name=="手动选择字幕"){button.onClick.Invoke();break;}
             Assert.That(ui.SelectedTab,Is.EqualTo("文件"));ui.Back();Assert.That(ui.SelectedTab,Is.EqualTo("字幕"));Assert.That(ui.Visible);
             ui.Back();Assert.That(ui.AnyVisible,Is.False);
         }
@@ -456,7 +456,7 @@ namespace VRPlayer.Tests
             string folder=Path.Combine(Path.GetTempPath(),"VRPlayer-subtitle-entry-back-"+Guid.NewGuid()),first=Path.Combine(folder,"First"),second=Path.Combine(first,"Second"),third=Path.Combine(second,"Third");WriteMovieRows(first);Directory.CreateDirectory(third);
             try{
                 app.Home();await app.Browse(new Uri(first).AbsoluteUri);ApplyFileFilter("Match");FullFileList.SetOffset(739);await app.Browse(new Uri(second).AbsoluteUri);
-                ui.SelectTab("字幕");FileButton("手动选择 SRT");Assert.That(ui.SelectedTab,Is.EqualTo("文件"));
+                ui.SelectTab("字幕");FileButton("手动选择字幕");Assert.That(ui.SelectedTab,Is.EqualTo("文件"));
                 if(browseInside){
                     await app.Browse(new Uri(third).AbsoluteUri);ui.Back();await WaitForDirectory();
                     Assert.That(ui.SelectedTab,Is.EqualTo("文件"));Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(second).AbsoluteUri));Assert.That(ui.Visible);

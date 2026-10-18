@@ -17,11 +17,13 @@ namespace VRPlayer.Tests
         [TestCase("电影.2024.zh.forced.srt")]
         [TestCase("电影.2024 [chs].SRT")]
         [TestCase("电影.2024_zh.srt")]
+        [TestCase("电影.2024.zh.ass")]
+        [TestCase("电影.2024.SSA")]
         public void MatchesSameStemAndLanguageSuffix(string subtitle)=>Assert.That(SubtitleMatcher.Matches("电影.2024.mkv",subtitle),Is.True);
         [TestCase("电影.20240.srt")]
         [TestCase("电影.2024.续集.srt")]
         [TestCase("电影.2024other.zh.srt")]
-        [TestCase("电影.2024.zh.ass")]
+        [TestCase("电影.2024.zh.vtt")]
         public void RejectsOtherMoviesAndFormats(string subtitle)=>Assert.That(SubtitleMatcher.Matches("电影.2024.mkv",subtitle),Is.False);
         [Test] public void DoesNotConfuseEpisodes()=>Assert.That(SubtitleMatcher.Matches("节目.S01E01.mp4","节目.S01E02.zh.srt"),Is.False);
         [Test] public void ParsesBomCrlfMultilineWithoutFinalBlankLine()

@@ -11,6 +11,11 @@
 | SMBJ-RPC | `com.rapid7.client:dcerpc:0.12.13`，[源码](https://github.com/rapid7/smbj-rpc) | BSD-3-Clause；SRVSVC 磁盘共享枚举，排除传递 SMBJ 并沿用项目 0.13.0 |
 | FFmpeg 共享音频库 | 8.1.3，完整源码及 SHA-256 见 `Native/FFmpeg/sources.lock.json` | LGPL-2.1-or-later；关闭 GPL/nonfree/version3 和软件视频，补充电影音轨 |
 | Media3 FFmpeg 音频封装 | 1.9.3，提交 `9b8b13d177cf9a3ce997773ca51337acf5acc639` | Apache-2.0；实际 Java/JNI 源码随 APK 提供，未引入实验软件视频 renderer |
+| libass | 0.17.5，[源码](https://github.com/libass/libass/tree/0.17.5) | ISC；ASS / SSA 样式、动画和矢量绘图渲染 |
+| FreeType | 2.13.3，[源码](https://github.com/freetype/freetype/tree/VER-2-13-3) | FreeType License；字形栅格化，使用 FTL 授权选项 |
+| FriBidi | 1.0.16，[源码](https://github.com/fribidi/fribidi/tree/v1.0.16) | LGPL-2.1-or-later；双向文字；位于可替换的独立 ASS 共享库中 |
+| HarfBuzz | 10.4.0，[源码](https://github.com/harfbuzz/harfbuzz/tree/10.4.0) | MIT；文字 shaping |
+| C++ 标准运行库 | Android NDK r27c / Windows Zig 0.14.1 工具链运行库 | LLVM Apache-2.0 with LLVM exceptions 及保留的 MIT/BSD 条款；Windows CRT 兼容代码保留 MinGW 原始许可，文本位于 `Docs/Licenses/ASS` |
 | Noto Sans CJK SC | [Noto CJK](https://github.com/notofonts/noto-cjk) 的 `NotoSansCJKsc-Regular.otf` | SIL Open Font License 1.1；中文 UI 与字幕。许可证与字体同目录 |
 | Unity / uGUI / TMP / Input System / XRI | 项目 Packages 锁文件 | 沿用 Unity 组件各自条款；TMP Essential Resources 来自安装包 |
 | PICO Unity Integration SDK | 3.4.0，提交 `c93a59bab88d337fe0d54140499712897cedbe52` | 沿用已导入 SDK 条款；设备运行、追踪与 Multiview |
@@ -22,6 +27,8 @@
 `Tools/Generate-TestMedia.py` 的 imageio-ffmpeg 和 `Tools/Serve-TestSmb.py` 的 Impacket 只用于开发验证，不打入 APK；生成的测试视频不包含用户私人视频。测试服务器仅绑定 `127.0.0.1:1445`，只读暴露 `TestMedia`，通过 `adb reverse` 验证设备协议链路。
 
 `Native/Android`、`Native/Rendering` 为可重建桥接源码，对应 `vrplayer-android.aar` 和 `libvrplayerrender.so`。`Native/FFmpeg` 对应新增 `vrplayer-ffmpeg-lgpl.aar`。Java AAR 不内嵌 Maven 传递依赖，Unity Gradle 模板与原生工程保持相同版本。
+
+`Native/ASS` 对应 `libvrplayerass.so` 和 Windows 编辑器预览用 `vrplayerass.dll`。本软件的部分代码基于 FreeType 团队的工作。完整上游源码、构建脚本、许可及替换说明随 APK 的 `assets/Legal/ass-corresponding-source.zip` 提供，应用内“导出源码”包含音频和字幕两个源码包。固定版本与哈希见 `Native/ASS/sources.lock.json` / `binary-manifest.json`；离线版权文本见 `Docs/Licenses/ASS`。构建专用 Meson、Ninja、Zig 不打入播放器。详见 [ASS 使用与验证](ASS.zh-CN.md) 和 [构建与替换](../Native/ASS/README.md)。
 
 `Tools/Serve-LanTestSmb.py` 是可选的真实局域网测试工具，必须显式指定本机地址，仅只读暴露 `TestMedia/LanFixtureShare` 中按名称和扩展名筛选的生成媒体，不包含设置备份或诊断文件，默认 600 秒后退出。开发依赖 zeroconf 0.151.3（LGPL-2.1-or-later）和 ifaddr 0.2.0（MIT）只安装在忽略目录 `Tools/.runtime`，不进入 APK。`--auth` 使用公开的测试专用账号，不可用于私人共享。
 

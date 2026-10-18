@@ -323,12 +323,13 @@ namespace VRPlayer
         public Task Logout(EmbyAccount account, CancellationToken token = default)
             => SendAccount(account, "/Sessions/Logout", "POST", "{}", token);
 
-        public Task<string> GetSubtitle(EmbyAccount account, string itemId, string sourceId, int streamIndex, CancellationToken token = default)
+        public Task<string> GetSubtitle(EmbyAccount account, string itemId, string sourceId, int streamIndex, CancellationToken token = default, string format = "srt")
         {
             RequireId(itemId); RequireId(sourceId);
             if (streamIndex < 0) throw new ArgumentException("Emby 字幕标识无效");
+            if (format != "srt" && format != "ass" && format != "ssa") throw new ArgumentException("Emby 字幕格式无效");
             // Construct the server-owned route; never attach credentials to a returned DeliveryUrl.
-            string path = "/Videos/" + Escape(itemId) + "/" + Escape(sourceId) + "/Subtitles/" + streamIndex + "/Stream.srt";
+            string path = "/Videos/" + Escape(itemId) + "/" + Escape(sourceId) + "/Subtitles/" + streamIndex + "/Stream." + format;
             RequireAccount(account);
             return Send(account.serverUrl, path, account, "GET", null, token, SubtitleByteLimit);
         }

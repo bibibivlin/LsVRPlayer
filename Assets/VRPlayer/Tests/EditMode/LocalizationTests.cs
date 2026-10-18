@@ -156,7 +156,7 @@ namespace VRPlayer.Tests
         public void QuickSubtitleEmptyHintFitsVisibleRow(AppLanguage language)
         {
             app.SetLanguage(language);ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup("subtitles");
-            var label=ui.Quick.Canvas.GetComponentsInChildren<TextMeshProUGUI>().Single(item=>item.text==Localization.T("未发现字幕，请选择 SRT 文件"));
+            var label=ui.Quick.Canvas.GetComponentsInChildren<TextMeshProUGUI>().Single(item=>item.text==Localization.T("未发现字幕，请选择 SRT / ASS 文件"));
             label.ForceMeshUpdate();
             Assert.That(label.preferredWidth,Is.LessThanOrEqualTo(label.rectTransform.rect.width));
             Assert.That(label.isTextTruncated,Is.False);

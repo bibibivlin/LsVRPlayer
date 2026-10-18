@@ -246,9 +246,10 @@ namespace VRPlayer
         private string SubtitleName()
         {
             if(app.Current==null)return L.T("未打开影片");if(app.Current.subtitleSelection==SubtitleSelection.Off)return L.T("字幕已关闭");
+            if(app.AssSubtitlesSelected&&!AssPresentation.Supported(app.Presenter.Settings.projection))return L.T("ASS 仅支持平面视频，当前投影已暂停显示。");
             string uri=app.Current.subtitle;if(string.IsNullOrEmpty(uri))return L.T("尚未选择字幕");
             if(uri.StartsWith("track:"))return (app.Backend?.Snapshot.tracks??Array.Empty<MediaTrack>()).FirstOrDefault(t=>t.type==3&&"track:"+t.id==uri)?.name??L.T("内嵌字幕");
-            try{return Uri.UnescapeDataString(uri.Substring(uri.LastIndexOf('/')+1));}catch{return L.T("外置 SRT");}
+            try{return Uri.UnescapeDataString(uri.Substring(uri.LastIndexOf('/')+1));}catch{return L.T("外置字幕");}
         }
         private void DrawSubtitles()
         {
@@ -270,12 +271,12 @@ namespace VRPlayer
         private void RefreshSubtitleRows()
         {
             subtitleKey=SubtitleKey();var rows=new List<BrowserRow>();
-            foreach(var item in app.SubtitleCandidates){var file=item;rows.Add(new BrowserRow{key=file.uri,label=file.name,selected=app.Current.subtitle==file.uri,detail=app.Current.subtitle==file.uri?L.T("已选择"):"SRT",open=()=>{_ = app.LoadSubtitle(file.uri);Touch();}});}
+            foreach(var item in app.SubtitleCandidates){var file=item;rows.Add(new BrowserRow{key=file.uri,label=file.name,selected=app.Current.subtitle==file.uri,detail=app.Current.subtitle==file.uri?L.T("已选择"):SubtitleFormat.Label(file.name),open=()=>{_ = app.LoadSubtitle(file.uri);Touch();}});}
             var state=app.Backend?.Snapshot;
             if(state!=null&&state.generation==app.Generation)foreach(var item in state.tracks??Array.Empty<MediaTrack>()){
                 if(item.type!=3)continue;var track=item;rows.Add(new BrowserRow{key="track:"+track.id,label=track.name,selected=app.Current.subtitle=="track:"+track.id,detail=track.supported?L.T("内嵌"):L.T("不支持"),open=track.supported?()=>{app.EmbeddedSubtitle(track.id);Touch();}:null});
             }
-            if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label=L.T("未发现字幕，请选择 SRT 文件")});
+            if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label=L.T("未发现字幕，请选择 SRT / ASS 文件")});
             list.SetRows(rows);
         }
         private void DrawMode()
@@ -349,9 +350,9 @@ namespace VRPlayer
                 BrowserLoading=false;
                 var rows=new List<BrowserRow>();
                 foreach(var item in (result.entries??Array.Empty<FileEntry>()).Where(e=>e.directory||e.IsSubtitle).OrderByDescending(e=>e.directory).ThenBy(e=>e.name,StringComparer.OrdinalIgnoreCase)){
-                    var entry=item;rows.Add(new BrowserRow{key=entry.uri,label=entry.name,detail=entry.directory?L.T("目录"):"SRT",open=()=>{if(entry.directory)OpenBrowserDirectory(entry.uri,uri);else{_ = app.LoadSubtitle(entry.uri);TogglePopup("subtitles");}}});
+                    var entry=item;rows.Add(new BrowserRow{key=entry.uri,label=entry.name,detail=entry.directory?L.T("目录"):SubtitleFormat.Label(entry.name),open=()=>{if(entry.directory)OpenBrowserDirectory(entry.uri,uri);else{_ = app.LoadSubtitle(entry.uri);TogglePopup("subtitles");}}});
                 }
-                if(!result.ok||rows.Count==0)rows.Add(new BrowserRow{key="empty",label=result.ok?L.T("此目录没有 SRT 文件"):L.Message(result.error)??L.T("目录读取失败，请重试")});
+                if(!result.ok||rows.Count==0)rows.Add(new BrowserRow{key="empty",label=result.ok?L.T("此目录没有 SRT / ASS 文件"):L.Message(result.error)??L.T("目录读取失败，请重试")});
                 SetBrowserRows(requestList,rows,result.ok,restoreOffset);
             }catch(OperationCanceledException){}catch(Exception){if(!token.IsCancellationRequested&&browse==request&&list==requestList&&capturedGeneration==app.Generation&&Popup=="files"&&Visible){BrowserLoading=false;requestList.SetRows(new[]{new BrowserRow{key="error",label=L.T("目录读取失败，请刷新重试")}},true);}}
         }

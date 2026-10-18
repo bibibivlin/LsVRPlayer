@@ -1,0 +1,22 @@
+{
+  "libass": {
+    "version": "0.17.5",
+    "url": "https://codeload.github.com/libass/libass/tar.gz/refs/tags/0.17.5",
+    "sha256": "fa286fc9ee1ba3b932703a3df7b8474d01dc8abe29ec69b6fa68781dc4bf7acc"
+  },
+  "freetype": {
+    "version": "2.13.3",
+    "url": "https://codeload.github.com/freetype/freetype/tar.gz/refs/tags/VER-2-13-3",
+    "sha256": "bc5c898e4756d373e0d991bab053036c5eb2aa7c0d5c67e8662ddc6da40c4103"
+  },
+  "fribidi": {
+    "version": "1.0.16",
+    "url": "https://codeload.github.com/fribidi/fribidi/tar.gz/refs/tags/v1.0.16",
+    "sha256": "5a1d187a33daa58fcee2ad77f0eb9d136dd6fa4096239199ba31e850d397e8a8"
+  },
+  "harfbuzz": {
+    "version": "10.4.0",
+    "url": "https://codeload.github.com/harfbuzz/harfbuzz/tar.gz/refs/tags/10.4.0",
+    "sha256": "0d25a3f74af4e8744700ac19050af5a80ae330378a5802a5cd71e523bb6fda1f"
+  }
+}

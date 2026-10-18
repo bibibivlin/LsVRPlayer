@@ -126,8 +126,10 @@ def main():
             (LICENSES/path.name).write_text(path.read_text(encoding='utf-8-sig'),encoding='utf-8',newline='\n');texts[path.name]=path.read_text(encoding='utf-8-sig')
     texts['Apache-2.0.txt']=(LICENSES/'Apache-2.0.txt').read_text(encoding='utf-8-sig')
     texts['LsVRPlayer-MIT.txt']=(ROOT/'LICENSE').read_text(encoding='utf-8-sig')
+    for path in sorted((LICENSES/'ASS').glob('*.txt')):texts['ASS/'+path.name]=path.read_text(encoding='utf-8-sig')
     catalog={'schemaVersion':1,'runtimeComponents':components,'unityPackages':package_records,
-             'audioDecoder':json.loads((ROOT/'Native/FFmpeg/binary-manifest.json').read_text())}
+             'audioDecoder':json.loads((ROOT/'Native/FFmpeg/binary-manifest.json').read_text()),
+             'assRenderer':json.loads((ROOT/'Native/ASS/binary-manifest.json').read_text())}
     (LICENSES/'RuntimeComponents.json').write_text(json.dumps(catalog,indent=2,ensure_ascii=False)+'\n',encoding='utf-8',newline='\n')
     header="""L's VRPlayer — 第三方组件与许可 / Third-party notices
 
@@ -136,6 +138,9 @@ This app uses FFmpeg shared audio libraries under LGPL-2.1-or-later and the Apac
 
 完整 FFmpeg 源码、实际封装源码、版本校验和构建说明随 APK 一起提供。点击“导出源码 / Sources”可保存到 Android Download；也可从 APK 的 assets/Legal/ffmpeg-lgpl-corresponding-source.zip 提取。
 Complete corresponding FFmpeg and wrapper sources and build instructions accompany this APK. Export them with Sources, or extract assets/Legal/ffmpeg-lgpl-corresponding-source.zip from the APK.
+
+ASS 渲染使用 libass (ISC)、FreeType (FreeType License)、FriBidi (LGPL-2.1-or-later) 和 HarfBuzz (MIT)。本软件的部分代码基于 FreeType 团队的工作。完整源码和构建说明见 assets/Legal/ass-corresponding-source.zip，并包含在“导出源码”中。
+ASS rendering uses libass (ISC), FreeType (FreeType License), FriBidi (LGPL-2.1-or-later), and HarfBuzz (MIT). Portions of this software are copyright of the FreeType Project. Complete sources and rebuild instructions are in assets/Legal/ass-corresponding-source.zip and included by Sources export.
 
 你可修改 LGPL 库，并为调试这些修改而对组合程序进行必要的逆向工程。本项目自有许可不限制这些权利；Unity/PICO 组件沿用其各自条款。
 You may modify the LGPL libraries and reverse engineer the combined work as necessary to debug those modifications. The project's own license does not restrict those rights. Unity/PICO components retain their own terms.
