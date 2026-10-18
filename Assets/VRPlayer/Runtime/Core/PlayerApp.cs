@@ -273,6 +273,13 @@ namespace VRPlayer
         public void SetPanoramaZoom(float value)=>SetPanoramaZoom(value,true);
         public void SetPanoramaZoom(float value,bool save){Presenter.Settings.panoramaZoom=PlayerStore.NormalizeZoom(value);viewDistanceDirty=true;if(save)CommitViewDistance();}
         public void ResetViewDistance(){if(Presenter.Settings.projection==Projection.Flat)SetViewDistance(3.5f);else SetPanoramaZoom(1);}
+        public bool AdjustMainPanelDistance(float direction,float deltaTime)
+        {
+            if(Store==null||UI==null||!UI.Visible||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;
+            float previous=Store.Settings.mainPanelDistance,value=Mathf.Clamp(previous-Mathf.Clamp(direction,-1,1)*2*deltaTime,1.2f,6);
+            if(previous==value)return false;
+            Store.Settings.mainPanelDistance=value;UI.MoveMainPanel(value-previous);viewDistanceDirty=true;return true;
+        }
         public bool AdjustViewDistance(float direction,float deltaTime)
         {
             if(Current==null||Presenter==null||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;

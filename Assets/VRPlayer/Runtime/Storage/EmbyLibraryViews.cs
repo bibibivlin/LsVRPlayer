@@ -3,11 +3,13 @@ using System;
 namespace VRPlayer
 {
     public enum EmbyLibraryView { Poster=0, Banner=1, Disc=2, Logo=3, Thumb=4, List=5, Table=6 }
+    public enum EmbyArtworkSize { Large=0, Medium=1, Small=2 }
 
     [Serializable] public sealed class EmbyLibraryViewPreference
     {
         public string accountId, libraryId;
         public EmbyLibraryView view;
+        public EmbyArtworkSize size;
     }
 
     public readonly struct EmbyWallLayout
@@ -30,6 +32,8 @@ namespace VRPlayer
     public static class EmbyLibraryViews
     {
         public static EmbyLibraryView Normalize(EmbyLibraryView view)=>Enum.IsDefined(typeof(EmbyLibraryView),view)?view:EmbyLibraryView.Poster;
+        public static EmbyArtworkSize Normalize(EmbyArtworkSize size)=>Enum.IsDefined(typeof(EmbyArtworkSize),size)?size:EmbyArtworkSize.Large;
+        public static string Label(EmbyArtworkSize size)=>Normalize(size) switch {EmbyArtworkSize.Medium=>"中",EmbyArtworkSize.Small=>"小",_=>"大"};
         public static string Label(EmbyLibraryView view)=>Normalize(view) switch {
             EmbyLibraryView.Banner=>"横幅图",EmbyLibraryView.Disc=>"光盘封面",EmbyLibraryView.Logo=>"徽标",
             EmbyLibraryView.Thumb=>"缩略图",EmbyLibraryView.List=>"列表",EmbyLibraryView.Table=>"表格",_=>"海报"
@@ -51,6 +55,20 @@ namespace VRPlayer
             float width=(usable-(columns-1)*18)/columns;
             float artHeight=width*original.ArtworkHeight/original.ArtworkWidth;
             return new EmbyWallLayout(columns,width,width,artHeight,artHeight+80,artHeight+98);
+        }
+        public static EmbyWallLayout Layout(EmbyLibraryView view,float viewportWidth,EmbyArtworkSize size)
+        {
+            view=Normalize(view);size=Normalize(size);var large=Layout(view,viewportWidth);
+            if(size==EmbyArtworkSize.Large)return large;
+            if(view==EmbyLibraryView.List||view==EmbyLibraryView.Table){
+                float scale=size==EmbyArtworkSize.Medium?.8f:.6f;
+                return new EmbyWallLayout(1,large.Width,large.ArtworkWidth*scale,large.ArtworkHeight*scale,large.CardHeight,large.Pitch);
+            }
+            int extra=size==EmbyArtworkSize.Medium?Math.Max(1,(int)Math.Ceiling(large.Columns*.25f)):Math.Max(2,(int)Math.Ceiling(large.Columns*.65f));
+            int columns=large.Columns+extra;
+            float width=(Math.Max(204,viewportWidth-28)-(columns-1)*18)/columns;
+            float height=width*large.ArtworkHeight/large.ArtworkWidth;
+            return new EmbyWallLayout(columns,width,width,height,height+80,height+98);
         }
         public static EmbyWallLayout HomeLayout(float viewportWidth,bool thumbnails)
         {

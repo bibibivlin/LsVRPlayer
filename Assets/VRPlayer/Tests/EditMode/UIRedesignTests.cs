@@ -94,6 +94,38 @@ namespace VRPlayer.Tests
             ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup("subtitles");ui.ScrollList(-1);
             Assert.That(info.anchoredPosition.y,Is.EqualTo(80));
         }
+        private EmbyBrowserUI ArtworkLibrary()
+        {
+            Set("Source",FileSource.Emby);Set("ActiveEmbyAccount",new EmbyAccount{id="fixture"});
+            app.EmbyState.page=EmbyPage.Library;app.EmbyState.viewLibraryId="library";app.EmbyState.parent=new EmbyItem{Id="library"};
+            app.EmbyState.items=Enumerable.Range(0,205).Select(i=>new EmbyItem{Id="movie"+i,Name="Fixture "+i,Type="Movie"}).ToArray();
+            ui.SelectTab("文件");FinishCards();return Field<EmbyBrowserUI>(ui,"embyBrowser");
+        }
+        [Test] public void ArtworkSizeMenuRebuildsTheWallAndRestoresIndependentScrollPositions()
+        {
+            var browser=ArtworkLibrary();var large=Field<EmbyWallLayout>(browser,"posterLayout");
+            Field<RectTransform>(browser,"body").anchoredPosition=new Vector2(0,500);
+            Call(browser,"ToggleViewMenu");Assert.That(ui.BlocksScrolling,Is.True);
+            var menu=Field<RectTransform>(browser,"viewMenu");
+            Assert.That(menu.GetComponentsInChildren<Button>().Count(button=>button.name.StartsWith("Emby artwork size ")),Is.EqualTo(3));
+            menu.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Small").onClick.Invoke();FinishCards();
+            Assert.That(Field<EmbyWallLayout>(browser,"posterLayout").ArtworkWidth,Is.LessThan(large.ArtworkWidth));
+            Assert.That(Field<RectTransform>(browser,"body").anchoredPosition.y,Is.Zero);Assert.That(ui.BlocksScrolling,Is.False);
+            Assert.That(new PlayerStore(path).GetEmbyArtworkSize("fixture","library"),Is.EqualTo(EmbyArtworkSize.Small));
+            Field<RectTransform>(browser,"body").anchoredPosition=new Vector2(0,240);
+            Call(browser,"ToggleViewMenu");Field<RectTransform>(browser,"viewMenu").GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Large").onClick.Invoke();FinishCards();
+            Assert.That(Field<RectTransform>(browser,"body").anchoredPosition.y,Is.EqualTo(500));Assert.That(Field<EmbyWallLayout>(browser,"posterLayout"),Is.EqualTo(large));
+            Call(browser,"ToggleViewMenu");Field<RectTransform>(browser,"viewMenu").GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Small").onClick.Invoke();FinishCards();
+            Assert.That(Field<RectTransform>(browser,"body").anchoredPosition.y,Is.EqualTo(240));
+        }
+        [Test] public void ArtworkMenuConsumesBackAndRejectsStaleAccountSelections()
+        {
+            var browser=ArtworkLibrary();Call(browser,"ToggleViewMenu");var before=app.EmbyState;
+            Assert.That(ui.Back(),Is.True);Assert.That(Field<RectTransform>(browser,"viewMenu"),Is.Null);Assert.That(app.EmbyState,Is.SameAs(before));
+            Call(browser,"ToggleViewMenu");var stale=Field<RectTransform>(browser,"viewMenu").GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Small");
+            Set("ActiveEmbyAccount",new EmbyAccount{id="other"});stale.onClick.Invoke();
+            Assert.That(app.Store.GetEmbyArtworkSize("fixture","library"),Is.EqualTo(EmbyArtworkSize.Large));Assert.That(app.Store.GetEmbyArtworkSize("other","library"),Is.EqualTo(EmbyArtworkSize.Large));
+        }
         [Test] public void EmbyHomeFitsFiveLandscapeResumeCardsAcrossTheSourcePage()
         {
             Set("Source",FileSource.Emby);app.EmbyState.page=EmbyPage.Home;

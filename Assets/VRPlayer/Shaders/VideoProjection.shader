@@ -15,8 +15,9 @@ Shader "VRPlayer/VideoProjection"
         _AssEnabled("ASS enabled",Float)=0
     }
     SubShader {
-        Tags {"RenderType"="Opaque" "Queue"="Geometry"}
-        Cull Off ZWrite On ZTest LEqual
+        // Draw after the skybox and before world-space menus, without occluding those menus.
+        Tags {"RenderType"="Opaque" "Queue"="Transparent-100"}
+        Cull Off ZWrite Off ZTest LEqual
         Pass {
             CGPROGRAM
             #pragma vertex vert
