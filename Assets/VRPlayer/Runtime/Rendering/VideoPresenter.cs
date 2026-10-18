@@ -10,6 +10,12 @@ namespace VRPlayer
         private Quaternion viewingRotation=Quaternion.identity;
         private string geometryKey;
         public ViewSettings Settings{get;set;}=new ViewSettings();
+        public void SetAssOverlay(Texture texture)
+        {
+            if(material==null)return;
+            material.SetTexture("_AssTex",texture!=null?texture:Texture2D.blackTexture);
+            material.SetFloat("_AssEnabled",texture!=null&&AssPresentation.Supported(Settings.projection)?1:0);
+        }
         public void Initialize(Camera camera)
         {
             cameraTransform=camera.transform;if(camera.GetComponent<VideoEyeSelector>()==null)camera.gameObject.AddComponent<VideoEyeSelector>();

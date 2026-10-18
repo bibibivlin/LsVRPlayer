@@ -71,6 +71,7 @@ class LegalApkIntegrityTests(unittest.TestCase):
         native=cls.root/'Assets/Plugins/Android/vrplayer-ffmpeg-lgpl.aar'
         with zipfile.ZipFile(native) as aar:
             cls.members.update({'lib/arm64-v8a/'+name:aar.read('jni/arm64-v8a/'+name) for name in manifest['libraries']})
+        cls.members['lib/arm64-v8a/libvrplayerass.so']=(cls.root/'Assets/Plugins/Android/arm64-v8a/libvrplayerass.so').read_bytes()
 
     def test_matching_apk_materials_and_libraries_are_accepted(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -80,7 +81,8 @@ class LegalApkIntegrityTests(unittest.TestCase):
             self.assertEqual(37,release.legal.verify_apk(apk,self.root)['runtimeComponents'])
 
     def test_replaced_library_source_or_policy_blocks_distribution(self):
-        for member in ('lib/arm64-v8a/libavcodec.so','assets/Legal/ffmpeg-lgpl-corresponding-source.zip','assets/Legal/privacy-en.txt'):
+        for member in ('lib/arm64-v8a/libavcodec.so','assets/Legal/ffmpeg-lgpl-corresponding-source.zip','assets/Legal/privacy-en.txt',
+                       'lib/arm64-v8a/libvrplayerass.so','assets/Legal/ass-corresponding-source.zip'):
             with self.subTest(member=member),tempfile.TemporaryDirectory() as folder:
                 apk=Path(folder)/'tampered.apk'
                 with zipfile.ZipFile(apk,'w') as archive:

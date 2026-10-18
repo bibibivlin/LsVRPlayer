@@ -71,6 +71,8 @@ Assets/Plugins/**           linguist-generated
 Assets/StreamingAssets/Legal/*.zip lfs
 # Preserve upstream byte hashes and executable bash source on Windows checkouts.
 Native/FFmpeg/** text eol=lf
+Native/ASS/** text eol=lf
+Tools/Build-Ass.py text eol=lf
 Tools/Build-AudioDecoder.py text eol=lf
 Docs/Licenses/** text eol=lf
 Assets/VRPlayer/Resources/Legal/** text eol=lf

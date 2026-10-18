@@ -14,6 +14,7 @@
 - Noto 中文字体、TMP 资源和其他上游导入素材。
 - Unity 与 PICO SDK 及其各自的使用和分发条款。
 - 可重建 FFmpeg 8.1.3 共享音频库的 LGPL-2.1-or-later 许可及 Apache-2.0 的 Media3 1.9.3 音频封装。
+- ASS 共享渲染库中的 libass (ISC)、FreeType (FTL)、FriBidi (LGPL-2.1-or-later) 和 HarfBuzz (MIT)。完整依赖源码、构建脚本和共享库替换说明随 APK 的 `assets/Legal/ass-corresponding-source.zip` 提供；应用内导出源码同时包含音频和 ASS 两个归档，发布校验检查实际字幕库及对应源码的哈希。详见 [ASS 构建说明](../Native/ASS/README.md)。
 
 再分发时需要保留适用的许可证与声明；只有第三方链接或根目录 MIT 文件，不代表所有组件的义务都已履行。
 

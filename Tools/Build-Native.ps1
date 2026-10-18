@@ -1,6 +1,8 @@
 param([string]$UnityEditor='C:\Program Files\Unity\Hub\Editor\6000.3.23f1\Editor', [switch]$SkipJava)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
+& python (Join-Path $PSScriptRoot 'Build-Ass.py')
+if($LASTEXITCODE -ne 0){throw 'ASS renderer build failed'}
 $android=Join-Path $UnityEditor 'Data/PlaybackEngines/AndroidPlayer'
 $java=Join-Path $android 'OpenJDK/bin/java.exe'
 $native=Join-Path $root 'Native/Android'

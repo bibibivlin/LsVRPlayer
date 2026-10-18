@@ -57,7 +57,7 @@ namespace VRPlayer
         private static readonly Regex ChineseSuffix=new Regex(@"(?:^|"+Separator+")(?:"+ChineseTag+")(?:$|"+Separator+")",RegexOptions.IgnoreCase|RegexOptions.Compiled);
         public static bool Matches(string video,string subtitle)
         {
-            if(!subtitle.EndsWith(".srt",StringComparison.OrdinalIgnoreCase))return false;
+            if(!SubtitleFormat.IsSupported(subtitle))return false;
             string stem=Path.GetFileNameWithoutExtension(video),candidate=Path.GetFileNameWithoutExtension(subtitle);
             if(candidate.Equals(stem,StringComparison.OrdinalIgnoreCase))return true;
             return candidate.StartsWith(stem,StringComparison.OrdinalIgnoreCase)&&Suffix.IsMatch(candidate.Substring(stem.Length));
