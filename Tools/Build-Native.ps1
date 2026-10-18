@@ -11,8 +11,14 @@ $java=Join-Path $android 'OpenJDK/bin/java.exe'
 $native=Join-Path $root 'Native/Android'
 $env:ANDROID_HOME=Join-Path $android 'SDK'
 $env:JAVA_HOME=Join-Path $android 'OpenJDK'
+function Get-RuntimePluginHash([string]$Path){
+    $stream=[IO.File]::OpenRead($Path)
+    $algorithm=[Security.Cryptography.SHA256]::Create()
+    try{return ([BitConverter]::ToString($algorithm.ComputeHash($stream))).Replace('-','')}
+    finally{$stream.Dispose();$algorithm.Dispose()}
+}
 function Copy-RuntimePlugin([string]$source,[string]$destination){
-    if((Test-Path -LiteralPath $destination) -and (Get-FileHash -LiteralPath $source).Hash -eq (Get-FileHash -LiteralPath $destination).Hash){return}
+    if((Test-Path -LiteralPath $destination) -and (Get-RuntimePluginHash $source) -eq (Get-RuntimePluginHash $destination)){return}
     # Replace by rename: Unity may memory-map the previous file while the Editor is open.
     $staged=$destination+'.new'
     try{
