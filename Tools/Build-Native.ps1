@@ -1,7 +1,10 @@
 param([string]$UnityEditor='C:\Program Files\Unity\Hub\Editor\6000.3.23f1\Editor', [switch]$SkipJava)
 $ErrorActionPreference='Stop'
 $root=Split-Path -Parent $PSScriptRoot
-& python (Join-Path $PSScriptRoot 'Build-Ass.py')
+$python=$env:VRPLAYER_PYTHON
+if(-not $python){$python=(& python -c 'import sys; print(sys.executable)').Trim()}
+if(-not (Test-Path -LiteralPath $python)){throw 'A real Python 3.11+ executable is required; set VRPLAYER_PYTHON'}
+& $python (Join-Path $PSScriptRoot 'Build-Ass.py') --unity-editor $UnityEditor
 if($LASTEXITCODE -ne 0){throw 'ASS renderer build failed'}
 $android=Join-Path $UnityEditor 'Data/PlaybackEngines/AndroidPlayer'
 $java=Join-Path $android 'OpenJDK/bin/java.exe'
@@ -19,7 +22,7 @@ function Copy-RuntimePlugin([string]$source,[string]$destination){
     finally{if(Test-Path -LiteralPath $staged){Remove-Item -LiteralPath $staged}}
 }
 if(-not $SkipJava){
-    & python (Join-Path $PSScriptRoot 'Build-AudioDecoder.py') --unity-editor $UnityEditor
+    & $python (Join-Path $PSScriptRoot 'Build-AudioDecoder.py') --unity-editor $UnityEditor
     if($LASTEXITCODE -ne 0){throw 'LGPL audio decoder build failed'}
     & $java '-classpath' (Join-Path $android 'Tools/gradle/lib/*') org.gradle.launcher.GradleMain -p $native assembleRelease writeRuntimeInventory --console=plain
     if($LASTEXITCODE -ne 0){throw 'Android library build failed'}
@@ -38,9 +41,9 @@ $renderer=Join-Path $staging 'libvrplayerrender.so'
 if($LASTEXITCODE -ne 0){throw 'Native rendering build failed'}
 Copy-RuntimePlugin $renderer (Join-Path $libDir 'libvrplayerrender.so')
 if(-not $SkipJava){
-    & python (Join-Path $PSScriptRoot 'Build-LicenseNotices.py')
+    & $python (Join-Path $PSScriptRoot 'Build-LicenseNotices.py')
     if($LASTEXITCODE -ne 0){throw 'Runtime license inventory failed'}
-    & python (Join-Path $PSScriptRoot 'Sync-LegalDocuments.py')
+    & $python (Join-Path $PSScriptRoot 'Sync-LegalDocuments.py')
     if($LASTEXITCODE -ne 0){throw 'Offline legal document synchronization failed'}
 }
 Write-Output 'Native player plugins built successfully.'
