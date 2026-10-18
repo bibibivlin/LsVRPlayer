@@ -118,6 +118,31 @@ namespace VRPlayer
             => CollectItems(start => SendAccount(account,
                 PagedItemsPath(account, parent?.Id, start, search, parent?.IsMovieLibrary == true, AllItemsPageSize), "GET", null, token, ParseItems), token);
 
+        public Task<EmbyItemsResult> GetSeasons(EmbyAccount account, string seriesId, CancellationToken token = default)
+        {
+            RequireAccount(account); RequireId(seriesId);
+            return CollectOrderedItems(start => SendAccount(account, ShowItemsPath(account, seriesId, "Seasons", start),
+                "GET", null, token, ParseItems), token, false);
+        }
+
+        public Task<EmbyItemsResult> GetEpisodes(EmbyAccount account, string seriesId, string seasonId = "", string search = "", CancellationToken token = default)
+        {
+            RequireAccount(account); RequireId(seriesId);
+            return CollectOrderedItems(start => SendAccount(account, ShowItemsPath(account, seriesId, "Episodes", start, seasonId, search),
+                "GET", null, token, ParseItems), token, false);
+        }
+
+        private static string ShowItemsPath(EmbyAccount account, string seriesId, string kind, int start, string seasonId = "", string search = "")
+        {
+            string path = "/Shows/" + Escape(seriesId) + "/" + kind + "?UserId=" + Escape(account.userId) +
+                "&Limit=" + AllItemsPageSize + "&StartIndex=" + Math.Max(0, start) +
+                "&EnableTotalRecordCount=true&EnableImages=true&EnableUserData=true&Fields=" + Escape(Fields);
+            if (!string.IsNullOrEmpty(seasonId)) path += "&SeasonId=" + Escape(seasonId);
+            if (!string.IsNullOrWhiteSpace(search)) path += "&SearchTerm=" + Escape(search.Trim());
+            // The TV endpoints own season/episode order, including the server's treatment of specials.
+            return path;
+        }
+
         public async Task<EmbyItem> GetPerson(EmbyAccount account, string personId, CancellationToken token = default)
         {
             token.ThrowIfCancellationRequested();
@@ -157,7 +182,10 @@ namespace VRPlayer
         private static string MovieFilterPath(EmbyAccount account, int startIndex, string search, string parameter, string value)
             => PagedItemsPath(account, null, startIndex, search, true, AllItemsPageSize) + "&" + parameter + "=" + Escape(value);
 
-        private static async Task<EmbyItemsResult> CollectItems(Func<int, Task<EmbyItemsResult>> fetchPage, CancellationToken token)
+        private static Task<EmbyItemsResult> CollectItems(Func<int, Task<EmbyItemsResult>> fetchPage, CancellationToken token)
+            => CollectOrderedItems(fetchPage, token, true);
+
+        private static async Task<EmbyItemsResult> CollectOrderedItems(Func<int, Task<EmbyItemsResult>> fetchPage, CancellationToken token, bool sortByName)
         {
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var items = new List<EmbyItem>();
@@ -193,8 +221,8 @@ namespace VRPlayer
             return await Task.Run(() =>
             {
                 // Preserve a deterministic wall when multiple pages contain equal sort names.
-                var sorted = items.OrderBy(item => string.IsNullOrEmpty(item.SortName) ? item.Name ?? "" : item.SortName, StringComparer.OrdinalIgnoreCase)
-                    .ThenBy(item => item.Id, StringComparer.Ordinal).ToArray();
+                var sorted = sortByName ? items.OrderBy(item => string.IsNullOrEmpty(item.SortName) ? item.Name ?? "" : item.SortName, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(item => item.Id, StringComparer.Ordinal).ToArray() : items.ToArray();
                 token.ThrowIfCancellationRequested();
                 return new EmbyItemsResult { Items = sorted, TotalRecordCount = sorted.Length };
             }, token);

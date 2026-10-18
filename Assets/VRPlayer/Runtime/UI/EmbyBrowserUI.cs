@@ -53,6 +53,8 @@ namespace VRPlayer
         private float posterTop;
         private EmbyLibraryView posterView;
         private EmbyWallLayout posterLayout;
+        private int posterSpecialRow=-1;
+        private const float SpecialHeadingHeight=74;
         private int posterFirstRow=int.MinValue;
         private int textureBytes,imageWorkerCount;
         private float imageOffset=float.NaN,imageViewportHeight;
@@ -306,21 +308,35 @@ namespace VRPlayer
         private void DrawLibrary()
         {
             var state=app.EmbyState;
-            var search=UiFactory.Input(root,state.search??"",L.T("搜索当前影片列表"),0,80,Width-456,64,keyboard);
-            UiFactory.IconButton(root,"搜索",QuickIcon.Search,Width-440,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
-            UiFactory.IconButton(root,"清空",QuickIcon.Close,Width-360,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");},tooltip:"清空搜索");
-            var selector=Button(root,L.T("视图 · ")+L.T(EmbyLibraryViews.Label(LibraryView)),Width-280,80,280,64,ToggleViewMenu);selector.name="Emby view selector";
-            selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,64);
-            var left=UiFactory.Box(selector.transform,"Chevron left",253,32,12,3,Muted);left.pivot=new Vector2(.5f,.5f);left.localRotation=Quaternion.Euler(0,0,-45);
-            var right=UiFactory.Box(selector.transform,"Chevron right",261,32,12,3,Muted);right.pivot=new Vector2(.5f,.5f);right.localRotation=Quaternion.Euler(0,0,45);
+            float selectorWidth=FixedSeriesView?0:296;
+            var search=UiFactory.Input(root,state.search??"",L.T("搜索当前影片列表"),0,80,Width-160-selectorWidth,64,keyboard);
+            UiFactory.IconButton(root,"搜索",QuickIcon.Search,Width-144-selectorWidth,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
+            UiFactory.IconButton(root,"清空",QuickIcon.Close,Width-64-selectorWidth,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");},tooltip:"清空搜索");
+            if(!FixedSeriesView){
+                var selector=Button(root,L.T("视图 · ")+L.T(EmbyLibraryViews.Label(LibraryView)),Width-280,80,280,64,ToggleViewMenu);selector.name="Emby view selector";
+                selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,64);
+                var left=UiFactory.Box(selector.transform,"Chevron left",253,32,12,3,Muted);left.pivot=new Vector2(.5f,.5f);left.localRotation=Quaternion.Euler(0,0,-45);
+                var right=UiFactory.Box(selector.transform,"Chevron right",261,32,12,3,Muted);right.pivot=new Vector2(.5f,.5f);right.localRotation=Quaternion.Euler(0,0,45);
+            }
             BeginScroll(160,root.rect.height-160);var items=state.items??Array.Empty<EmbyItem>();
-            if(items.Length==0){UiFactory.Label(body,string.IsNullOrEmpty(state.search)?L.T("此媒体库暂无影片"):L.T("未找到匹配的影片"),18,80,BodyWidth-36,68,30).color=Muted;FinishScroll(260);}
-            else{float top=LibraryView==EmbyLibraryView.Table?TableHeader():0;FinishScroll(BuildPosterWall(items,top,LibraryView));}
+            if(items.Length==0&&state.specialEpisodes.Length==0){UiFactory.Label(body,string.IsNullOrEmpty(state.search)?L.T("此媒体库暂无影片"):L.T("未找到匹配的影片"),18,80,BodyWidth-36,68,30).color=Muted;FinishScroll(260);}
+            else{
+                float top=LibraryView==EmbyLibraryView.Table?TableHeader():state.episodeSeason!=null&&items.Length>0?SectionTitle(state.episodeSeason.Name,0):0;
+                FinishScroll(BuildPosterWall(items,top,LibraryView,state.specialEpisodes));
+            }
         }
         private string ViewLibraryId=>!string.IsNullOrEmpty(app.EmbyState.viewLibraryId)?app.EmbyState.viewLibraryId:app.EmbyState.parent?.Id??"all-movies";
-        private EmbyLibraryView LibraryView=>app.Store?.GetEmbyLibraryView(app.ActiveEmbyAccount?.id,ViewLibraryId)??EmbyLibraryView.Poster;
+        private bool FixedSeriesView=>app.EmbyState.parent?.Type=="Series"||app.EmbyState.parent?.Type=="Season";
+        private EmbyLibraryView LibraryView
+        {
+            get{
+                if(FixedSeriesView)return app.EmbyState.episodesView||app.EmbyState.parent.Type=="Season"?EmbyLibraryView.Thumb:EmbyLibraryView.Poster;
+                return app.Store?.GetEmbyLibraryView(app.ActiveEmbyAccount?.id,ViewLibraryId)??EmbyLibraryView.Poster;
+            }
+        }
         private void ToggleViewMenu()
         {
+            if(FixedSeriesView)return;
             closeKeyboard?.Invoke();if(viewMenu!=null){CloseViewMenu();return;}
             viewMenu=UiFactory.Box(root,"Emby view menu",0,0,Width,root.rect.height,Color.clear,true);
             var outside=viewMenu.gameObject.AddComponent<Button>();outside.onClick.AddListener(CloseViewMenu);
@@ -350,8 +366,8 @@ namespace VRPlayer
         {
             float width=layout.Width,artHeight=layout.ArtworkHeight;
             var captured=item;var card=Button(body,"",x,y,width,layout.CardHeight,()=>app.OpenEmbyItem(captured));UiFactory.Clear(card.transform);card.name=(thumbnails?"Emby resume ":"Emby latest ")+item.Id;
-            string type=EmbyLibraryViews.ImageType(item,thumbnails?EmbyLibraryView.Thumb:EmbyLibraryView.Poster),tag=EmbyLibraryViews.ImageTag(item,type);
-            Image(card.transform,item.Id,0,0,width,artHeight,!string.IsNullOrEmpty(tag),item,tag,type);
+            var artwork=EmbyLibraryViews.Artwork(item,thumbnails?EmbyLibraryView.Thumb:EmbyLibraryView.Poster);
+            Image(card.transform,artwork.ItemId,0,0,width,artHeight,artwork.Available,item,artwork.Tag,artwork.Type);
             bool episode=thumbnails&&item.Type=="Episode"&&!string.IsNullOrEmpty(item.SeriesName);
             var name=UiFactory.Label(card.transform,episode?item.SeriesName:DisplayName(item),8,artHeight+4,width-16,42,24);name.alignment=TextAlignmentOptions.MidlineLeft;
             string meta=episode?$"S{item.ParentIndexNumber}:E{item.IndexNumber} · {item.Name}":ItemMeta(item);
@@ -378,13 +394,20 @@ namespace VRPlayer
             var label=UiFactory.Label(body,L.Message(message),18,y,BodyWidth-36,44,23);label.color=Muted;label.textWrappingMode=TextWrappingModes.Normal;
             float height=Mathf.Max(44,label.GetPreferredValues(message,BodyWidth-36,float.PositiveInfinity).y+12);label.rectTransform.sizeDelta=new Vector2(BodyWidth-36,height);return y+height+14;
         }
-        private float BuildPosterWall(EmbyItem[] items,float top,EmbyLibraryView view=EmbyLibraryView.Poster)
+        private float BuildPosterWall(EmbyItem[] items,float top,EmbyLibraryView view=EmbyLibraryView.Poster,EmbyItem[] specials=null)
         {
             posterItems=items??Array.Empty<EmbyItem>();posterTop=top;posterFirstRow=int.MinValue;posterView=view;posterLayout=EmbyLibraryViews.Layout(view,BodyWidth);
             var layout=posterLayout;
+            posterSpecialRow=-1;
+            if(specials?.Length>0){
+                posterSpecialRow=Mathf.CeilToInt(posterItems.Length/(float)layout.Columns);
+                SectionTitle(L.T("特别篇"),top+posterSpecialRow*layout.Pitch+16);
+                var combined=new EmbyItem[posterSpecialRow*layout.Columns+specials.Length];
+                Array.Copy(posterItems,combined,posterItems.Length);Array.Copy(specials,0,combined,posterSpecialRow*layout.Columns,specials.Length);posterItems=combined;
+            }
             int count=layout.PoolSize(posterItems.Length,scroll.viewport.rect.height,ImagePreload);
             for(int i=0;i<count;i++)cardBuilds.Enqueue(BuildPosterCard);
-            return top+layout.ContentHeight(posterItems.Length);
+            return top+layout.ContentHeight(posterItems.Length)+(posterSpecialRow>=0?SpecialHeadingHeight:0);
         }
         private void BuildPosterCard()
         {
@@ -397,7 +420,7 @@ namespace VRPlayer
             if(!alphaArtwork)slot.artwork.gameObject.AddComponent<Mask>().showMaskGraphic=true;
             slot.placeholder=UiFactory.Label(slot.artwork,"",4,0,layout.ArtworkWidth-8,layout.ArtworkHeight,table?14:list?17:22,TextAlignmentOptions.Center);slot.placeholder.name="Text";slot.placeholder.color=Muted;
             var imageRect=UiFactory.Rect(slot.artwork,"Image",0,0,layout.ArtworkWidth,layout.ArtworkHeight);imageRect.pivot=new Vector2(.5f,.5f);slot.image=imageRect.gameObject.AddComponent<RawImage>();slot.image.raycastTarget=false;slot.image.color=Color.clear;
-            var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=alphaArtwork?AspectRatioFitter.AspectMode.FitInParent:AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
+            var fit=imageRect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=alphaArtwork||FixedSeriesView?AspectRatioFitter.AspectMode.FitInParent:AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=layout.ArtworkWidth/layout.ArtworkHeight;
             slot.label=UiFactory.Label(slot.root,"",list||table?110:8,list?8:table?14:layout.ArtworkHeight+4,table?layout.Width-634:list?layout.Width-126:layout.Width-16,42,24);
             if(table){
                 slot.year=UiFactory.Label(slot.root,"",layout.Width-544,14,86,42,23);slot.duration=UiFactory.Label(slot.root,"",layout.Width-444,14,126,42,23);
@@ -411,7 +434,12 @@ namespace VRPlayer
             posterPool.Add(slot);
             BindPosterCard(slot,posterPool.Count-1,FirstPosterRow());
         }
-        private int FirstPosterRow()=>Mathf.Clamp(Mathf.FloorToInt((Offset-posterTop-ImagePreload)/posterLayout.Pitch),0,Mathf.Max(0,Mathf.CeilToInt(posterItems.Length/(float)posterLayout.Columns)-1));
+        private int FirstPosterRow()
+        {
+            float offset=Offset-posterTop-ImagePreload;
+            if(posterSpecialRow>=0&&offset>=posterSpecialRow*posterLayout.Pitch)offset=Mathf.Max(posterSpecialRow*posterLayout.Pitch,offset-SpecialHeadingHeight);
+            return Mathf.Clamp(Mathf.FloorToInt(offset/posterLayout.Pitch),0,Mathf.Max(0,Mathf.CeilToInt(posterItems.Length/(float)posterLayout.Columns)-1));
+        }
         private void UpdatePosterWall()
         {
             if(posterPool.Count==0||body==null)return;
@@ -426,18 +454,19 @@ namespace VRPlayer
             var layout=posterLayout;UnbindImage(slot.imageBinding);slot.imageBinding=null;
             int index=first*layout.Columns+i;var item=index<posterItems.Length?posterItems[index]:null;
             slot.root.gameObject.SetActive(item!=null);if(item==null){slot.binding.Item=null;return;}
-            slot.root.anchoredPosition=new Vector2(14+(i%layout.Columns)*(layout.Width+18),-(posterTop+(index/layout.Columns)*layout.Pitch));
+            int row=index/layout.Columns;
+            slot.root.anchoredPosition=new Vector2(14+(i%layout.Columns)*(layout.Width+18),-(posterTop+row*layout.Pitch+(posterSpecialRow>=0&&row>=posterSpecialRow?SpecialHeadingHeight:0)));
             slot.binding.Item=new BrowserRow{key=(app.ActiveEmbyAccount?.id??"")+":"+item.Id,open=()=>app.OpenEmbyItem(item)};
             slot.root.GetComponent<Button>().interactable=!string.IsNullOrEmpty(item.Id);
-            slot.label.text=DisplayName(item);if(slot.meta!=null)slot.meta.text=posterView==EmbyLibraryView.List?DetailsMeta(item)+"   ·   "+PlaybackProgress(item):ItemMeta(item);
+            slot.label.text=item.Type=="Episode"&&FixedSeriesView?(item.IndexNumber>0?item.IndexNumber+(item.IndexNumberEnd>item.IndexNumber?"–"+item.IndexNumberEnd:"")+". ":"")+(item.Name??""):DisplayName(item);if(slot.meta!=null)slot.meta.text=posterView==EmbyLibraryView.List?DetailsMeta(item)+"   ·   "+PlaybackProgress(item):ItemMeta(item);
             if(slot.overview!=null)slot.overview.text=string.IsNullOrWhiteSpace(item.Overview)?L.T("暂无影片简介"):PlainOverview(item.Overview);
             if(slot.year!=null){slot.year.text=item.ProductionYear>0?item.ProductionYear.ToString():"—";slot.duration.text=item.RunTimeTicks>0?TicksClock(item.RunTimeTicks):"—";slot.rating.text=item.CommunityRating>0?item.CommunityRating.ToString("0.0"):"—";slot.resume.text=PlaybackProgress(item);}
-            string type=EmbyLibraryViews.ImageType(item,posterView),tag=EmbyLibraryViews.ImageTag(item,type);
-            bool available=!string.IsNullOrEmpty(tag);slot.placeholder.text=available?"Emby":item.IsBrowsable?L.T("媒体库"):posterView==EmbyLibraryView.Table?L.T("无图片"):L.T("暂无图片");
-            slot.imageBinding=RegisterImage(slot.image,slot.artwork,item.Id,layout.ArtworkHeight,available,item,tag,type);
+            var artwork=EmbyLibraryViews.Artwork(item,posterView);
+            slot.placeholder.text=artwork.Available?"Emby":item.Type=="Season"?L.T("暂无海报"):item.Type=="Episode"?L.T("暂无缩略图"):item.IsBrowsable?L.T("媒体库"):posterView==EmbyLibraryView.Table?L.T("无图片"):L.T("暂无图片");
+            slot.imageBinding=RegisterImage(slot.image,slot.artwork,artwork.ItemId,layout.ArtworkHeight,artwork.Available,item,artwork.Tag,artwork.Type);
             float progress=Progress(item);slot.progressRail.gameObject.SetActive(progress>0);slot.progress.gameObject.SetActive(progress>0);slot.progress.sizeDelta=new Vector2(layout.ArtworkWidth*progress,6);slot.watched.gameObject.SetActive(item.UserData?.Played==true);
         }
-        private void ClearPosterWall(){posterPool.Clear();posterItems=Array.Empty<EmbyItem>();posterFirstRow=int.MinValue;}
+        private void ClearPosterWall(){posterPool.Clear();posterItems=Array.Empty<EmbyItem>();posterFirstRow=int.MinValue;posterSpecialRow=-1;}
         private void ClearCast()
         {
             castRegion?.Clear();castPool.Clear();castPeople=Array.Empty<EmbyPerson>();castScroll=null;castBody=null;castRegion=null;castFirst=-1;
@@ -489,7 +518,8 @@ namespace VRPlayer
         {
             var item=app.EmbyState.selected;if(item==null){UiFactory.Label(root,L.T("无法读取影片详情"),24,170,Width-48,66,30);return;}
             BeginScroll(76,root.rect.height-90);
-            Image(body,item.Id,14,8,246,369,!string.IsNullOrEmpty(item.ImageTags?.Primary),item);
+            var artwork=EmbyLibraryViews.Artwork(item,EmbyLibraryView.Poster);
+            Image(body,artwork.ItemId,14,8,246,item.Type=="Episode"?246*9f/16:369,artwork.Available,item,artwork.Tag,artwork.Type);
             var name=UiFactory.Label(body,DisplayName(item),290,8,BodyWidth-304,78,36);name.textWrappingMode=TextWrappingModes.Normal;name.alignment=TextAlignmentOptions.TopLeft;
             name.overflowMode=TextOverflowModes.Overflow;
             float nameHeight=Mathf.Max(78,name.GetPreferredValues(name.text,BodyWidth-304,float.PositiveInfinity).y+12);name.rectTransform.sizeDelta=new Vector2(BodyWidth-304,nameHeight);
@@ -641,7 +671,7 @@ namespace VRPlayer
             var placeholder=UiFactory.Label(holder,available?"Emby":item?.IsBrowsable==true?L.T("媒体库"):width>height?L.T("暂无缩略图"):L.T("暂无海报"),8,0,width-16,height,22,TextAlignmentOptions.Center);placeholder.color=Muted;
             if(!available||string.IsNullOrEmpty(itemId)||app.ActiveEmbyAccount==null)return;
             var rect=UiFactory.Rect(holder,"Image",0,0,width,height);rect.pivot=new Vector2(.5f,.5f);var image=rect.gameObject.AddComponent<RawImage>();image.raycastTarget=false;
-            var fit=rect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=width/height;
+            var fit=rect.gameObject.AddComponent<AspectRatioFitter>();fit.aspectMode=item?.Type=="Episode"?AspectRatioFitter.AspectMode.FitInParent:AspectRatioFitter.AspectMode.EnvelopeParent;fit.aspectRatio=width/height;
             RegisterImage(image,holder,itemId,height,available,item,imageTag,imageType);
         }
         private ImageBinding RegisterImage(RawImage image,RectTransform holder,string itemId,float height,bool available,EmbyItem item,string imageTag,string imageType)
@@ -649,7 +679,7 @@ namespace VRPlayer
             Detach(image);if(!available||string.IsNullOrEmpty(itemId)||app.ActiveEmbyAccount==null)return null;
             var account=app.ActiveEmbyAccount;string tag=string.IsNullOrEmpty(imageTag)?item?.ImageTags?.Primary??"":imageTag,key=account.id+":"+itemId+":"+imageType+":"+tag;
             if(!imageJobs.TryGetValue(key,out var job)){
-                string url=app.EmbyApi.ImageUrl(account,itemId,imageType,imageType=="Primary"?256:428);
+                string url=app.EmbyApi.ImageUrl(account,itemId,imageType,imageType=="Primary"&&item?.Type!="Episode"?256:428);
                 if(!string.IsNullOrEmpty(tag))url+="&tag="+Uri.EscapeDataString(tag);
                 job=new ImageJob{key=key,url=url,token=account.accessToken,generation=imageGeneration};imageJobs.Add(key,job);
             }

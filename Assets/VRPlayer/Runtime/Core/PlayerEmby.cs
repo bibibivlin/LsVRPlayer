@@ -15,11 +15,12 @@ namespace VRPlayer
         public string title="Emby 服务器与账户",error="",search="";
         public string filterKind="",filterValue="",filterId="";
         public string viewLibraryId="";
-        public bool loading,canGoBack;
+        public bool loading,canGoBack,episodesView;
         public string playedItemId="",playedError="";
         public int revision,totalCount,startIndex;
         public EmbyItem[] views=Array.Empty<EmbyItem>(),resume=Array.Empty<EmbyItem>(),latest=Array.Empty<EmbyItem>(),items=Array.Empty<EmbyItem>(),parts=Array.Empty<EmbyItem>(),extras=Array.Empty<EmbyItem>();
-        public EmbyItem selected,parent;
+        public EmbyItem selected,parent,episodeSeason;
+        public EmbyItem[] specialEpisodes=Array.Empty<EmbyItem>();
     }
 
     public sealed partial class PlayerApp
@@ -173,10 +174,40 @@ namespace VRPlayer
             var token=BeginEmbyRequest(state);
             try{
                 var metadata=string.IsNullOrEmpty(parent.Type)?await EmbyApi.GetItem(account,parent.Id,token):parent;
-                var result=await EmbyApi.GetAllItems(account,metadata,state.search,token);
+                EmbyItemsResult result;
+                if(metadata.Type=="Series"){
+                    var seasons=(await EmbyApi.GetSeasons(account,metadata.Id,token)).Items;
+                    var regular=seasons.Where(season=>season.Type=="Season"&&season.IndexNumber!=0).ToArray();
+                    if(seasons.Any(season=>string.IsNullOrEmpty(season.ImageTags?.Primary)&&string.IsNullOrEmpty(season.SeriesPrimaryImageTag))&&string.IsNullOrEmpty(metadata.ImageTags?.Primary))
+                        metadata=await EmbyApi.GetItem(account,metadata.Id,token);
+                    foreach(var season in seasons){
+                        if(string.IsNullOrEmpty(season.SeriesId))season.SeriesId=metadata.Id;
+                        if(string.IsNullOrEmpty(season.SeriesPrimaryImageTag))season.SeriesPrimaryImageTag=metadata.ImageTags?.Primary;
+                    }
+                    if(regular.Length==1||seasons.Length==0){
+                        state.episodesView=true;state.episodeSeason=regular.FirstOrDefault();
+                        result=await EmbyApi.GetEpisodes(account,metadata.Id,state.episodeSeason?.Id??"",state.search,token);
+                        if(state.episodeSeason!=null){
+                            var specials=new List<EmbyItem>();
+                            foreach(var season in seasons.Where(season=>season.Type=="Season"&&season.IndexNumber==0)){
+                                var episodes=await EmbyApi.GetEpisodes(account,metadata.Id,season.Id,state.search,token);
+                                specials.AddRange(episodes.Items);
+                            }
+                            state.specialEpisodes=specials.ToArray();
+                        }
+                    }else{
+                        var visible=seasons.Where(season=>string.IsNullOrWhiteSpace(state.search)||(season.Name??"").IndexOf(state.search.Trim(),StringComparison.OrdinalIgnoreCase)>=0).ToArray();
+                        result=new EmbyItemsResult{Items=visible,TotalRecordCount=visible.Length};
+                    }
+                }else if(metadata.Type=="Season"){
+                    if(string.IsNullOrEmpty(metadata.SeriesId)&&string.IsNullOrEmpty(metadata.ParentId))metadata=await EmbyApi.GetItem(account,metadata.Id,token);
+                    string seriesId=string.IsNullOrEmpty(metadata.SeriesId)?metadata.ParentId:metadata.SeriesId;
+                    state.episodesView=true;
+                    result=await EmbyApi.GetEpisodes(account,seriesId,metadata.Id,state.search,token);
+                }else result=await EmbyApi.GetAllItems(account,metadata,state.search,token);
                 if(token.IsCancellationRequested||ActiveEmbyAccount!=account)return;
-                state.parent=metadata;state.title=metadata.Name;
-                state.items=result.Items??Array.Empty<EmbyItem>();state.totalCount=result.TotalRecordCount;state.loading=false;PublishEmby(state);
+                state.parent=metadata;state.title=metadata.Type=="Season"&&!string.IsNullOrEmpty(metadata.SeriesName)?metadata.SeriesName+" · "+metadata.Name:metadata.Name;
+                state.items=result.Items??Array.Empty<EmbyItem>();state.totalCount=result.TotalRecordCount+state.specialEpisodes.Length;state.loading=false;PublishEmby(state);
             }catch(OperationCanceledException){}catch(Exception ex){FailEmby(token,ex,account);}
         }
 

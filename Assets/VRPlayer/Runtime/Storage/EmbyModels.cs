@@ -20,8 +20,10 @@ namespace VRPlayer
     {
         public string Id, Name, Type, ParentId, Overview, OfficialRating, SeriesName, Path, DateModified;
         public string CollectionType, ExtraType, SortName, PremiereDate, EndDate;
+        public string SeriesId, SeasonId, SeasonName, SeriesPrimaryImageTag;
         public bool IsFolder;
-        public int ProductionYear, IndexNumber, ParentIndexNumber, PartCount, SpecialFeatureCount, LocalTrailerCount;
+        public int IndexNumber = -1;
+        public int ProductionYear, ParentIndexNumber, IndexNumberEnd, PartCount, SpecialFeatureCount, LocalTrailerCount;
         public float CommunityRating, PrimaryImageAspectRatio;
         public long RunTimeTicks, Size;
         public EmbyPerson[] People = Array.Empty<EmbyPerson>();

@@ -20,6 +20,13 @@ namespace VRPlayer
         public float ContentHeight(int items)=>(float)Math.Ceiling(items/(double)Columns)*Pitch;
     }
 
+    public readonly struct EmbyArtwork
+    {
+        public readonly string ItemId, Type, Tag;
+        public bool Available=>!string.IsNullOrEmpty(ItemId)&&!string.IsNullOrEmpty(Tag);
+        public EmbyArtwork(string itemId,string type,string tag){ItemId=itemId;Type=type;Tag=tag;}
+    }
+
     public static class EmbyLibraryViews
     {
         public static EmbyLibraryView Normalize(EmbyLibraryView view)=>Enum.IsDefined(typeof(EmbyLibraryView),view)?view:EmbyLibraryView.Poster;
@@ -55,6 +62,9 @@ namespace VRPlayer
         }
         public static string ImageType(EmbyItem item,EmbyLibraryView view)
         {
+            // An episode's Primary image is its still, not a series poster. Never use inherited show art.
+            if(item?.Type=="Episode")return !string.IsNullOrEmpty(item.ImageTags?.Primary)?"Primary":"Thumb";
+            if(item?.Type=="Season")return "Primary";
             string requested=Normalize(view) switch {
                 EmbyLibraryView.Banner=>"Banner",EmbyLibraryView.Disc=>"Disc",EmbyLibraryView.Logo=>"Logo",
                 EmbyLibraryView.Thumb or EmbyLibraryView.Table=>"Thumb",_=>"Primary"
@@ -62,6 +72,13 @@ namespace VRPlayer
             if(!string.IsNullOrEmpty(ImageTag(item,requested)))return requested;
             if(requested=="Thumb"&&!string.IsNullOrEmpty(ImageTag(item,"Backdrop")))return "Backdrop";
             return "Primary";
+        }
+        public static EmbyArtwork Artwork(EmbyItem item,EmbyLibraryView view)
+        {
+            string type=ImageType(item,view),tag=ImageTag(item,type);
+            if(item?.Type=="Season"&&string.IsNullOrEmpty(tag))
+                return new EmbyArtwork(item.SeriesId,"Primary",item.SeriesPrimaryImageTag);
+            return new EmbyArtwork(item?.Id,type,tag);
         }
         public static string ImageTag(EmbyItem item,string type)=>type switch {
             "Banner"=>item?.ImageTags?.Banner,"Disc"=>item?.ImageTags?.Disc,"Logo"=>item?.ImageTags?.Logo,
