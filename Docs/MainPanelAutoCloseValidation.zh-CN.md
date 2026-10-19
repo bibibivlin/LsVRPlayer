@@ -1,5 +1,36 @@
 # 主面板点击播放后自动关闭：实机验证
 
+> 2026-10-20 更正：原报告验证的是先前误解需求的实现，仅保留为历史记录，不能作为当前需求的验收依据。正确行为是点击视频文件、Emby 开始／继续播放入口，在影片打开后关闭主面板；主面板底部的播放／暂停按钮应保留主面板。
+
+## 2026-10-20 修正验证（编辑器）
+
+关闭逻辑已移动到影片打开回调，直接打开影片时收起主面板；显式上一部／下一部及自动连续播放保持原面板状态。Emby 原始视频解析成功并进入打开流程后才收起；请求失败、取消或播放后端不可用时保留主面板。
+
+Unity 6000.3.23f1 编译通过。QuickControls、EmbyIntegration、EmbyPartPlaylist、EmbyMultipartResume 和 AdjacentPlayback 的相关 EditMode 测试 **179／179 通过**，0 失败、0 跳过，23.67 秒。
+
+另在编辑器中复用 QuickControls 测试夹具，使用生成的文件列表条目和一次性本机回环 HTTP Emby 夹具检查实际 UI 回调：文件条目存在、点击文件收起主面板、底部播放／暂停保留主面板、显式／自动相邻播放保留主面板、已有快捷面板保持显示、无后端保留主面板、Emby 点击播放时等待打开完成、Emby 开始播放后收起、继续播放恢复 42 秒进度并收起、Emby 失败／取消时保留主面板，**13 项检查全部通过**。夹具只使用生成的账户、响应和测试播放后端，没有访问真实服务器或影片。回环夹具和编辑器对象已清理。
+
+## 2026-10-20 修正验证（PICO 4）
+
+使用独立包 `com.linxyi.LsVRPlayer.MainPanelCorrection121` 构建并安装 Android Development APK（版本 1.2.1、versionCode 10、ARM64／IL2CPP）。APK SHA-256：
+
+```text
+1a6a84e7454663f0121a369602293fea333530d51c33b62b148d815bfcdb5b1d
+```
+
+USB PICO 4（A8110）上，用户佩戴头显并保持应用前台期间，运行 38.64 秒；实时诊断保持新鲜且连续，验证结束后所有测试文件均恢复原不存在状态，设备设置与正式版隐私同意记录未改变。四项检查全部通过：
+
+| 检查 | 结果 |
+| --- | --- |
+| 无影片时底部禁用的播放按钮不关闭主面板 | 通过 |
+| 从主面板文件列表点击生成的可见视频文件，开始播放后关闭主面板 | 通过 |
+| 播放中点击底部暂停，主面板保持显示 | 通过 |
+| 再点击底部播放，播放恢复且主面板保持显示 | 通过 |
+
+本轮使用开发版模拟指针，经共享 `VrUiInput.Dispatch` 和真实 uGUI 交互路径操作头显中的播放器；这验证了设备上的构建、场景和 UI 行为，但**没有人工验证物理扳机、可读性或佩戴舒适度**。实机未连接真实 Emby 服务器；Emby 开始／继续播放成功、失败与取消路径由前述编辑器回归夹具覆盖。生成短片的结果不代表长影片、SMB 或高码率网络兼容性。
+
+## 2026-10-19 历史验证（错误入口）
+
 2026-10-19（Asia/Shanghai），USB PICO 4（A8110），Unity 6000.3.23f1，Android ARM64／IL2CPP Development。本次验证主面板底部播放／暂停按钮：点击播放立即收起主面板，点击暂停保留主面板。
 
 ## 结果与范围
@@ -46,7 +77,7 @@
 python Docs/Validation/main-panel-autoclose-20261019-ae42b1/run-device.py --serial <PICO_SERIAL>
 ```
 
-该目录还保留 `report.json`、`summary.json`、`presence-and-freshness.jsonl`、`command-results.jsonl`、`apk-verification.json`、构建日志和设备日志。四张原始双眼截图位于忽略的 `Docs/Captures/main-panel-autoclose-20261019-ae42b1/`，均已查看。以下两张选图仅含生成短片与无账户的验证界面，已检查无私密媒体或账户信息：
+该目录还保留 `report.json`、`summary.json`、`presence-and-freshness.jsonl`、`command-results.jsonl`、`apk-verification.json`、构建日志和设备日志。四张原始双眼截图位于忽略的 `Docs/Captures/main-panel-autoclose-20261019-ae42b1/`，均已查看。以下两张选图来自 2026-10-19 的错误入口验证，仅用于保留历史记录，不能代表 1.2.1 修正后的行为。图片仅含生成短片与无账户的验证界面，已检查无私密媒体或账户信息：
 
 点击播放前，主面板可见：
 

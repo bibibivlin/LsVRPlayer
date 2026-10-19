@@ -247,7 +247,7 @@ namespace VRPlayer
             }else Backend.Open(entry.uri,Current.position,Generation);
             Backend.SelectTrack("off",3);
             Store.Save();
-            Status="正在打开："+entry.name;UI.PlaybackOpened();Notify();_ = DiscoverSubtitles(Current.directory,Generation);
+            Status="正在打开："+entry.name;UI.PlaybackOpened(closeMainPanel:!keepPlaylist);Notify();_ = DiscoverSubtitles(Current.directory,Generation);
         }
         public void TogglePlay(){if(Backend==null||Current==null)return;if(Backend.Snapshot.playing)Pause();else Backend.Play();}
         public void Pause(){Backend?.Pause();if(embyPlayback!=null&&embyReportedStart)QueueEmbyReport("progress",Backend.Snapshot.position,true);SaveProgress();}
