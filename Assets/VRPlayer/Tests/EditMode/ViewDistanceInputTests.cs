@@ -51,19 +51,21 @@ namespace VRPlayer.Tests
             if(File.Exists(path))File.Delete(path);
         }
         [TestCase(0f)][TestCase(.5f)]
-        public void HiddenFlatAndCurvedScreensMoveNearerOnStickUp(float curvature)
+        public void HiddenFlatAndCurvedScreensMoveNearerOnStickDown(float curvature)
         {
-            app.Presenter.Settings.curvature=curvature;Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
-            Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
-            Tick(Vector2.up,100);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(1.2f));Tick(Vector2.down,100);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(10));
+            Grip(0,true);
+            app.Presenter.Settings.curvature=curvature;Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
+            Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+            Tick(Vector2.down,100);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(1.2f));Tick(Vector2.up,100);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(10));
             Assert.That(app.Current.formatLocked,Is.False);Assert.That(app.Presenter.Settings.curvature,Is.EqualTo(curvature));
         }
         [TestCase(Projection.Equirect180)][TestCase(Projection.Equirect360)][TestCase(Projection.Fisheye)][TestCase(Projection.Cubemap3x2)][TestCase(Projection.Eac3x2)]
-        public void HiddenPanoramasEnlargeOnStickUpAndRespectZoomLimits(Projection projection)
+        public void HiddenPanoramasEnlargeOnStickDownAndRespectZoomLimits(Projection projection)
         {
-            app.Presenter.Settings.projection=projection;Tick(Vector2.up);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1.125f));
-            Tick(Vector2.down);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));
-            Tick(Vector2.up,100);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(2));Tick(Vector2.down,100);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(.5f));
+            Grip(0,true);
+            app.Presenter.Settings.projection=projection;Tick(Vector2.down);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1.125f));
+            Tick(Vector2.up);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));
+            Tick(Vector2.down,100);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(2));Tick(Vector2.up,100);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(.5f));
             Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Assert.That(app.Current.formatLocked,Is.False);
         }
         [TestCase(Projection.Flat)][TestCase(Projection.Equirect360)]
@@ -78,32 +80,33 @@ namespace VRPlayer.Tests
         }
         [Test] public void ReturningStickToNeutralPersistsDistanceWithoutSavingEveryTick()
         {
-            Tick(Vector2.up);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));Assert.That(Saved().distance,Is.EqualTo(3.5f));
+            Grip(0,true);
+            Tick(Vector2.down);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));Assert.That(Saved().distance,Is.EqualTo(3.5f));
             Tick(Vector2.zero);Assert.That(Saved().distance,Is.EqualTo(2.5f));
         }
         [Test] public void VisibleFullAndQuickPanelsKeepVerticalInputForTheirLists()
         {
-            ui.Show();Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
-            ui.Hide();ui.ShowQuick();Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+            ui.Show();Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+            ui.Hide();ui.ShowQuick();Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
         }
         [TestCase(0)][TestCase(1)]
         public void EitherGripAndStickMovesOnlyTheVisibleMainPanel(int hand)
         {
             ui.Show();head.transform.rotation=Quaternion.Euler(12,35,0);ui.Show();
             var before=ui.Canvas.transform.position;var rotation=ui.Canvas.transform.rotation;var scale=ui.Canvas.transform.localScale;
-            Grip(hand,true);TickHand(hand,Vector2.up);
+            Grip(hand,true);TickHand(hand,Vector2.down);
             Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
             Assert.That(Vector3.Distance(ui.Canvas.transform.position,before-ui.Canvas.transform.forward*.5f),Is.LessThan(.0001));
             Assert.That(ui.Canvas.transform.rotation,Is.EqualTo(rotation));Assert.That(ui.Canvas.transform.localScale,Is.EqualTo(scale));
             Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));Assert.That(app.Current.formatLocked,Is.False);
-            TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
-            TickHand(hand,Vector2.up,100);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.2f));
-            TickHand(hand,Vector2.down,100);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(6));
+            TickHand(hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.down,100);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.2f));
+            TickHand(hand,Vector2.up,100);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(6));
         }
         [TestCase(0)][TestCase(1)]
         public void PanelDistanceWorksWithoutAFilmAndPersistsAtGestureEnd(int hand)
         {
-            Set("Current",null);ui.Show();Grip(hand,true);TickHand(hand,Vector2.down);
+            Set("Current",null);ui.Show();Grip(hand,true);TickHand(hand,Vector2.up);
             Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(2));
             TickHand(hand,Vector2.zero);Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(2.5f));
             ui.Hide();head.transform.position=new Vector3(2,1,3);ui.Show();
@@ -112,81 +115,149 @@ namespace VRPlayer.Tests
         [TestCase(0)][TestCase(1)]
         public void ChangingGripModeRequiresNeutralBeforeReusingAHeldStick(int hand)
         {
-            ui.Show();TickHand(hand,Vector2.up);Grip(hand,true);TickHand(hand,Vector2.up);
+            ui.Show();TickHand(hand,Vector2.down);Grip(hand,true);TickHand(hand,Vector2.down);
             Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
-            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));
-            Grip(hand,false);TickHand(hand,Vector2.down);
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));
+            Grip(hand,false);TickHand(hand,Vector2.up);
             var gesture=(StickTransportGesture)typeof(VrUiInput).GetField("transport",Private).GetValue(input);
             Assert.That(gesture.Scroll,Is.Zero);Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(2.5f));
-            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);Assert.That(gesture.Scroll,Is.EqualTo(-1));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.up);Assert.That(gesture.Scroll,Is.EqualTo(1));
         }
         [TestCase(0)][TestCase(1)]
         public void PanelGripDoesNotSeekOrUseTheOtherHandsUnmodifiedStick(int hand)
         {
             ui.Show();Grip(hand,true);TickHand(hand,Vector2.right);Assert.That(backend.seeks,Is.Zero);
-            TickHand(hand,Vector2.zero);TickHand(1-hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
-            TickHand(hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));Assert.That(backend.seeks,Is.Zero);
+            TickHand(hand,Vector2.zero);TickHand(1-hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));Assert.That(backend.seeks,Is.Zero);
         }
         [Test] public void TwoGrippedSticksMoveThePanelOnlyOnceAndDoNotScrollTheList()
         {
             ui.Show();ui.SelectTab("信息");var body=(RectTransform)typeof(PlayerUI).GetField("infoBody",Private).GetValue(ui);body.anchoredPosition=new Vector2(0,80);
-            Grip(0,true);Grip(1,true);input.SetDiagnosticStick(1,Vector2.down);Tick(Vector2.down);
+            Grip(0,true);Grip(1,true);input.SetDiagnosticStick(1,Vector2.up);Tick(Vector2.up);
             Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2.5f));Assert.That(body.anchoredPosition.y,Is.EqualTo(80));
         }
         [TestCase("OnApplicationFocus",false)][TestCase("OnApplicationPause",true)]
         public void InterruptingPanelMovementSavesAndRequiresNeutral(string message,bool value)
         {
-            ui.Show();Grip(0,true);Tick(Vector2.up);typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{value});
-            Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(1.5f));Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
-            Tick(Vector2.zero);Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            ui.Show();Grip(0,true);Tick(Vector2.down);typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{value});
+            Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(1.5f));Tick(Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
+            Tick(Vector2.zero);Tick(Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
         }
         [TestCase(0)][TestCase(1)]
         public void PanelTrackingLossAndFocusedTextBlockMovement(int hand)
         {
-            ui.Show();Grip(hand,true);TickHand(hand,Vector2.up,typing:true);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
-            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.up);TickHand(hand,Vector2.down,valid:false);
-            Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(1.5f));TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
-            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            ui.Show();Grip(hand,true);TickHand(hand,Vector2.down,typing:true);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.down);TickHand(hand,Vector2.up,valid:false);
+            Assert.That(new PlayerStore(path).Settings.mainPanelDistance,Is.EqualTo(1.5f));TickHand(hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(1.5f));
+            TickHand(hand,Vector2.zero);TickHand(hand,Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
         }
         [Test] public void QuickAndHiddenSurfacesNeverMoveTheMainPanel()
         {
-            Grip(0,true);Tick(Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
-            Tick(Vector2.zero);ui.ShowQuick();Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            Grip(0,true);Tick(Vector2.down);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
+            Tick(Vector2.zero);ui.ShowQuick();Tick(Vector2.up);Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));
             Assert.That(app.AdjustMainPanelDistance(1,.25f),Is.False);
         }
         [Test] public void SurfaceChangeRequiresNeutralBeforeHiddenDistanceAdjustmentResumes()
         {
-            Tick(Vector2.up);ui.Show();typeof(VrUiInput).GetMethod("CancelAllPointers",Private).Invoke(input,null);Assert.That(Saved().distance,Is.EqualTo(3));
-            ui.Hide();Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
-            Tick(Vector2.zero);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));
+            Grip(0,true);
+            Tick(Vector2.down);ui.Show();typeof(VrUiInput).GetMethod("CancelAllPointers",Private).Invoke(input,null);Assert.That(Saved().distance,Is.EqualTo(3));
+            ui.Hide();Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
+            Tick(Vector2.zero);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));
         }
         [TestCase("OnApplicationFocus",false)][TestCase("OnApplicationPause",true)]
         public void LifecycleInterruptionPersistsAndSuppressesHeldDistanceInput(string message,bool value)
         {
-            Tick(Vector2.up);typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{value});Assert.That(Saved().distance,Is.EqualTo(3));
-            Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));Tick(Vector2.zero);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));
+            Grip(0,true);
+            Tick(Vector2.down);typeof(VrUiInput).GetMethod(message,Private).Invoke(input,new object[]{value});Assert.That(Saved().distance,Is.EqualTo(3));
+            Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));Tick(Vector2.zero);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));
         }
         [Test] public void LostTrackingPersistsAndNeedsNeutralBeforeAdjustingAgain()
         {
-            Tick(Vector2.up);Tick(Vector2.up,valid:false);Assert.That(Saved().distance,Is.EqualTo(3));
-            Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));Tick(Vector2.zero);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));
+            Grip(0,true);
+            Tick(Vector2.down);Tick(Vector2.down,valid:false);Assert.That(Saved().distance,Is.EqualTo(3));
+            Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));Tick(Vector2.zero);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(2.5f));
         }
         [Test] public void HeldPointerBlocksDistanceAndRequiresNeutralAfterRelease()
         {
-            var held=(bool[])typeof(VrUiInput).GetField("held",Private).GetValue(input);held[0]=true;Tick(Vector2.up);held[0]=false;Tick(Vector2.up);
-            Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Tick(Vector2.zero);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
+            Grip(0,true);
+            var held=(bool[])typeof(VrUiInput).GetField("held",Private).GetValue(input);held[0]=true;Tick(Vector2.down);held[0]=false;Tick(Vector2.down);
+            Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Tick(Vector2.zero);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
         }
         [Test] public void TwoVerticalSticksDoNotDoubleDistanceAdjustment()
         {
-            input.SetDiagnosticStick(1,Vector2.up);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
+            Grip(0,true);Grip(1,true);
+            input.SetDiagnosticStick(1,Vector2.down);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
         }
         [Test] public void HorizontalStickStillSeeksWithoutChangingDistance()
         {
             Tick(Vector2.right);Assert.That(backend.seeks,Is.EqualTo(1));Assert.That(backend.Snapshot.position,Is.EqualTo(10000));Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
         }
+        [TestCase(Projection.Flat)][TestCase(Projection.Equirect360)]
+        public void HiddenVideoRequiresTheSameHandsGripBeforeDistanceInput(Projection projection)
+        {
+            app.Presenter.Settings.projection=projection;
+            Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));
+            Grip(0,true);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));
+            Tick(Vector2.zero);Grip(0,false);Grip(1,true);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));
+            TickHand(1,Vector2.zero);TickHand(1,Vector2.down);Assert.That(projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom,Is.EqualTo(projection==Projection.Flat?3:1.125f));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void GrippedHorizontalStickScalesFlatScreenWithoutMovingOrSeeking(int hand)
+        {
+            var view=app.Presenter.Settings;view.curvature=.4f;app.Current.formatLocked=true;
+            Grip(hand,true);TickHand(hand,Vector2.right);Assert.That(view.width,Is.EqualTo(5));Assert.That(Saved().width,Is.EqualTo(4.5f));
+            TickHand(hand,Vector2.left);Assert.That(view.width,Is.EqualTo(4.5f));
+            TickHand(hand,Vector2.right,100);Assert.That(view.width,Is.EqualTo(10));TickHand(hand,Vector2.left,100);Assert.That(view.width,Is.EqualTo(1));
+            Assert.That(view.distance,Is.EqualTo(3.5f));Assert.That(view.panoramaZoom,Is.EqualTo(1));Assert.That(view.curvature,Is.EqualTo(.4f));Assert.That(app.Current.formatLocked);Assert.That(backend.seeks,Is.Zero);
+            TickHand(hand,Vector2.zero);Assert.That(Saved().width,Is.EqualTo(1));
+        }
+        [TestCase(0)][TestCase(1)]
+        public void GrippedHorizontalStickScalesPanelAndPersistsWithoutAFilm(int hand)
+        {
+            Set("Current",null);ui.Show();var position=ui.Canvas.transform.position;var rotation=ui.Canvas.transform.rotation;
+            Grip(hand,true);TickHand(hand,Vector2.right);Assert.That(store.Settings.mainPanelScale,Is.EqualTo(1.125f));Assert.That(new PlayerStore(path).Settings.mainPanelScale,Is.EqualTo(1));
+            Assert.That(ui.Canvas.transform.localScale.x,Is.EqualTo(.00145f*1.125f).Within(.000001f));
+            TickHand(hand,Vector2.left);Assert.That(store.Settings.mainPanelScale,Is.EqualTo(1));
+            TickHand(hand,Vector2.right,100);Assert.That(store.Settings.mainPanelScale,Is.EqualTo(2));TickHand(hand,Vector2.left,100);Assert.That(store.Settings.mainPanelScale,Is.EqualTo(.5f));
+            TickHand(hand,Vector2.zero);Assert.That(new PlayerStore(path).Settings.mainPanelScale,Is.EqualTo(.5f));
+            ui.Hide();ui.Show();Assert.That(ui.Canvas.transform.localScale.x,Is.EqualTo(.00145f*.5f).Within(.000001f));
+            Assert.That(store.Settings.mainPanelDistance,Is.EqualTo(2));Assert.That(ui.Canvas.transform.position,Is.EqualTo(position));Assert.That(ui.Canvas.transform.rotation,Is.EqualTo(rotation));Assert.That(backend.seeks,Is.Zero);
+        }
+        [TestCase(Projection.Equirect180)][TestCase(Projection.Equirect360)][TestCase(Projection.Fisheye)][TestCase(Projection.Cubemap3x2)][TestCase(Projection.Eac3x2)]
+        public void GrippedPanoramaHorizontalInputDoesNotSeekOrScale(Projection projection)
+        {
+            app.Presenter.Settings.projection=projection;Grip(0,true);Tick(Vector2.right,100);
+            Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));Assert.That(app.Presenter.Settings.width,Is.EqualTo(4.5f));Assert.That(backend.seeks,Is.Zero);
+            Tick(Vector2.down);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1));
+            Tick(Vector2.zero);Tick(Vector2.down);Assert.That(app.Presenter.Settings.panoramaZoom,Is.EqualTo(1.125f));
+        }
+        [TestCase(false)][TestCase(true)]
+        public void ScalingUsesOneAxisUntilNeutralAndSavesOnGripRelease(bool panel)
+        {
+            if(panel)ui.Show();Grip(0,true);Tick(Vector2.right);Tick(Vector2.down);
+            Assert.That(panel?store.Settings.mainPanelScale:app.Presenter.Settings.width,Is.EqualTo(panel?1.125f:5));
+            Assert.That(panel?store.Settings.mainPanelDistance:app.Presenter.Settings.distance,Is.EqualTo(panel?2:3.5f));
+            Grip(0,false);Tick(Vector2.right);Assert.That(backend.seeks,Is.Zero);
+            Assert.That(panel?new PlayerStore(path).Settings.mainPanelScale:Saved().width,Is.EqualTo(panel?1.125f:5));
+            Tick(Vector2.right);Assert.That(backend.seeks,Is.Zero);Tick(Vector2.zero);Tick(Vector2.right);Assert.That(backend.seeks,Is.EqualTo(1));
+        }
+        [TestCase(false)][TestCase(true)]
+        public void TwoGrippedSticksDoNotDoubleScaling(bool panel)
+        {
+            if(panel)ui.Show();Grip(0,true);Grip(1,true);input.SetDiagnosticStick(1,Vector2.right);Tick(Vector2.right);
+            Assert.That(panel?store.Settings.mainPanelScale:app.Presenter.Settings.width,Is.EqualTo(panel?1.125f:5));Assert.That(backend.seeks,Is.Zero);
+        }
+        [TestCase(1)][TestCase(2)][TestCase(3)]
+        public void ExistingSettingsKeepPanelSizeAndPerFilmWidth(int version)
+        {
+            var restored=PlayerStore.ParseSettings("{\"version\":"+version+",\"history\":[{\"uri\":\"file:///old.mp4\",\"view\":{\"width\":7}}]}");
+            Assert.That(restored.mainPanelScale,Is.EqualTo(1));Assert.That(restored.history[0].view.width,Is.EqualTo(7));Assert.That(restored.version,Is.EqualTo(3));
+            restored.mainPanelScale=1.4f;Assert.That(PlayerStore.ParseSettings(JsonUtility.ToJson(restored)).mainPanelScale,Is.EqualTo(1.4f));
+        }
         [Test] public void NoFilmOrFocusedTextPreventsDistanceAdjustment()
         {
-            Tick(Vector2.up,typing:true);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Tick(Vector2.zero);Set("Current",null);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+            Grip(0,true);
+            Tick(Vector2.down,typing:true);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));Tick(Vector2.zero);Set("Current",null);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
         }
         [Test] public void SimultaneousControllerBackPressesCloseOnlyOneLayer()
         {
@@ -277,21 +348,23 @@ namespace VRPlayer.Tests
         [TestCase(Projection.Flat)][TestCase(Projection.Equirect360)]
         public void ControllerBackPersistsDistanceGestureAndRequiresNeutralBeforeResuming(Projection projection)
         {
-            app.Presenter.Settings.projection=projection;Tick(Vector2.up);
+            Grip(0,true);
+            app.Presenter.Settings.projection=projection;Tick(Vector2.down);
             float before=projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom;
             Assert.That(projection==Projection.Flat?Saved().distance:Saved().panoramaZoom,Is.EqualTo(projection==Projection.Flat?3.5f:1));
             Assert.That(ControllerBack(true,false));Assert.That(ui.AnyVisible,Is.False);
             Assert.That(projection==Projection.Flat?Saved().distance:Saved().panoramaZoom,Is.EqualTo(before));
-            Tick(Vector2.up);Assert.That(projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom,Is.EqualTo(before));
-            Tick(Vector2.zero);Tick(Vector2.up);
+            Tick(Vector2.down);Assert.That(projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom,Is.EqualTo(before));
+            Tick(Vector2.zero);Tick(Vector2.down);
             Assert.That(projection==Projection.Flat?app.Presenter.Settings.distance:app.Presenter.Settings.panoramaZoom,Is.EqualTo(projection==Projection.Flat?2.5f:1.25f));
             Assert.That(app.Current.formatLocked,Is.False);
         }
         [Test] public void ClosingQuickPanelWithControllerBackRequiresNeutralBeforeHiddenDistanceAdjustment()
         {
-            ui.ShowQuick();Tick(Vector2.up);Assert.That(ControllerBack(true,false));Assert.That(ui.AnyVisible,Is.False);
-            Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
-            Tick(Vector2.zero);Tick(Vector2.up);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
+            Grip(0,true);
+            ui.ShowQuick();Tick(Vector2.down);Assert.That(ControllerBack(true,false));Assert.That(ui.AnyVisible,Is.False);
+            Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3.5f));
+            Tick(Vector2.zero);Tick(Vector2.down);Assert.That(app.Presenter.Settings.distance,Is.EqualTo(3));
         }
         private sealed class TestBackend : IMediaBackend
         {

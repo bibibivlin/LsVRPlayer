@@ -130,7 +130,7 @@ namespace VRPlayer
             InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);PresenceKnown=head.TryGetFeatureValue(CommonUsages.userPresence,out bool present);if(PresenceKnown){if(wasPresent&&!present)Pause();wasPresent=present;}
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
-                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,
+                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,screenWidth=Presenter.Settings.width,mainPanelDistance=Store.Settings.mainPanelDistance,mainPanelScale=Store.Settings.mainPanelScale,
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,fullVisible=UI.Visible,quickVisible=UI.Quick.Visible,loading=Loading,fullOffset=UI.FullOffset,fullCount=UI.FullCount,fullModal=UI.FullModal,fullQuery=UI.FullQuery,keyboardVisible=UI.KeyboardVisible,quickOffset=UI.Quick.BrowserOffset,
                 assSelected=AssSubtitlesSelected,assVisible=assRenderer.Texture!=null&&AssPresentation.Supported(Presenter.Settings.projection),assWidth=assRenderer.Texture!=null?assRenderer.Texture.width:0,assHeight=assRenderer.Texture!=null?assRenderer.Texture.height:0,assUploadedFrames=assRenderer.UploadedFrames,assPosition=assRenderer.RenderedPosition,assError=assRenderer.Error,
@@ -138,7 +138,7 @@ namespace VRPlayer
             },true));}catch{} }
 #endif
         }
-        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance;
+        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance,screenWidth,mainPanelDistance,mainPanelScale;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             public string fullModal,fullQuery,timestampUtc;public bool keyboardVisible,fullVisible,quickVisible,loading;public int fullCount,frame;public float fullOffset,quickOffset;
             public bool assSelected,assVisible;public int assWidth,assHeight,assUploadedFrames;public long assPosition;public string assError;
@@ -272,11 +272,13 @@ namespace VRPlayer
         public void SetViewDistance(float value,bool save){Presenter.Settings.distance=Mathf.Clamp(value,1.2f,10);viewDistanceDirty=true;if(save)CommitViewDistance();}
         public void SetPanoramaZoom(float value)=>SetPanoramaZoom(value,true);
         public void SetPanoramaZoom(float value,bool save){Presenter.Settings.panoramaZoom=PlayerStore.NormalizeZoom(value);viewDistanceDirty=true;if(save)CommitViewDistance();}
+        public void SetScreenWidth(float value)=>SetScreenWidth(value,true);
+        public void SetScreenWidth(float value,bool save){Presenter.Settings.width=Mathf.Clamp(value,1,10);viewDistanceDirty=true;if(save)CommitViewDistance();}
         public void ResetViewDistance(){if(Presenter.Settings.projection==Projection.Flat)SetViewDistance(3.5f);else SetPanoramaZoom(1);}
         public bool AdjustMainPanelDistance(float direction,float deltaTime)
         {
             if(Store==null||UI==null||!UI.Visible||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;
-            float previous=Store.Settings.mainPanelDistance,value=Mathf.Clamp(previous-Mathf.Clamp(direction,-1,1)*2*deltaTime,1.2f,6);
+            float previous=Store.Settings.mainPanelDistance,value=Mathf.Clamp(previous+Mathf.Clamp(direction,-1,1)*2*deltaTime,1.2f,6);
             if(previous==value)return false;
             Store.Settings.mainPanelDistance=value;UI.MoveMainPanel(value-previous);viewDistanceDirty=true;return true;
         }
@@ -284,9 +286,23 @@ namespace VRPlayer
         {
             if(Current==null||Presenter==null||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;
             var view=Presenter.Settings;direction=Mathf.Clamp(direction,-1,1);
-            if(view.projection==Projection.Flat){float value=Mathf.Clamp(view.distance-direction*2*deltaTime,1.2f,10);if(value==view.distance)return false;SetViewDistance(value,false);}
-            else{float value=Mathf.Clamp(view.panoramaZoom+direction*.5f*deltaTime,.5f,2);if(value==view.panoramaZoom)return false;SetPanoramaZoom(value,false);}
+            if(view.projection==Projection.Flat){float value=Mathf.Clamp(view.distance+direction*2*deltaTime,1.2f,10);if(value==view.distance)return false;SetViewDistance(value,false);}
+            else{float value=Mathf.Clamp(view.panoramaZoom-direction*.5f*deltaTime,.5f,2);if(value==view.panoramaZoom)return false;SetPanoramaZoom(value,false);}
             return true;
+        }
+        public bool AdjustMainPanelScale(float direction,float deltaTime)
+        {
+            if(Store==null||UI==null||!UI.Visible||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;
+            float previous=Store.Settings.mainPanelScale,value=Mathf.Clamp(previous+Mathf.Clamp(direction,-1,1)*.5f*deltaTime,.5f,2);
+            if(previous==value)return false;
+            Store.Settings.mainPanelScale=value;UI.ScaleMainPanel(value);viewDistanceDirty=true;return true;
+        }
+        public bool AdjustViewScale(float direction,float deltaTime)
+        {
+            if(Current==null||Presenter==null||Presenter.Settings.projection!=Projection.Flat||deltaTime<=0||Mathf.Abs(direction)<=.25f)return false;
+            float previous=Presenter.Settings.width,value=Mathf.Clamp(previous+Mathf.Clamp(direction,-1,1)*2*deltaTime,1,10);
+            if(previous==value)return false;
+            SetScreenWidth(value,false);return true;
         }
         public void CommitViewDistance(){if(!viewDistanceDirty||Store==null)return;Store.Save();viewDistanceDirty=false;}
         public void SaveProgress()

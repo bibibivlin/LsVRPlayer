@@ -36,19 +36,45 @@ namespace VRPlayer.Tests
                 }
             }
         }
-        [Test] public void PanoramaZoomMagnifiesAroundCurrentHeadDirectionAndOneIsIdentity()
+        [Test] public void PanoramaZoomMagnifiesAroundFixedVideoForwardAndOneIsIdentity()
         {
             var pixels=new Color[512*256];for(int y=0;y<256;y++)for(int x=0;x<512;x++)pixels[y*512+x]=new Color(x/511f,y/255f,0);
             texture.SetPixels(pixels);texture.Apply();material.SetInt("_Projection",2);
-            foreach(float angle in new[]{0f,45f,179f}){
-                camera.transform.rotation=Quaternion.Euler(0,angle,0);material.SetVector("_PanoramaForward",camera.transform.forward);
-                material.SetFloat("_PanoramaZoom",1);float center=Render().r,original=Render(64).r;
+            foreach(float angle in new[]{0f,45f,-45f}){
+                camera.transform.rotation=Quaternion.Euler(0,angle,0);
+                material.SetFloat("_PanoramaZoom",1);float center=.5f,original=Render(64).r;
                 material.SetFloat("_PanoramaZoom",2);float enlarged=Render(64).r;
                 material.SetFloat("_PanoramaZoom",.5f);float reduced=Render(64).r;
-                // 179 degrees crosses the panorama seam: compare wrapped longitude distances.
+                // Compare wrapped longitude distances around the fixed video forward.
                 float Delta(float value){float d=Mathf.Abs(value-center);return Mathf.Min(d,1-d);}
                 Assert.That(Delta(enlarged),Is.LessThan(Delta(original)));Assert.That(Delta(reduced),Is.GreaterThan(Delta(original)));
                 material.SetFloat("_PanoramaZoom",1);Assert.That(Render(64).r,Is.EqualTo(original).Within(.001f));
+            }
+        }
+        [TestCase(1)][TestCase(2)][TestCase(3)][TestCase(4)][TestCase(5)]
+        public void HeadTurnsLeaveTheZoomedWorldImageFixedForBothEyes(int projection)
+        {
+            var pixels=new Color[512*256];for(int y=0;y<256;y++)for(int x=0;x<512;x++)pixels[y*512+x]=new Color(x/511f,y/255f,0);
+            texture.SetPixels(pixels);texture.Apply();
+            var owner=new GameObject("Fixed panorama presenter");var trackedHead=new GameObject("Tracked head");var screen=new GameObject("Test screen",typeof(MeshFilter));
+            var presenter=owner.AddComponent<VideoPresenter>();
+            const System.Reflection.BindingFlags fields=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+            void Set(string name,object value)=>typeof(VideoPresenter).GetField(name,fields).SetValue(presenter,value);
+            Set("cameraTransform",trackedHead.transform);Set("material",material);Set("screen",screen.transform);Set("sphere",sphere.transform);
+            presenter.Settings.projection=(Projection)projection;presenter.Settings.stereo=StereoLayout.SideBySide;
+            try{
+                foreach(float zoom in new[]{.5f,1f,2f})for(int eye=0;eye<2;eye++){
+                    presenter.Settings.panoramaZoom=zoom;Shader.SetGlobalFloat("_VRPlayerEye",eye);trackedHead.transform.rotation=Quaternion.identity;
+                    presenter.UpdateVideo(texture,false,512,256,1);Color original=Render(64,58);
+                    foreach(var rotation in new[]{new Vector3(0,60,0),new Vector3(35,-45,15),new Vector3(-70,170,0)}){
+                        trackedHead.transform.rotation=Quaternion.Euler(rotation);presenter.UpdateVideo(texture,false,512,256,1);
+                        Color turned=Render(64,58);Assert.That(turned.r,Is.EqualTo(original.r).Within(.005f));Assert.That(turned.g,Is.EqualTo(original.g).Within(.005f));
+                        Assert.That(owner.transform.rotation,Is.EqualTo(Quaternion.identity));
+                    }
+                }
+            }finally{
+                Set("material",null);var mesh=typeof(VideoPresenter).GetField("screenMesh",fields).GetValue(presenter) as Mesh;Set("screenMesh",null);
+                UnityEngine.Object.DestroyImmediate(mesh);UnityEngine.Object.DestroyImmediate(screen);UnityEngine.Object.DestroyImmediate(trackedHead);UnityEngine.Object.DestroyImmediate(owner);
             }
         }
     }

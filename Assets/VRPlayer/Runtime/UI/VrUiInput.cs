@@ -165,7 +165,8 @@ namespace VRPlayer
             surfaceRevision=app.UI.SurfaceRevision;activeCanvas=app.UI.ActiveCanvas;
             foreach(var line in rays)if(line!=null)line.enabled=false;foreach(var dot in dots)if(dot!=null)dot.gameObject.SetActive(false);
         }
-        private bool castRouting,panelDistanceRouting;
+        private bool castRouting;
+        private int adjustmentRouting;
         private void ProcessStickControls(bool typing,float now,float deltaTime)
         {
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -173,16 +174,22 @@ namespace VRPlayer
 #endif
             bool blocked=!app.HasFocus||typing||held[0]||held[1]||held[2]||pointers[0].dragging||pointers[1].dragging||pointers[2].dragging;
             bool routeCast=app.UI.CastHovered;if(routeCast!=castRouting){transport.Suppress();castRouting=routeCast;}
-            bool panelDistance=app.UI.Visible&&(gripHeld[0]&&stickValid[0]||gripHeld[1]&&stickValid[1]);
-            if(panelDistance!=panelDistanceRouting){transport.SuppressActive();panelDistanceRouting=panelDistance;}
-            int skip=transport.Update(stickAxes[0],stickValid[0]&&(!panelDistance||gripHeld[0]),stickAxes[1],stickValid[1]&&(!panelDistance||gripHeld[1]),blocked,now,panelDistance||app.UI.BlocksTransport);
+            int grips=(gripHeld[0]&&stickValid[0]?1:0)|(gripHeld[1]&&stickValid[1]?2:0);
+            bool panel=app.UI.Visible,video=!app.UI.AnyVisible&&app.Current!=null;
+            bool adjusting=grips!=0&&(panel||video),scaling=adjusting&&(panel||app.Presenter.Settings.projection==Projection.Flat);
+            int routing=adjusting?grips|(panel?4:scaling?8:16):0;
+            if(routing!=adjustmentRouting){transport.SuppressActive();app.CommitViewDistance();adjustmentRouting=routing;}
+            int skip=transport.Update(stickAxes[0],stickValid[0]&&(!adjusting||gripHeld[0]),stickAxes[1],stickValid[1]&&(!adjusting||gripHeld[1]),blocked,now,adjusting?!scaling:app.UI.BlocksTransport,scaling);
             if(skip!=0){if(routeCast)app.UI.ScrollCast(skip);else app.Skip(skip);app.UI.LastInteraction=now;}
             bool vertical=!blocked&&Mathf.Abs(transport.Scroll)>.25f;
-            if(vertical&&panelDistance){app.AdjustMainPanelDistance(transport.Scroll,deltaTime);app.UI.LastInteraction=now;}
-            else{
-                if(vertical&&app.UI.AnyVisible&&!app.UI.BlocksScrolling){app.UI.ScrollList(transport.Scroll);app.UI.LastInteraction=now;}
-                if(vertical&&!app.UI.AnyVisible&&app.Current!=null)app.AdjustViewDistance(transport.Scroll,deltaTime);
-                else app.CommitViewDistance();
+            bool horizontal=!blocked&&Mathf.Abs(transport.Horizontal)>.25f;
+            if(adjusting&&(vertical||horizontal)){
+                if(panel){if(vertical)app.AdjustMainPanelDistance(transport.Scroll,deltaTime);else app.AdjustMainPanelScale(transport.Horizontal,deltaTime);app.UI.LastInteraction=now;}
+                else if(vertical)app.AdjustViewDistance(transport.Scroll,deltaTime);
+                else app.AdjustViewScale(transport.Horizontal,deltaTime);
+            }else{
+                if(vertical&&!adjusting&&app.UI.AnyVisible&&!app.UI.BlocksScrolling){app.UI.ScrollList(transport.Scroll);app.UI.LastInteraction=now;}
+                app.CommitViewDistance();
             }
         }
         private void ProcessKeyboard(bool typing)

@@ -13,21 +13,28 @@ namespace VRPlayer
         private readonly bool[] valid=new bool[2];
         public int Owner=>owner;
         public float Scroll{get;private set;}
-        public void Suppress(){owner=-1;axes[0]=axes[1]=3;Scroll=0;}
-        public void SuppressActive(){owner=-1;for(int hand=0;hand<2;hand++)if(axes[hand]!=0)axes[hand]=3;Scroll=0;}
-        public int Update(Vector2 left,bool leftValid,Vector2 right,bool rightValid,bool blocked,float now,bool blockHorizontal=false)
+        public float Horizontal{get;private set;}
+        public void Suppress(){owner=-1;axes[0]=axes[1]=3;Scroll=Horizontal=0;}
+        public void SuppressActive(){owner=-1;for(int hand=0;hand<2;hand++)if(axes[hand]!=0)axes[hand]=3;Scroll=Horizontal=0;}
+        public int Update(Vector2 left,bool leftValid,Vector2 right,bool rightValid,bool blocked,float now,bool blockHorizontal=false,bool continuousHorizontal=false)
         {
-            Scroll=0;values[0]=left;values[1]=right;valid[0]=leftValid;valid[1]=rightValid;
+            Scroll=Horizontal=0;values[0]=left;values[1]=right;valid[0]=leftValid;valid[1]=rightValid;
             for(int hand=0;hand<2;hand++){
                 Vector2 axis=values[hand];
                 if(!valid[hand]||blocked){axes[hand]=3;if(owner==hand)owner=-1;continue;}
                 if(axis.magnitude<=.25f){axes[hand]=0;if(owner==hand)owner=-1;continue;}
                 if(blockHorizontal&&(axes[hand]==1||owner==hand||Mathf.Abs(axis.x)>Mathf.Abs(axis.y))){axes[hand]=3;if(owner==hand)owner=-1;continue;}
                 if(owner>=0&&owner!=hand){axes[hand]=3;continue;}
-                if(axes[hand]==0){if(Mathf.Abs(axis.x)>=.65f&&Mathf.Abs(axis.x)>Mathf.Abs(axis.y)*1.35f)axes[hand]=1;else if(Mathf.Abs(axis.y)>.25f&&Mathf.Abs(axis.y)>=Mathf.Abs(axis.x))axes[hand]=2;}
+                if(axes[hand]==0){if(Mathf.Abs(axis.x)>=(continuousHorizontal?.25f:.65f)&&Mathf.Abs(axis.x)>Mathf.Abs(axis.y)*1.35f)axes[hand]=1;else if(Mathf.Abs(axis.y)>.25f&&Mathf.Abs(axis.y)>=Mathf.Abs(axis.x))axes[hand]=2;}
                 if(axes[hand]==2&&owner<0&&Mathf.Abs(axis.y)>Mathf.Abs(Scroll))Scroll=axis.y;
             }
             if(blocked)return 0;
+            if(continuousHorizontal){
+                // Reuse the axis lock and neutral gate, without issuing transport seeks.
+                for(int hand=0;hand<2;hand++)if(axes[hand]==1&&Mathf.Abs(values[hand].x)>Mathf.Abs(Horizontal))Horizontal=values[hand].x;
+                if(Mathf.Abs(Horizontal)>.25f)Scroll=0;
+                return 0;
+            }
             if(owner>=0){
                 Vector2 axis=values[owner];
                 if(Mathf.Abs(axis.x)<=.25f||Math.Sign(axis.x)!=direction){axes[owner]=3;owner=-1;return 0;}

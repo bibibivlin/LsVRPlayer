@@ -80,7 +80,7 @@ namespace VRPlayer
             app=owner;head=camera;
             L.SetLanguage(app.Store.Settings.language);
             var root=new GameObject("Player UI",typeof(RectTransform),typeof(Canvas),typeof(GraphicRaycaster));Canvas=root.GetComponent<Canvas>();Canvas.renderMode=RenderMode.WorldSpace;Canvas.worldCamera=camera;Canvas.sortingOrder=10;
-            var rect=(RectTransform)root.transform;rect.sizeDelta=new Vector2(1440,1040);rect.localScale=Vector3.one*.00145f;
+            var rect=(RectTransform)root.transform;rect.sizeDelta=new Vector2(1440,1040);ScaleMainPanel(app.Store.Settings.mainPanelScale);
             UiFactory.RoundedBox(rect,"Background",0,0,1440,1040,UiFactory.Background,true,28,SurfaceTreatment.Frame);
             UiFactory.RoundedBox(rect,"Page inset",20,90,1400,842,UiTheme.Surface,false,24,SurfaceTreatment.Inset);
             string[] names={"文件","投影","字幕","设置","信息"};
@@ -217,6 +217,7 @@ namespace VRPlayer
         }
         public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,app.Store.Settings.mainPanelDistance);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         public void MoveMainPanel(float delta){if(Visible)Canvas.transform.position+=Canvas.transform.forward*delta;}
+        public void ScaleMainPanel(float scale){if(Canvas!=null)Canvas.transform.localScale=Vector3.one*(.00145f*scale);}
         public void Hide(){if(privacyGate)return;CancelPermissionNotice();CloseKeyboard();CancelSmbConnection();app.StopDiscovery();embyBrowser?.Suspend();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
         public void Toggle(){if(Visible)Hide();else Show();}
         public void ShowQuick(){if(Quick==null||Visible)return;Quick.Show();SurfaceRevision++;}
@@ -353,7 +354,7 @@ namespace VRPlayer
             const float firstParameterY=88,resetY=472;
             float parameterPitch=(resetY+24-firstParameterY-40)/parameterCount;
             if(view.projection==Projection.Flat){
-                CompactSetting(geometry,L.T("屏幕宽度"),24,firstParameterY,616,1,10,view.width,v=>view.width=v,L.T("米"));
+                CompactSetting(geometry,L.T("屏幕宽度"),24,firstParameterY,616,1,10,view.width,app.SetScreenWidth,L.T("米"));
                 CompactSetting(geometry,L.T("屏幕距离"),24,firstParameterY+parameterPitch,616,1.2f,10,view.distance,app.SetViewDistance,L.T("米"));
                 CompactSetting(geometry,L.T("屏幕高度"),24,firstParameterY+parameterPitch*2,616,-3,3,view.heightOffset,v=>view.heightOffset=v,L.T("米"));
                 CompactSetting(geometry,L.T("屏幕曲率"),24,firstParameterY+parameterPitch*3,616,0,150,view.curvature,v=>view.curvature=v,"°");

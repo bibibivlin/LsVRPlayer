@@ -27,6 +27,7 @@ namespace VRPlayer
         public AppLanguage language=AppLanguage.System;
         public float lastAudibleVolume=.8f;
         public float mainPanelDistance=2;
+        public float mainPanelScale=1;
         public bool autoLoadSubtitles;
         public FormatDetectionMode formatDetection=FormatDetectionMode.Enhanced;
         public RenderQuality renderQuality=RenderQuality.High;
@@ -58,6 +59,7 @@ namespace VRPlayer
             value.embyLibraryViews.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.accountId)||string.IsNullOrEmpty(item.libraryId));
             foreach(var item in value.embyLibraryViews){item.view=EmbyLibraryViews.Normalize(item.view);item.size=EmbyLibraryViews.Normalize(item.size);}
             value.mainPanelDistance=NormalizeMainPanelDistance(value.mainPanelDistance);
+            value.mainPanelScale=NormalizeZoom(value.mainPanelScale);
             float oldDistance=Finite(value.subtitleDistance,3);
             value.subtitleDistance=Mathf.Clamp(oldDistance,.1f,6);
             if(version<2){float ratio=3/Mathf.Max(.1f,oldDistance);value.subtitleSize*=ratio;value.subtitleOffset*=ratio;value.renderQuality=RenderQuality.High;value.subtitleStyle=new SubtitleStyle();}

@@ -13,14 +13,15 @@ import threading
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
-PACKAGE = "com.linxyi.LsVRPlayer"
-EXTERNAL = "/sdcard/Android/data/" + PACKAGE + "/files/"
 MEDIA = "file:///sdcard/Movies/VRPlayerTest/Recognition/"
 parser = argparse.ArgumentParser()
 parser.add_argument("--serial", required=True)
+parser.add_argument("--package", default="com.linxyi.LsVRPlayer")
 parser.add_argument("--adb", default=r"C:\Program Files\Unity\Hub\Editor\6000.3.23f1\Editor\Data\PlaybackEngines\AndroidPlayer\SDK\platform-tools\adb.exe")
 parser.add_argument("--section", choices=("all", "panels", "distance"), default="all")
 args = parser.parse_args()
+PACKAGE = args.package
+EXTERNAL = "/sdcard/Android/data/" + PACKAGE + "/files/"
 validation = ROOT / "Docs/Validation"
 captures = ROOT / "Docs/Captures"
 validation.mkdir(parents=True, exist_ok=True)
@@ -130,6 +131,10 @@ def stick(vertical=0, horizontal=0, index=0):
     if vertical == 0 and horizontal == 0:
         # Surface changes suppress held sticks until at least one neutral frame.
         time.sleep(.3)
+
+
+def grip(pressed, index=0):
+    command("ui-grip", preset=index, flag=pressed)
 
 
 def release_stick(field, index=0):
@@ -302,39 +307,75 @@ def run_distance():
     pointer()
     stick()
     stick(index=1)
-    stick(1)
+    initial_zoom = status()["panoramaZoom"]
+    stick(-1)
+    time.sleep(2.5)
+    assert abs(status()["panoramaZoom"] - initial_zoom) < .001
+    grip(True)
+    time.sleep(2.5)
+    assert abs(status()["panoramaZoom"] - initial_zoom) < .001
+    stick()
+    passed("Hidden panorama requires grip and neutral before distance input")
+    stick(-1)
     wait(status, lambda item: item["panoramaZoom"] > 1.2)
     raised_zoom = release_stick("panoramaZoom")
-    stick(-1)
+    stick(1)
     wait(status, lambda item: item["panoramaZoom"] < raised_zoom - .15)
     release_stick("panoramaZoom")
-    passed("Hidden panorama stick up/down adjusts zoom and neutral stops motion")
-    stick(1)
+    passed("Hidden panorama stick down/up adjusts zoom and neutral stops motion")
+    stick(-1)
     wait(status, lambda item: abs(item["panoramaZoom"] - 2) < .001)
     stick()
-    stick(-1)
+    stick(1)
     wait(status, lambda item: abs(item["panoramaZoom"] - .5) < .001)
     stick()
     passed("Hidden panorama stick remains within 0.5x to 2x bounds")
+    command("pause")
+    wait(status, lambda item: not item["snapshot"]["playing"])
+    vr_position = status()["snapshot"]["position"]
+    stick(horizontal=1)
+    time.sleep(2.5)
+    assert abs(status()["panoramaZoom"] - .5) < .001
+    assert abs(status()["snapshot"]["position"] - vr_position) < 1000
+    stick()
+    grip(False)
+    command("play")
+    passed("Gripped panorama horizontal stick does not adjust zoom or seek")
 
     command("projection", projection=0, stereo=1)
     wait(status, lambda item: item["projection"] == "Flat" and item["stereo"] == "SideBySide")
     stick(index=1)
     flat_start = status()["distance"]
-    stick(1, index=1)
+    stick(-1, index=1)
+    time.sleep(2.5)
+    assert abs(status()["distance"] - flat_start) < .001
+    stick(index=1)
+    grip(True, index=1)
+    passed("Hidden flat distance requires the same hand's grip")
+    stick(-1, index=1)
     wait(status, lambda item: item["distance"] < flat_start - .3)
     closer_distance = release_stick("distance", index=1)
-    stick(-1, index=1)
+    stick(1, index=1)
     wait(status, lambda item: item["distance"] > closer_distance + .3)
     release_stick("distance", index=1)
-    passed("Hidden flat stick up/down adjusts distance and neutral stops motion")
-    stick(1, index=1)
+    passed("Hidden flat stick down/up adjusts distance and neutral stops motion")
+    stick(-1, index=1)
     wait(status, lambda item: abs(item["distance"] - 1.2) < .001)
     stick(index=1)
-    stick(-1, index=1)
+    stick(1, index=1)
     wait(status, lambda item: abs(item["distance"] - 10) < .001)
     stick(index=1)
     passed("Hidden flat stick remains within 1.2m to 10m bounds")
+    fixed_distance = status()["distance"]
+    start_width = status()["screenWidth"]
+    stick(horizontal=1, index=1)
+    wait(status, lambda item: item["screenWidth"] > start_width + .3)
+    enlarged_width = release_stick("screenWidth", index=1)
+    stick(horizontal=-1, index=1)
+    wait(status, lambda item: item["screenWidth"] < enlarged_width - .3)
+    release_stick("screenWidth", index=1)
+    assert abs(status()["distance"] - fixed_distance) < .001
+    passed("Gripped flat horizontal stick scales screen independently of distance")
 
     command("quick-menu", flag=True)
     click("Mode")
@@ -343,18 +384,34 @@ def run_distance():
     wait(status, lambda item: item["projection"] == "Flat" and item["stereo"] == "SideBySide" and abs(item["distance"] - 3.5) < .001)
     passed("Flat distance reset restores 3.5m while preserving projection and stereo")
     stick(index=1)
-    stick(1, index=1)
+    stick(-1, index=1)
     time.sleep(2.5)
     assert abs(status()["distance"] - 3.5) < .001
     stick(index=1)
     command("menu", flag=True)
     wait(status, lambda item: item["uiSurface"] == "full")
     stick(index=1)
-    stick(-1, index=1)
+    stick(1, index=1)
     time.sleep(2.5)
     assert abs(status()["distance"] - 3.5) < .001
     stick(index=1)
     passed("Visible quick and full panels block vertical stick distance adjustment")
+    panel_distance = status()["mainPanelDistance"]
+    panel_scale = status()["mainPanelScale"]
+    stick(-1, index=1)
+    wait(status, lambda item: item["mainPanelDistance"] < panel_distance - .3)
+    release_stick("mainPanelDistance", index=1)
+    fixed_panel_distance = status()["mainPanelDistance"]
+    stick(horizontal=1, index=1)
+    wait(status, lambda item: item["mainPanelScale"] > panel_scale + .15)
+    enlarged_panel = release_stick("mainPanelScale", index=1)
+    stick(horizontal=-1, index=1)
+    wait(status, lambda item: item["mainPanelScale"] < enlarged_panel - .15)
+    release_stick("mainPanelScale", index=1)
+    assert abs(status()["mainPanelDistance"] - fixed_panel_distance) < .001
+    assert abs(status()["distance"] - 3.5) < .001
+    grip(False, index=1)
+    passed("Main panel grip separates vertical distance and horizontal scale from film settings")
 
 try:
     adb("shell", "ls", "/sdcard/Movies/VRPlayerTest/Recognition/Unmarked-A.mp4")
