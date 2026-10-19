@@ -93,7 +93,7 @@ namespace VRPlayer
             for(int i=0;i<sections.Length;i++){int section=i;subtitleTabs.Add(UiFactory.TabButton(subtitleNavigation,sections[i],i*220,0,202,60,()=>{subtitlePage=section;Draw();}));}
             subtitleNavigation.gameObject.SetActive(false);
             fullPrevious=UiFactory.IconButton(rect,"上一部",QuickIcon.Previous,824,950,()=>app.Next(-1));
-            var play=fullPlay=UiFactory.IconButton(rect,"播放",QuickIcon.Play,904,950,()=>app.TogglePlay(),true);playLabel=play.GetComponentInChildren<TextMeshProUGUI>(true);
+            var play=fullPlay=UiFactory.IconButton(rect,"播放",QuickIcon.Play,904,950,ToggleFullPlay,true);playLabel=play.GetComponentInChildren<TextMeshProUGUI>(true);
             fullNext=UiFactory.IconButton(rect,"下一部",QuickIcon.Next,984,950,()=>app.Next(1));fullTransportIcons=new[]{fullPrevious,fullNext,fullPlay};UiFactory.ConfigureTransport(fullPrevious,false);UiFactory.ConfigureTransport(fullPlay,true);UiFactory.ConfigureTransport(fullNext,false);
             seek=UiFactory.Slider(rect,276,958,532,0,1,0,_=>{});seek.name="播放进度";seekGesture=seek.gameObject.AddComponent<SeekGesture>();seekGesture.Commit=value=>app.Seek((long)(value*(app.Backend?.Snapshot.duration??0)));
             time=UiFactory.Label(rect,"00:00 / 00:00",32,955,208,54,23,TextAlignmentOptions.Right);
@@ -208,6 +208,13 @@ namespace VRPlayer
             if(Visible&&modal==""&&app.Store.Settings.autoHide&&snapshot!=null&&snapshot.playing&&!keyboard.gameObject.activeSelf&&Time.unscaledTime-LastInteraction>18)Hide();
         }
         private static string Clock(long milliseconds){var duration=TimeSpan.FromMilliseconds(Math.Max(0,milliseconds));return duration.TotalHours>=1?$"{(int)duration.TotalHours}:{duration.Minutes:00}:{duration.Seconds:00}":$"{duration.Minutes:00}:{duration.Seconds:00}";}
+        private void ToggleFullPlay()
+        {
+            if(app.Backend==null||app.Current==null)return;
+            bool starting=!app.Backend.Snapshot.playing;
+            app.TogglePlay();
+            if(starting)Hide();
+        }
         public void Show(){if(Canvas==null)return;bool opening=!Visible;Quick?.Hide();SurfaceRevision++;Canvas.gameObject.SetActive(true);if(opening)Draw();LastInteraction=Time.unscaledTime;Canvas.transform.position=head.transform.position+head.transform.rotation*new Vector3(0,-.05f,app.Store.Settings.mainPanelDistance);Canvas.transform.rotation=head.transform.rotation;if(opening&&CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         public void MoveMainPanel(float delta){if(Visible)Canvas.transform.position+=Canvas.transform.forward*delta;}
         public void Hide(){if(privacyGate)return;CancelPermissionNotice();CloseKeyboard();CancelSmbConnection();app.StopDiscovery();embyBrowser?.Suspend();Quick?.Hide();seekGesture?.Cancel();if(Canvas!=null)Canvas.gameObject.SetActive(false);SurfaceRevision++;app?.Store?.Save();}
