@@ -1,7 +1,7 @@
 # L's VRPlayer
 
 [![Android Build](https://github.com/bibibivlin/LsVRPlayer/actions/workflows/android-release.yml/badge.svg)](https://github.com/bibibivlin/LsVRPlayer/actions/workflows/android-release.yml)
-[![release v1.2.0](https://img.shields.io/badge/release-v1.2.0-blue)](https://github.com/bibibivlin/LsVRPlayer/releases/latest)
+[![release v1.2.1](https://img.shields.io/badge/release-v1.2.1-blue)](https://github.com/bibibivlin/LsVRPlayer/releases/latest)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![Android 10+](https://img.shields.io/badge/Android-10%2B-3DDC84?logo=android&logoColor=white)](ProjectSettings/ProjectSettings.asset)
 [![PICO 4](https://img.shields.io/badge/PICO-4-00B8B0)](Docs/BuildAndUse.zh-CN.md)
