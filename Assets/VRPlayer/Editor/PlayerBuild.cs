@@ -51,7 +51,7 @@ namespace VRPlayer.Editor
         private static void EnsureShaders()
         {
             var settings=new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/GraphicsSettings.asset")[0]);var shaders=settings.FindProperty("m_AlwaysIncludedShaders");
-            foreach(string name in new[]{"VRPlayer/VideoProjection","VRPlayer/Subtitle Background","VRPlayer/Subtitle SDF","Unlit/Color","TextMeshPro/Distance Field","TextMeshPro/Mobile/Distance Field","UI/Default"}){
+            foreach(string name in new[]{"VRPlayer/VideoProjection","VRPlayer/Cinema Background","VRPlayer/Subtitle Background","VRPlayer/Subtitle SDF","Unlit/Color","TextMeshPro/Distance Field","TextMeshPro/Mobile/Distance Field","UI/Default"}){
                 Shader shader=Shader.Find(name);if(shader==null)continue;bool exists=false;for(int i=0;i<shaders.arraySize;i++)if(shaders.GetArrayElementAtIndex(i).objectReferenceValue==shader)exists=true;
                 if(!exists){int index=shaders.arraySize;shaders.InsertArrayElementAtIndex(index);shaders.GetArrayElementAtIndex(index).objectReferenceValue=shader;}
             }settings.ApplyModifiedPropertiesWithoutUndo();

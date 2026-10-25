@@ -32,10 +32,11 @@ namespace VRPlayer
             if(textShader!=null){material.shader=textShader;material.SetFloat("_ZTest",overlayText?8:4);material.renderQueue=3000;}
             label.fontSharedMaterial=material;materials[material.mainTexture.GetInstanceID()]=material;
         }
-        public void SetText(string text,float size,SubtitleStyle style)
+        public void SetText(string text,float size,SubtitleStyle style,float brightness=1)
         {
             if(label==null)return;text??="";style??=new SubtitleStyle();
-            int hash=System.HashCode.Combine(style.textColor,style.outlineColor,style.outline,style.outlineWidth,style.shadow,style.shadowStrength,style.background,style.backgroundOpacity)^style.backgroundColor.GetHashCode();
+            brightness=CinemaComfortSettings.NormalizeSubtitleBrightness(brightness);
+            int hash=System.HashCode.Combine(style.textColor,style.outlineColor,style.outline,style.outlineWidth,style.shadow,style.shadowStrength,style.background,style.backgroundOpacity)^style.backgroundColor.GetHashCode()^brightness.GetHashCode();
             if(initialized&&label.text==text&&Mathf.Approximately(label.fontSize,size)&&hash==styleHash)return;
             initialized=true;styleHash=hash;label.text=text;label.fontSize=size;label.color=style.textColor;
             label.ForceMeshUpdate();
@@ -47,6 +48,7 @@ namespace VRPlayer
                 if(!materials.TryGetValue(texture,out var material)){material=new Material(shared[i]){name="Subtitle atlas SDF"};materials[texture]=material;}
                 if(textShader!=null){material.shader=textShader;material.SetFloat("_ZTest",overlayText?8:4);material.renderQueue=3000;}
                 material.SetFloat(ShaderUtilities.ID_OutlineWidth,style.outline?style.outlineWidth:0);
+                material.SetFloat("_SubtitleBrightness",brightness);
                 if(style.outline)material.EnableKeyword("OUTLINE_ON");else material.DisableKeyword("OUTLINE_ON");
                 material.SetColor(ShaderUtilities.ID_OutlineColor,style.outlineColor);
                 if(style.shadow){material.EnableKeyword("UNDERLAY_ON");material.SetColor(ShaderUtilities.ID_UnderlayColor,new Color(0,0,0,style.shadowStrength));material.SetFloat(ShaderUtilities.ID_UnderlayOffsetX,.3f);material.SetFloat(ShaderUtilities.ID_UnderlayOffsetY,-.3f);material.SetFloat(ShaderUtilities.ID_UnderlaySoftness,.25f);}
@@ -59,7 +61,9 @@ namespace VRPlayer
                 Vector2 preferred=label.GetPreferredValues(text,width-32,0);
                 float w=style.background==SubtitleBackground.FullLine?width:Mathf.Min(width,preferred.x+32),h=Mathf.Min(height,preferred.y+20);
                 background.rectTransform.sizeDelta=new Vector2(w,h);background.rectTransform.anchoredPosition=new Vector2((width-w)/2,-(height-h)/2);
-                Color color=style.backgroundColor;color.a=style.backgroundOpacity;background.color=color;
+                Color color=style.backgroundColor;
+                if(brightness<1){Color linear=color.linear;linear.r*=brightness;linear.g*=brightness;linear.b*=brightness;color=linear.gamma;}
+                color.a=style.backgroundOpacity;background.color=color;
             }
         }
         public void Position(Camera head,Transform presenter,UserSettings settings)

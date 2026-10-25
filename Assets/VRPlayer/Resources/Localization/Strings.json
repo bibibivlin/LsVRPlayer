@@ -1,6 +1,86 @@
 {
   "entries": [
     {
+      "zh": "纯黑",
+      "en": "Pure black",
+      "ja": "完全な黒"
+    },
+    {
+      "zh": "中性暗灰",
+      "en": "Neutral gray",
+      "ja": "ニュートラルグレー"
+    },
+    {
+      "zh": "屏幕柔光",
+      "en": "Soft surround",
+      "ja": "スクリーン周辺光"
+    },
+    {
+      "zh": "暗色影院",
+      "en": "Quiet theater",
+      "ja": "暗いシアター"
+    },
+    {
+      "zh": "观影背景",
+      "en": "Cinema background",
+      "ja": "視聴背景"
+    },
+    {
+      "zh": "观影背景 · {0}",
+      "en": "Background · {0}",
+      "ja": "視聴背景 · {0}"
+    },
+    {
+      "zh": "收起面板预览",
+      "en": "Hide panel to preview",
+      "ja": "パネルを隠して確認"
+    },
+    {
+      "zh": "完全黑暗，保留原有观影习惯。",
+      "en": "Complete darkness for a familiar viewing experience.",
+      "ja": "完全な暗闇で、従来の視聴スタイルを維持。"
+    },
+    {
+      "zh": "均匀、静止的低亮度中性灰。",
+      "en": "Uniform, static gray at a low brightness.",
+      "ja": "均一で動きのない、低輝度のグレー。"
+    },
+    {
+      "zh": "仅在屏幕外围柔和过渡，远处保持黑暗。",
+      "en": "A soft glow around the screen, fading to black.",
+      "ja": "画面の周りだけ柔らかく照らし、遠くは暗いまま。"
+    },
+    {
+      "zh": "微弱的墙面与地面层次，提供稳定空间参照。",
+      "en": "Subtle walls and floor provide a stable sense of space.",
+      "ja": "淡い壁と床の陰影で、安定した空間を表現。"
+    },
+    {
+      "zh": "背景亮度",
+      "en": "Background level",
+      "ja": "背景の明るさ"
+    },
+    {
+      "zh": "柔光范围",
+      "en": "Glow width",
+      "ja": "周辺光の範囲"
+    },
+    {
+      "zh": "从低亮度开始调节；视频亮度可在设置页单独调整。",
+      "en": "Start low. Video brightness can be adjusted separately in Settings.",
+      "ja": "低い明るさから調整してください。映像の明るさは設定で個別に変更できます。"
+    },
+    {
+      "zh": "用于平面观影；全景视频自动停用。背景可能减轻光晕的显眼程度，无法消除镜片反射。",
+      "en": "For flat screens; disabled for panoramas. May make glare less noticeable, but cannot remove lens reflections.",
+      "ja": "平面映像用です。パノラマでは無効になります。光のにじみを目立ちにくくする可能性はありますが、レンズの反射は除去できません。"
+    },
+    {
+      "zh": "当前为全景投影，背景暂不显示；返回平面后自动恢复所选背景。",
+      "en": "Background is hidden for this panorama and will return with flat projection.",
+      "ja": "パノラマ表示中は背景を非表示にし、平面表示に戻ると選択した背景を復元します。"
+    },
+    {
       "zh": "图片大小",
       "en": "Image size",
       "ja": "画像サイズ"
@@ -3190,6 +3270,96 @@
       "zh": "ASS 字幕已加载 · 仅在平面视频画面内显示",
       "en": "ASS loaded · shown inside flat video only",
       "ja": "ASS を読み込みました · 平面動画内のみ表示"
+    },
+    {
+      "zh": "哑光幕墙",
+      "en": "Matte wall",
+      "ja": "マットな壁"
+    },
+    {
+      "zh": "固定哑光墙面，无屏幕亮圈、条纹或倒影。",
+      "en": "Still matte surfaces, without halos, stripes or reflections.",
+      "ja": "光輪・縞・映り込みのない、静かな壁面。"
+    },
+    {
+      "zh": "观影舒适",
+      "en": "Viewing comfort",
+      "ja": "視聴の快適さ"
+    },
+    {
+      "zh": "高亮柔和压缩",
+      "en": "Soften highlights",
+      "ja": "ハイライトを抑える"
+    },
+    {
+      "zh": "轻度",
+      "en": "Gentle",
+      "ja": "弱"
+    },
+    {
+      "zh": "中度",
+      "en": "Medium",
+      "ja": "中"
+    },
+    {
+      "zh": "较强",
+      "en": "Strong",
+      "ja": "強"
+    },
+    {
+      "zh": "主要压低亮部，保留暗部；会改变高光表现。",
+      "en": "Dims highlights while preserving dark tones; changes the look of bright areas.",
+      "ja": "暗部を保ちながら明部を抑えます。ハイライトの見え方が変わります。"
+    },
+    {
+      "zh": "字幕亮度",
+      "en": "Subtitle brightness",
+      "ja": "字幕の明るさ"
+    },
+    {
+      "zh": "独立调节外部与内嵌文字字幕；烧录字幕随影片处理。",
+      "en": "Adjusts external and embedded text subtitles. Burned-in text follows the video.",
+      "ja": "外部・内蔵の文字字幕を個別に調整。焼き付け字幕は動画と一緒に処理します。"
+    },
+    {
+      "zh": "纯黑背景对照",
+      "en": "Compare on black",
+      "ja": "黒背景で比較"
+    },
+    {
+      "zh": "原片",
+      "en": "Original",
+      "ja": "元の映像"
+    },
+    {
+      "zh": "仅字幕",
+      "en": "Subtitles only",
+      "ja": "字幕のみ"
+    },
+    {
+      "zh": "仅高光",
+      "en": "Highlights only",
+      "ja": "明部のみ"
+    },
+    {
+      "zh": "组合",
+      "en": "Combined",
+      "ja": "組み合わせ"
+    },
+    {
+      "zh": "对照使用纯黑背景；原片恢复关闭压缩与原字幕亮度。",
+      "en": "Presets use black. Original turns compression off and restores subtitle brightness.",
+      "ja": "比較は黒背景です。「元の映像」で圧縮を切り、字幕の明るさを戻します。"
+    },
+    {
+      "zh": "用于平面 SDR 观影；设置跨影片保留，可随时恢复原片。",
+      "en": "For flat SDR video. Applies across films; restore Original anytime.",
+      "ja": "平面 SDR 動画用。作品を切り替えても保持され、いつでも元に戻せます。"
+    },
+    {
+      "zh": "当前为全景投影，舒适调节暂不生效。",
+      "en": "Comfort adjustments are inactive in panoramic projection.",
+      "ja": "パノラマ投影では快適さの調整は適用されません。"
     }
   ]
 }

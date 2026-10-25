@@ -8,6 +8,8 @@ Shader "VRPlayer/VideoProjection"
         _MonoEye("Single eye",Float)=0
         _GammaInput("Gamma input",Float)=1
         _Brightness("Brightness",Float)=1
+        _ComfortHighlights("Highlight shoulder",Vector)=(.35,1,0,1)
+        _SubtitleBrightness("Subtitle brightness",Float)=1
         _FisheyeFov("Fisheye FOV",Float)=180
         _PanoramaZoom("Panorama zoom",Float)=1
         _PanoramaForward("Panorama forward",Vector)=(0,0,1,0)
@@ -25,10 +27,12 @@ Shader "VRPlayer/VideoProjection"
             #pragma target 3.0
             #pragma multi_compile_instancing
             #include "UnityCG.cginc"
+            #include "CinemaComfort.cginc"
             struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;UNITY_VERTEX_INPUT_INSTANCE_ID};
             struct v2f {float4 vertex:SV_POSITION;float2 uv:TEXCOORD0;float3 direction:TEXCOORD1;UNITY_VERTEX_OUTPUT_STEREO};
             sampler2D _MainTex,_AssTex;int _Projection,_Stereo;float _AssEnabled;
             float _SwapEyes,_MonoEye,_GammaInput,_Brightness,_FisheyeFov,_VRPlayerEye;
+            float4 _ComfortHighlights;float _SubtitleBrightness;
             float _PanoramaZoom;float3 _PanoramaForward;
             v2f vert(appdata v){v2f o;UNITY_SETUP_INSTANCE_ID(v);UNITY_INITIALIZE_OUTPUT(v2f,o);UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);o.vertex=UnityObjectToClipPos(v.vertex);o.uv=v.uv;o.direction=v.vertex.xyz;return o;}
             float2 cubeUV(float3 d,bool equiangular){
@@ -65,6 +69,13 @@ Shader "VRPlayer/VideoProjection"
                 if(_GammaInput>.5)rgb=GammaToLinearSpace(rgb);
                 #endif
                 rgb*=_Brightness;
+                if(_Projection==0&&_ComfortHighlights.y<1){
+                    #ifdef UNITY_COLORSPACE_GAMMA
+                    rgb=LinearToGammaSpace(CinemaCompressHighlights(GammaToLinearSpace(rgb),_ComfortHighlights));
+                    #else
+                    rgb=CinemaCompressHighlights(rgb,_ComfortHighlights);
+                    #endif
+                }
                 // Script coordinates cover the displayed video rectangle in both eyes.
                 // Sample before stereo packing: subtitle geometry never leaves the mesh.
                 if(_Projection==0&&_AssEnabled>.5){
@@ -73,6 +84,7 @@ Shader "VRPlayer/VideoProjection"
                     #ifndef UNITY_COLORSPACE_GAMMA
                     assRgb=GammaToLinearSpace(assRgb);
                     #endif
+                    assRgb=CinemaSubtitleColor(assRgb,_SubtitleBrightness);
                     rgb=rgb*(1-ass.a)+assRgb*ass.a;
                 }
                 return float4(rgb,1);

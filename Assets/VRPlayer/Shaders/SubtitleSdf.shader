@@ -3,6 +3,7 @@ Shader "VRPlayer/Subtitle SDF"
     Properties {
         _MainTex("Font Atlas",2D)="white"{}
         _FaceColor("Text",Color)=(1,1,1,1)
+        _SubtitleBrightness("Subtitle brightness",Float)=1
         _FaceDilate("Dilate",Range(-1,1))=0
         _OutlineColor("Outline",Color)=(0,0,0,1)
         _OutlineWidth("Outline width",Range(0,1))=0
@@ -49,12 +50,14 @@ Shader "VRPlayer/Subtitle SDF"
             #pragma multi_compile_local __ UNITY_UI_CLIP_RECT
             #include "UnityCG.cginc"
             #include "UnityUI.cginc"
+            #include "CinemaComfort.cginc"
             struct appdata { float4 vertex:POSITION; float4 color:COLOR; float4 uv:TEXCOORD0; UNITY_VERTEX_INPUT_INSTANCE_ID };
             struct v2f { float4 vertex:SV_POSITION; float4 color:COLOR; float2 uv:TEXCOORD0; float2 local:TEXCOORD1; UNITY_VERTEX_OUTPUT_STEREO };
             sampler2D _MainTex;
             float4 _FaceColor,_OutlineColor,_UnderlayColor,_ClipRect;
             float _FaceDilate,_OutlineWidth,_OutlineSoftness,_UnderlayOffsetX,_UnderlayOffsetY,_UnderlaySoftness,_UnderlayDilate,_TextureWidth,_TextureHeight,_GradientScale;
             int _UIVertexColorAlwaysGammaSpace;
+            float _SubtitleBrightness;
             v2f vert(appdata v) {
                 v2f o;UNITY_SETUP_INSTANCE_ID(v);UNITY_INITIALIZE_OUTPUT(v2f,o);UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.vertex=UnityObjectToClipPos(v.vertex);o.uv=v.uv.xy;o.local=v.vertex.xy;o.color=v.color;
@@ -86,6 +89,7 @@ Shader "VRPlayer/Subtitle SDF"
                 #if UNITY_UI_CLIP_RECT
                 color*=UnityGet2DClipping(i.local,_ClipRect);
                 #endif
+                if(color.a>0&&_SubtitleBrightness<1)color.rgb=CinemaSubtitleColor(color.rgb/color.a,_SubtitleBrightness)*color.a;
                 return color;
             }
             ENDCG

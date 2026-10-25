@@ -125,6 +125,8 @@ namespace VRPlayer
             transportUntil=0;lastStatus="";legalEnglish=L.EnglishLegalFirst;
             if(privacyGate){if(modal=="legal")ShowLegalDocument(legalDocument);else DrawPrivacyConsent();}
             else if(modal=="language")DrawLanguageSelection();
+            else if(modal=="background")DrawBackgroundSelection();
+            else if(modal=="cinema-comfort")DrawCinemaComfort();
             else if(modal=="legal")ShowLegalDocument(legalDocument);
             else if(modal=="")Draw();
         }
@@ -198,7 +200,7 @@ namespace VRPlayer
             if(undoButton!=null)undoButton.gameObject.SetActive(removedFavorite!=null&&Time.unscaledTime<undoUntil);
             if(preview!=null){
                 var style=app.Store.Settings.subtitleStyle;
-                preview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style);brightPreview?.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style);
+                preview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);brightPreview?.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);
                 int preset=-1;for(int i=0;i<stylePresetValues.Length;i++)if(SameStyle(style,stylePresetValues[i])){preset=i;break;}
                 if(preset!=stylePresetState){stylePresetState=preset;for(int i=0;i<stylePresets.Count;i++)UiFactory.SetAccent(stylePresets[i],i==preset);}
             }
@@ -449,7 +451,7 @@ namespace VRPlayer
             var bright=UiFactory.Box(sample,"Bright scene",0,0,616,126,new Color(.70f,.72f,.69f,1));var dark=UiFactory.Box(sample,"Dark scene",0,126,616,126,new Color(.035f,.048f,.06f,1));
             brightPreview=bright.gameObject.AddComponent<CaptionPresenter>();brightPreview.Initialize(616,126,opticalCenter:true);
             preview=dark.gameObject.AddComponent<CaptionPresenter>();preview.Initialize(616,126,opticalCenter:true);
-            preview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style);brightPreview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style);
+            preview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);brightPreview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);
             UiFactory.Label(previewRoot,L.T("明亮 / 深色背景"),24,352,616,40,23).color=UiTheme.Muted;
             UiFactory.Box(previewRoot,"Background separator",24,416,616,1,new Color(.20f,.31f,.37f,.28f));
             UiFactory.Label(previewRoot,L.T("字幕背景"),24,436,616,44,28);
@@ -484,15 +486,17 @@ namespace VRPlayer
             var subtitles=UiFactory.RoundedBox(content,"Subtitle settings",0,638,664,156,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
             UiFactory.Label(subtitles,L.T("字幕与音轨"),24,24,616,44,30);
             UiFactory.ToggleRow(subtitles,L.T("自动加载同名字幕"),L.T("自动加载同名字幕"),()=>app.Store.Settings.autoLoadSubtitles,24,80,616,app.SetAutoLoadSubtitles,52);
-            var recognition=UiFactory.RoundedBox(content,"Recognition settings",688,312,664,216,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
-            UiFactory.Label(recognition,L.T("格式识别"),24,24,616,48,30);UiFactory.Label(recognition,L.T("识别影片的投影与立体布局"),24,80,616,40,23).color=UiTheme.Muted;
+            var recognition=UiFactory.RoundedBox(content,"Recognition settings",688,312,664,160,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            UiFactory.Label(recognition,L.T("格式识别"),24,24,616,48,30);
             string[] detection={L.T("关闭"),L.T("标签与元数据"),L.T("增强识别")};
-            for(int i=0;i<3;i++){int mode=i;var option=UiFactory.Button(recognition,detection[i],24+i*210,136,196,56,()=>{app.SetFormatDetectionMode((FormatDetectionMode)mode);Draw();},(int)app.Store.Settings.formatDetection==i);option.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;}
-            var other=UiFactory.RoundedBox(content,"Other settings",688,552,664,242,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
+            for(int i=0;i<3;i++){int mode=i;var option=UiFactory.Button(recognition,detection[i],24+i*210,88,196,48,()=>{app.SetFormatDetectionMode((FormatDetectionMode)mode);Draw();},(int)app.Store.Settings.formatDetection==i);option.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;}
+            var other=UiFactory.RoundedBox(content,"Other settings",688,496,664,298,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
             UiFactory.Label(other,L.T("界面语言"),24,24,200,48,26);
             UiFactory.Button(other,L.LanguageName(app.Store.Settings.language),240,24,400,48,DrawLanguageSelection);
-            UiFactory.Button(other,L.T("选择音轨 / 内嵌字幕"),24,88,616,56,DrawTracks);
-            var clear=UiFactory.Button(other,L.T("清空播放记录"),24,160,616,56,app.ClearPlaybackHistory);UiFactory.Icon(clear.transform,QuickIcon.Trash,28,13,30,UiTheme.Muted);
+            UiFactory.Button(other,L.T("观影背景"),24,88,300,56,DrawBackgroundSelection).name="Background settings";
+            UiFactory.Button(other,L.T("观影舒适"),340,88,300,56,DrawCinemaComfort).name="Cinema comfort settings";
+            UiFactory.Button(other,L.T("选择音轨 / 内嵌字幕"),24,152,616,56,DrawTracks);
+            var clear=UiFactory.Button(other,L.T("清空播放记录"),24,216,616,56,app.ClearPlaybackHistory);UiFactory.Icon(clear.transform,QuickIcon.Trash,28,13,30,UiTheme.Muted);
         }
         private void DrawLanguageSelection()
         {

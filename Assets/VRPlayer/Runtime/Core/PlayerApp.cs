@@ -70,6 +70,8 @@ namespace VRPlayer
             Screen.sleepTimeout=SleepTimeout.NeverSleep;Application.targetFrameRate=72;
             RenderQuality=gameObject.AddComponent<RenderQualityController>();RenderQuality.Initialize(this);
             Presenter=new GameObject("Video Presenter").AddComponent<VideoPresenter>();Presenter.Initialize(headCamera);
+            Presenter.BackgroundSettings=Store.Settings.background;
+            Presenter.ComfortSettings=Store.Settings.cinemaComfort;
             UI=gameObject.AddComponent<PlayerUI>();UI.Initialize(this,headCamera);
             if(GetComponent<UnityEngine.EventSystems.EventSystem>()==null)gameObject.AddComponent<UnityEngine.EventSystems.EventSystem>();
             var input=gameObject.AddComponent<VrUiInput>();input.Initialize(this,headCamera,UI.Canvas);
@@ -121,7 +123,7 @@ namespace VRPlayer
                 if(state.HasError&&lastError!=state.error){lastError=state.error;SetStatus("播放失败："+state.error+"。可点重试或选择其他文件。");_ = RetryWithStoragePermission(Current.uri,Generation);}
                 if(!state.HasError&&state.state==4&&!ended){ended=true;if(Store.Settings.sequential&&!Store.Settings.loop)Next(1,false);}
                 if(Time.unscaledTime>=saveAt){saveAt=Time.unscaledTime+5;SaveProgress();}
-                caption.SetText(AssSubtitlesSelected?"":subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
+                caption.SetText(AssSubtitlesSelected?"":subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"",Store.Settings.subtitleSize,Store.Settings.subtitleStyle,Presenter.Settings.projection==Projection.Flat?Store.Settings.cinemaComfort.subtitleBrightness:1);
             }else caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
             assRenderer.Tick(activeAss,activeAss!=null&&Current!=null&&state.generation==Generation&&Current.subtitleSelection!=SubtitleSelection.Off&&AssPresentation.Supported(Presenter.Settings.projection),Backend is AndroidMediaBackend clockBackend?clockBackend.PresentationPosition:state.position,Current?.subtitleDelay??0,Presenter.Settings.Aspect(state.width,state.height,state.pixelRatio));
             Presenter.SetAssOverlay(assRenderer.Texture);
@@ -130,7 +132,7 @@ namespace VRPlayer
             InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);PresenceKnown=head.TryGetFeatureValue(CommonUsages.userPresence,out bool present);if(PresenceKnown){if(wasPresent&&!present)Pause();wasPresent=present;}
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
-                uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,screenWidth=Presenter.Settings.width,mainPanelDistance=Store.Settings.mainPanelDistance,mainPanelScale=Store.Settings.mainPanelScale,
+                cinemaHighlights=Store.Settings.cinemaComfort.highlights.ToString(),cinemaSubtitleBrightness=Store.Settings.cinemaComfort.subtitleBrightness,cinemaComfortActive=Presenter.Settings.projection==Projection.Flat,backgroundMode=Store.Settings.background.mode.ToString(),backgroundGray=Store.Settings.background.grayLevel,backgroundFeather=Store.Settings.background.featherDegrees,backgroundVisible=Presenter.BackgroundVisible,uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,screenWidth=Presenter.Settings.width,mainPanelDistance=Store.Settings.mainPanelDistance,mainPanelScale=Store.Settings.mainPanelScale,
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,fullVisible=UI.Visible,quickVisible=UI.Quick.Visible,loading=Loading,fullOffset=UI.FullOffset,fullCount=UI.FullCount,fullModal=UI.FullModal,fullQuery=UI.FullQuery,keyboardVisible=UI.KeyboardVisible,quickOffset=UI.Quick.BrowserOffset,
                 assSelected=AssSubtitlesSelected,assVisible=assRenderer.Texture!=null&&AssPresentation.Supported(Presenter.Settings.projection),assWidth=assRenderer.Texture!=null?assRenderer.Texture.width:0,assHeight=assRenderer.Texture!=null?assRenderer.Texture.height:0,assUploadedFrames=assRenderer.UploadedFrames,assPosition=assRenderer.RenderedPosition,assError=assRenderer.Error,
@@ -138,7 +140,7 @@ namespace VRPlayer
             },true));}catch{} }
 #endif
         }
-        [Serializable] private sealed class Diagnostic {public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance,screenWidth,mainPanelDistance,mainPanelScale;
+        [Serializable] private sealed class Diagnostic {public string cinemaHighlights;public float cinemaSubtitleBrightness;public bool cinemaComfortActive;public string backgroundMode;public float backgroundGray,backgroundFeather;public bool backgroundVisible;public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance,screenWidth,mainPanelDistance,mainPanelScale;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
             public string fullModal,fullQuery,timestampUtc;public bool keyboardVisible,fullVisible,quickVisible,loading;public int fullCount,frame;public float fullOffset,quickOffset;
             public bool assSelected,assVisible;public int assWidth,assHeight,assUploadedFrames;public long assPosition;public string assError;
@@ -148,6 +150,38 @@ namespace VRPlayer
         public void SetLanguage(AppLanguage language)
         {
             Store.Settings.language=Localization.Normalize(language);Store.Save();UI?.RefreshLanguage();
+        }
+        public void SetBackground(CinemaBackgroundMode mode)
+        {
+            Store.Settings.background.mode=mode;Store.Settings.background.Normalize();Store.Save();
+            if(Presenter!=null)Presenter.BackgroundSettings=Store.Settings.background;
+        }
+        public void SetBackgroundGray(float value)
+        {
+            Store.Settings.background.grayLevel=value;Store.Settings.background.Normalize();
+        }
+        public void SetBackgroundFeather(float value)
+        {
+            Store.Settings.background.featherDegrees=value;Store.Settings.background.Normalize();
+        }
+        public void SetCinemaHighlights(HighlightCompression mode)
+        {
+            Store.Settings.cinemaComfort.highlights=mode;Store.Settings.cinemaComfort.Normalize();Store.Save();
+            if(Presenter!=null)Presenter.ComfortSettings=Store.Settings.cinemaComfort;
+        }
+        public void SetCinemaSubtitleBrightness(float value)
+        {
+            Store.Settings.cinemaComfort.subtitleBrightness=CinemaComfortSettings.NormalizeSubtitleBrightness(value);
+            if(Presenter!=null)Presenter.ComfortSettings=Store.Settings.cinemaComfort;
+        }
+        public void SetCinemaComparison(int preset)
+        {
+            if(preset<0||preset>3)return;
+            Store.Settings.background.mode=CinemaBackgroundMode.Black;
+            Store.Settings.cinemaComfort.highlights=preset>=2?HighlightCompression.Medium:HighlightCompression.Off;
+            Store.Settings.cinemaComfort.subtitleBrightness=preset==1||preset==3?.7f:1;
+            if(Presenter!=null){Presenter.BackgroundSettings=Store.Settings.background;Presenter.ComfortSettings=Store.Settings.cinemaComfort;}
+            Store.Save();
         }
         public void Notify(){if(Source==FileSource.Recent)UpdateRecentFiles();Changed?.Invoke();}
         public void Home()
