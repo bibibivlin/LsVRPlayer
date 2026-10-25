@@ -9,6 +9,10 @@ namespace VRPlayer
         private Mesh screenMesh;
         private Quaternion viewingRotation=Quaternion.identity;
         private string geometryKey;
+        private CinemaBackground background;
+        public CinemaBackgroundSettings BackgroundSettings{get;set;}=new CinemaBackgroundSettings();
+        public CinemaComfortSettings ComfortSettings{get;set;}=new CinemaComfortSettings();
+        public bool BackgroundVisible=>background!=null&&background.Visible;
         public ViewSettings Settings{get;set;}=new ViewSettings();
         public void SetAssOverlay(Texture texture)
         {
@@ -23,11 +27,16 @@ namespace VRPlayer
             var quad=new GameObject("Cinema Screen",typeof(MeshFilter),typeof(MeshRenderer));quad.transform.SetParent(transform,false);quad.GetComponent<MeshRenderer>().sharedMaterial=material;screen=quad.transform;
             var globe=GameObject.CreatePrimitive(PrimitiveType.Sphere);globe.name="Immersive Video";globe.transform.SetParent(transform,false);Destroy(globe.GetComponent<Collider>());globe.GetComponent<MeshRenderer>().sharedMaterial=material;sphere=globe.transform;sphere.localScale=Vector3.one*60;
             viewingRotation=Quaternion.Euler(0,cameraTransform.eulerAngles.y,0);
+            transform.SetPositionAndRotation(cameraTransform.position,viewingRotation);
+            var backdrop=new GameObject("Cinema Background");backdrop.transform.SetParent(transform,false);
+            background=backdrop.AddComponent<CinemaBackground>();background.Initialize(camera);
+            sphere.gameObject.SetActive(false);
         }
         public void UpdateVideo(Texture texture,bool gamma,int width,int height,float pixelRatio)
         {
             if(material==null)return;
             transform.position=cameraTransform.position;transform.rotation=viewingRotation;
+            background?.Apply(BackgroundSettings,Settings,Settings.Aspect(width,height,pixelRatio));
             bool flat=Settings.projection==Projection.Flat;screen.gameObject.SetActive(flat);sphere.gameObject.SetActive(!flat);
             screen.localPosition=new Vector3(0,Settings.heightOffset,Settings.distance);
             string key=$"{Settings.width:F3}/{Settings.curvature:F3}/{Settings.Aspect(width,height,pixelRatio):F3}";
@@ -35,6 +44,8 @@ namespace VRPlayer
             if(texture!=null)material.mainTexture=texture;
             material.SetInt("_Projection",(int)Settings.projection);material.SetInt("_Stereo",(int)Settings.stereo);material.SetFloat("_SwapEyes",Settings.swapEyes?1:0);material.SetFloat("_MonoEye",Settings.monoEye?1:0);material.SetFloat("_GammaInput",gamma?1:0);material.SetFloat("_FisheyeFov",Settings.fisheyeFov);material.SetFloat("_Brightness",Settings.brightness);
             material.SetFloat("_PanoramaZoom",PlayerStore.NormalizeZoom(Settings.panoramaZoom));
+            material.SetVector("_ComfortHighlights",CinemaComfortSettings.HighlightParameters(flat?ComfortSettings.highlights:HighlightCompression.Off));
+            material.SetFloat("_SubtitleBrightness",flat?CinemaComfortSettings.NormalizeSubtitleBrightness(ComfortSettings.subtitleBrightness):1);
             // Keep the angular mapping fixed in the video's frame as the viewer turns.
             material.SetVector("_PanoramaForward",Vector3.forward);
         }

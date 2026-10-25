@@ -51,6 +51,7 @@
 - [中文、英语与日语界面设置](Docs/Localization.zh-CN.md) · [PICO 本地化验收](Docs/LocalizationDeviceValidation.zh-CN.md)
 - [Emby 使用说明](Docs/Emby.zh-CN.md)
 - [简易控制与全局返回](Docs/QuickControls.zh-CN.md)
+- [平面观影背景](Docs/CinemaBackground.zh-CN.md) · [高亮压缩、字幕亮度与真机回归](Docs/CinemaComfort.zh-CN.md)
 - [格式识别说明](Docs/VR180SbsRecognitionResults.zh-CN.md)
 - [界面与更多截图](Docs/UIRedesignRelease.zh-CN.md)
 - [第三方组件与许可](Docs/ThirdPartyNotices.md)

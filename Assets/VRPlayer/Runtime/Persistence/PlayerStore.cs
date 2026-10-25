@@ -31,6 +31,8 @@ namespace VRPlayer
         public bool autoLoadSubtitles;
         public FormatDetectionMode formatDetection=FormatDetectionMode.Enhanced;
         public RenderQuality renderQuality=RenderQuality.High;
+        public CinemaBackgroundSettings background=new CinemaBackgroundSettings();
+        public CinemaComfortSettings cinemaComfort=new CinemaComfortSettings();
         public SubtitleStyle subtitleStyle=new SubtitleStyle();
         public bool subtitleFollow=true,sequential,loop,autoHide=true;
         public List<PlaybackRecord> history=new List<PlaybackRecord>();
@@ -56,6 +58,8 @@ namespace VRPlayer
             value.history??=new List<PlaybackRecord>();value.favorites??=new List<Favorite>();value.vr180Directories??=new List<string>();
             value.embyLibraryViews??=new List<EmbyLibraryViewPreference>();
             value.language=Localization.Normalize(value.language);
+            value.background??=new CinemaBackgroundSettings();value.background.Normalize();
+            value.cinemaComfort??=new CinemaComfortSettings();value.cinemaComfort.Normalize();
             value.embyLibraryViews.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.accountId)||string.IsNullOrEmpty(item.libraryId));
             foreach(var item in value.embyLibraryViews){item.view=EmbyLibraryViews.Normalize(item.view);item.size=EmbyLibraryViews.Normalize(item.size);}
             value.mainPanelDistance=NormalizeMainPanelDistance(value.mainPanelDistance);

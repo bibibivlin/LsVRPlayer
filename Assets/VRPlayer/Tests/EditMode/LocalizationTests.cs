@@ -129,6 +129,46 @@ namespace VRPlayer.Tests
             Assert.That(ui.SelectedTab,Is.EqualTo("设置"));Assert.That(Labels.Any(label=>label.text==tab));Assert.That(new PlayerStore(path).Settings.language,Is.EqualTo(language));
             Assert.That(ui.Visible);Assert.That(ui.Quick.Visible,Is.False);Assert.That(app.Current.name,Is.EqualTo("字幕.mp4"));
         }
+        [TestCase(AppLanguage.Chinese)][TestCase(AppLanguage.English)][TestCase(AppLanguage.Japanese)]
+        public void BackgroundSelectionPersistsAndBackReturnsToSettings(AppLanguage language)
+        {
+            app.SetLanguage(language);ui.SelectTab("设置");
+            ui.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Background settings").onClick.Invoke();
+            foreach(CinemaBackgroundMode mode in Enum.GetValues(typeof(CinemaBackgroundMode)))
+            {
+                ui.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Background "+mode).onClick.Invoke();
+                Assert.That(new PlayerStore(path).Settings.background.mode,Is.EqualTo(mode));
+                Assert.That(app.Presenter.BackgroundSettings,Is.SameAs(app.Store.Settings.background));
+            }
+            var gray=ui.Canvas.GetComponentsInChildren<Slider>().Single(slider=>slider.name=="Background gray");gray.value=24;
+            Assert.That(ui.Back(),Is.True);Assert.That(ui.SelectedTab,Is.EqualTo("设置"));Assert.That(ui.Visible,Is.True);
+            Assert.That(new PlayerStore(path).Settings.background.grayLevel,Is.EqualTo(24));Assert.That(app.Current.name,Is.EqualTo("字幕.mp4"));
+        }
+        [TestCase(AppLanguage.Chinese)][TestCase(AppLanguage.English)][TestCase(AppLanguage.Japanese)]
+        public void ComfortControlsPersistAndComparisonsPreserveFilmSettings(AppLanguage language)
+        {
+            app.SetLanguage(language);ui.SelectTab("设置");
+            ui.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Cinema comfort settings").onClick.Invoke();
+            app.Current.view.brightness=.9f;app.Current.view.distance=4;app.Current.subtitleSelection=SubtitleSelection.Off;app.Current.formatLocked=true;
+            foreach(HighlightCompression mode in Enum.GetValues(typeof(HighlightCompression)))
+            {
+                ui.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Cinema highlights "+mode).onClick.Invoke();
+                Assert.That(new PlayerStore(path).Settings.cinemaComfort.highlights,Is.EqualTo(mode));
+            }
+            for(int preset=0;preset<4;preset++)
+            {
+                ui.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name=="Cinema comparison "+preset).onClick.Invoke();
+                var saved=new PlayerStore(path).Settings;
+                Assert.That(saved.background.mode,Is.EqualTo(CinemaBackgroundMode.Black));
+                Assert.That(saved.cinemaComfort.highlights,Is.EqualTo(preset>=2?HighlightCompression.Medium:HighlightCompression.Off));
+                Assert.That(saved.cinemaComfort.subtitleBrightness,Is.EqualTo(preset==1||preset==3?.7f:1));
+                Assert.That(saved.history[0].view.brightness,Is.EqualTo(.9f));Assert.That(saved.history[0].view.distance,Is.EqualTo(4));
+                Assert.That(saved.history[0].subtitleSelection,Is.EqualTo(SubtitleSelection.Off));Assert.That(saved.history[0].formatLocked,Is.True);
+            }
+            ui.Canvas.GetComponentsInChildren<Slider>().Single(slider=>slider.name=="Cinema subtitle brightness").value=.6f;
+            Assert.That(ui.Back(),Is.True);Assert.That(ui.SelectedTab,Is.EqualTo("设置"));
+            Assert.That(new PlayerStore(path).Settings.cinemaComfort.subtitleBrightness,Is.EqualTo(.6f).Within(.001f));
+        }
         [Test] public void SwitchingLanguageKeepsDirectoryScrollAndActualNames()
         {
             Set("Source",FileSource.Directory);Set("DirectoryUri","smb://account/Films");
