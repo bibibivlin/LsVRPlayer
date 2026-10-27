@@ -64,10 +64,13 @@ final class SmbStore {
         return new Handle(server,path(uri));
     }
     static Handle connect(Uri uri,NetworkSockets sockets)throws Exception{
+        return connect(uri,sockets,0);
+    }
+    static Handle connect(Uri uri,NetworkSockets sockets,int socketTimeoutMs)throws Exception{
         JSONObject server=servers.get(uri.getHost());if(server==null)throw new java.io.IOException("找不到 SMB 服务器配置");
         // The playback loader may be idle longer than 15 s with a full media buffer.
         // Keep request deadlines, but do not time out SMBJ's idle packet-reader socket.
-        return new Handle(server,path(uri),sockets,0);
+        return new Handle(server,path(uri),sockets,socketTimeoutMs);
     }
     static String path(Uri uri){
         List<String> segments=uri.getPathSegments();

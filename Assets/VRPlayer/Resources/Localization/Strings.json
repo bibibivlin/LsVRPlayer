@@ -1,6 +1,16 @@
 {
   "entries": [
     {
+      "zh": "正在加载预览…",
+      "en": "Loading preview…",
+      "ja": "プレビューを読み込み中…"
+    },
+    {
+      "zh": "预览暂不可用",
+      "en": "Preview unavailable",
+      "ja": "プレビューを表示できません"
+    },
+    {
       "zh": "纯黑",
       "en": "Pure black",
       "ja": "完全な黒"

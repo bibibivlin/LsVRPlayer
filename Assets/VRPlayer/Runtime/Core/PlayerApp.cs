@@ -15,6 +15,8 @@ namespace VRPlayer
     {
         public Camera headCamera;
         public IMediaBackend Backend{get;private set;}
+        private SeekThumbnailCache thumbnails;
+        public SeekThumbnailCache Thumbnails{get{if(thumbnails==null)thumbnails=new SeekThumbnailCache();thumbnails.SetGeneration(Generation);return thumbnails;}}
         public PlayerStore Store{get;private set;}
         public VideoPresenter Presenter{get;private set;}
         public PlayerUI UI{get;private set;}
@@ -271,7 +273,7 @@ namespace VRPlayer
                 view.half=inheritedFormat.half;view.swapEyes=inheritedFormat.swapEyes;view.fisheyeFov=inheritedFormat.fisheyeFov;
                 Current.formatLocked=true;Current.formatLockOrigin=FormatLockOrigin.Inherited;Current.formatCache=null;
             }
-            Generation++;BeginFormatDetection(entry);
+            Generation++;thumbnails?.SetGeneration(Generation);BeginFormatDetection(entry);
             if(inheritedFormat!=null){FormatDescription="已继承上一部播放影片的格式；可重新识别格式";}
             if(embyPlayback!=null){
                 Current.position=embyPlayback.startPositionMs;
@@ -296,7 +298,7 @@ namespace VRPlayer
             OpenVideo(playlist[next],Current.directory,inheritFormat||InheritEmbyPartFormat(playlist[next].uri)?Presenter.Settings.Copy():null,true);
         }
         public void Retry(){if(Current==null)return;var record=Current;Open(new FileEntry{uri=record.uri,name=record.name,size=record.size,modified=record.modified},record.directory);}
-        public void Stop(){CancelEmbyPlaybackRequest();CancelStorageAccess();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;CancelFormatDetection();Backend?.Stop();Current=null;ClearSubtitleDocuments();CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
+        public void Stop(){CancelEmbyPlaybackRequest();CancelStorageAccess();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;thumbnails?.SetGeneration(Generation);CancelFormatDetection();Backend?.Stop();Current=null;ClearSubtitleDocuments();CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
         public bool CanNavigateAdjacent(int delta){if(Current==null||delta==0)return false;int index=playlist.FindIndex(x=>x.uri==Current.uri);return index>=0&&index+delta>=0&&index+delta<playlist.Count&&AllowEmbyAdjacent(playlist[index+delta].uri,false);}
         public void SetVolume(float value){value=Mathf.Clamp01(value);Store.Settings.volume=value;if(value>0)Store.Settings.lastAudibleVolume=value;Backend?.SetVolume(value);}
         public void ToggleMute(){SetVolume(Store.Settings.volume>0?0:Store.Settings.lastAudibleVolume);Store.Save();}
@@ -401,6 +403,6 @@ namespace VRPlayer
         }
         private void OnApplicationPause(bool paused){HasFocus=!paused;if(paused){StopDiscovery();UI?.CancelSmbConnection();Pause();}else if(Source==FileSource.Smb&&UI!=null&&UI.CanDiscover)StartDiscovery();}
         private void OnApplicationFocus(bool focused){HasFocus=focused;if(!focused)Pause();else UI?.RefreshLanguage();}
-        private void OnDestroy(){FileLibrary.ReadPermissionRationale=null;SaveProgress();DisposeEmby();CancelStorageAccess();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();assRenderer.Dispose();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
+        private void OnDestroy(){FileLibrary.ReadPermissionRationale=null;SaveProgress();DisposeEmby();CancelStorageAccess();CancelFormatDetection();StopDiscovery();listing?.Cancel();subtitles?.Cancel();subtitleListing?.Cancel();thumbnails?.Dispose();assRenderer.Dispose();Backend?.Dispose();if(Presenter!=null)Destroy(Presenter.gameObject);if(captionRoot!=null)Destroy(captionRoot.gameObject);}
     }
 }

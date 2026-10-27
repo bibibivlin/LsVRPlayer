@@ -5,7 +5,7 @@ android {
     defaultConfig { minSdk 29; consumerProguardFiles 'consumer-rules.pro'; testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'; ndk { abiFilters 'arm64-v8a' } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     testOptions { unitTests.returnDefaultValues = true }
-    sourceSets { androidTest { assets.srcDirs = ['../../Assets/StreamingAssets']; jniLibs.srcDirs = ['../../Assets/Plugins/Android'] } }
+    sourceSets { androidTest { assets.srcDirs = ['../../Assets/StreamingAssets', '../../TestMedia/Thumbnails']; jniLibs.srcDirs = ['../../Assets/Plugins/Android'] } }
 }
 dependencies {
     implementation 'androidx.media3:media3-exoplayer:1.9.3'

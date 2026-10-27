@@ -13,6 +13,17 @@ namespace VRPlayer.Editor
         private static void Set(PlayerApp app,string name,object value)=>typeof(PlayerApp).GetProperty(name).SetValue(app,value);
         private static T Field<T>(object target,string name)=>(T)target.GetType().GetField(name,System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).GetValue(target);
         private static void Call(object target,string name)=>target.GetType().GetMethod(name,System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(target,null);
+        private static void FixtureSeekThumbnail(SeekThumbnailPreview preview,Dictionary<string,Texture2D> textures)
+        {
+            if(!textures.TryGetValue("SEEK",out var texture)){
+                // Generated color grid, used only to inspect the native preview card's layout.
+                texture=new Texture2D(320,180,TextureFormat.RGB24,false);var pixels=new Color[320*180];
+                for(int y=0;y<180;y++)for(int x=0;x<320;x++)pixels[y*320+x]=Color.HSVToRGB(x/320f,.5f+.4f*y/180f,.35f+.6f*y/180f);
+                texture.SetPixels(pixels);texture.Apply();textures.Add("SEEK",texture);
+            }
+            var image=Field<UnityEngine.UI.RawImage>(preview,"image");image.texture=texture;image.enabled=true;
+            Field<TMPro.TextMeshProUGUI>(preview,"status").gameObject.SetActive(false);Call(preview,"Fit");
+        }
         private static void FixtureArtwork(Transform root,Dictionary<string,Texture2D> textures)
         {
             foreach(var holder in root.GetComponentsInChildren<RectTransform>().Where(rect=>rect.name=="Artwork").ToArray()){
@@ -119,11 +130,13 @@ namespace VRPlayer.Editor
                 ui.Hide();ui.ShowQuick();Call(ui.Quick,"LateUpdate");camera.orthographicSize=.82f;cameraObject.transform.position=new Vector3(0,-.43f,0);Save("10-Quick");
                 Field<RectTransform>(ui.Quick,"volumeExpansion").gameObject.SetActive(true);Save("28-QuickVolume");Field<RectTransform>(ui.Quick,"volumeExpansion").gameObject.SetActive(false);
                 typeof(QuickControlsUI).GetMethod("Preview",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(ui.Quick,new object[]{true,.64f});Save("11-QuickBeam");
+                FixtureSeekThumbnail(ui.Quick.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true),fixtureTextures);Save("45-QuickThumbnail");
                 cameraObject.transform.position=Vector3.zero;camera.orthographicSize=.94f;ui.Quick.TogglePopup("subtitles");Call(ui.Quick,"LateUpdate");Save("12-QuickSubtitles");ui.Quick.TogglePopup("mode");Call(ui.Quick,"LateUpdate");Save("13-QuickMode");
                 ui.Quick.TogglePopup("advanced");Call(ui.Quick,"LateUpdate");Save("18-QuickSpeed");
                 app.SetSpeed(.25f);Call(ui.Quick,"LateUpdate");Save("29-QuickSpeedMinimum");app.SetSpeed(3);Call(ui.Quick,"LateUpdate");Save("30-QuickSpeedMaximum");app.SetSpeed(1);
                 ui.Quick.TogglePopup("files");Call(ui.Quick,"LateUpdate");Save("21-QuickSubtitleBrowser");
                 ui.HideQuick();ui.Show();cameraObject.transform.position=Vector3.zero;camera.orthographicSize=.86f;
+                var seekPreview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);seekPreview.Show(.64f);FixtureSeekThumbnail(seekPreview,fixtureTextures);Save("46-FullThumbnail");seekPreview.Hide();
                 ui.ShowPrivacyConsent(()=>{});Save("41-Consent");ui.ShowLegalDocument("privacy");Save("42-Privacy");ui.ShowLegalDocument("permissions");Save("43-Permissions");ui.ShowLegalDocument("notices");Save("44-Licenses");
                 File.WriteAllText(Path.Combine(folder,"capture-result.txt"),store.Settings.language+" native uGUI fixture captures using synthetic metadata only");
             }finally{
