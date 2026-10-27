@@ -36,6 +36,7 @@ namespace VRPlayer
         private Button[] filmButtons;
         private QuickPointerRegion region,volumeRegion;
         private QuickSeekSurface seek;
+        private SeekThumbnailPreview seekPreview;
         private OwnedSlider volume,distanceSlider,speedSlider;
         private readonly List<Button> projections=new List<Button>(),stereo=new List<Button>(),speeds=new List<Button>();
         private readonly float[] presets={.75f,1,1.25f,1.5f,2};
@@ -88,6 +89,7 @@ namespace VRPlayer
             previewLine=UiFactory.Rect(rect,"Seek preview line",0,856,18,164);var beam=previewLine.gameObject.AddComponent<SeekBeamGraphic>();beam.color=UiTheme.Accent;beam.raycastTarget=false;
             previewBadge=QuickUiFactory.Box(rect,"Seek preview time",0,780,184,66,UiTheme.Elevated,false,18);
             previewTime=UiFactory.Label(previewBadge,"",0,0,184,66,34,TextAlignmentOptions.Center);Preview(false,0);
+            seekPreview=SeekThumbnailPreview.Create(rect,app,0,1440,612);
             hoverBadge=QuickUiFactory.Box(rect,"Button tooltip",0,816,160,48,new Color(.035f,.04f,.05f,1),false,12);hoverText=UiFactory.Label(hoverBadge,"",0,0,160,48,24,TextAlignmentOptions.Center);hoverBadge.gameObject.SetActive(false);
             foreach(var button in bar.GetComponentsInChildren<Button>()){
                 if(button.name=="Volume")continue;
@@ -196,7 +198,8 @@ namespace VRPlayer
         private static string Clock(long value){var t=TimeSpan.FromMilliseconds(Math.Max(0,value));return t.TotalHours>=1?$"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}":$"{t.Minutes:00}:{t.Seconds:00}";}
         private void Preview(bool visible,float value)
         {
-            if(previewLine==null)return;previewLine.gameObject.SetActive(visible);previewBadge.gameObject.SetActive(visible);
+            if(previewLine==null)return;previewLine.gameObject.SetActive(visible);previewBadge.gameObject.SetActive(visible&&seekPreview==null);
+            if(seekPreview!=null){if(visible)seekPreview.Show(value);else seekPreview.Hide();}
             RefreshHint();
             previewLine.anchoredPosition=new Vector2(value*1440-9,-(880+(seek?.PreviewY??55)-79));previewBadge.anchoredPosition=new Vector2(Mathf.Clamp(value*1440-92,8,1248),-780);
             previewTime.text=Clock((long)(value*(app.Backend?.Snapshot.duration??0)));
@@ -208,7 +211,7 @@ namespace VRPlayer
         }
         private void RefreshHint()
         {
-            if(hoverBadge==null)return;hoverBadge.gameObject.SetActive(hints.Count>0&&!previewBadge.gameObject.activeSelf);if(hints.Count==0)return;
+            if(hoverBadge==null)return;hoverBadge.gameObject.SetActive(hints.Count>0&&!previewLine.gameObject.activeSelf);if(hints.Count==0)return;
             var hint=hints.Values.First();Vector3 local=Canvas.transform.InverseTransformPoint(hint.anchor.TransformPoint(hint.anchor.rect.center));
             hoverText.text=L.T(hint.text);float width=Mathf.Clamp(hoverText.GetPreferredValues(hoverText.text).x+32,160,440);
             hoverBadge.sizeDelta=new Vector2(width,48);hoverText.rectTransform.sizeDelta=new Vector2(width,48);

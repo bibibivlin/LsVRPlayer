@@ -17,7 +17,7 @@ namespace VRPlayer
         public static void Initialize(){using var unity=new AndroidJavaClass("com.unity3d.player.UnityPlayer");using var activity=unity.GetStatic<AndroidJavaObject>("currentActivity");Api.CallStatic("initialize",activity);}
 #endif
     }
-    public sealed class AndroidMediaBackend : IMediaBackend, IAuthenticatedMediaBackend
+    public sealed class AndroidMediaBackend : IMediaBackend, IAuthenticatedMediaBackend, ISeekThumbnailSource
     {
         public MediaSnapshot Snapshot{get;private set;}=new MediaSnapshot();
         public Texture Texture=>texture;
@@ -95,6 +95,7 @@ namespace VRPlayer
 #endif
         }
         public void Seek(long millis)=>Command("seek",millis);
+        public System.Threading.Tasks.Task<Texture2D> ReadThumbnail(long position,int generation,System.Threading.CancellationToken cancellation)=>AndroidSeekThumbnail.Read(position,generation,cancellation);
         public void SetVolume(float value)=>Command("volume",value);
         public void SetSpeed(float value){playbackSpeed=value;Command("speed",value);}
         public void SetRepeat(bool value)=>Command("repeat",value);
@@ -113,7 +114,7 @@ namespace VRPlayer
         [DllImport("vrplayerrender")] private static extern void SetVideoSize(int width,int height);
 #endif
     }
-    public sealed class UnityMediaBackend : IMediaBackend, IAuthenticatedMediaBackend
+    public sealed class UnityMediaBackend : IMediaBackend, IAuthenticatedMediaBackend, ISeekThumbnailSource
     {
         private readonly VideoPlayer player;
         private readonly AudioSource audio;
@@ -144,6 +145,8 @@ namespace VRPlayer
         private void OpenPreview(string uri,long position,int generation){player.Stop();Snapshot=new MediaSnapshot{state=2,generation=generation};pendingPosition=position;player.url=uri;player.Prepare();}
         public void Play(){if(!authenticatedPreviewUnavailable)player.Play();}public void Pause()=>player.Pause();public void Stop(){player.Stop();player.url=string.Empty;authenticatedPreviewUnavailable=false;Snapshot=new MediaSnapshot();}
         public void Seek(long millis){if(player.isPrepared)player.time=Math.Max(0,millis/1000d);}
+        public System.Threading.Tasks.Task<Texture2D> ReadThumbnail(long position,int generation,System.Threading.CancellationToken cancellation)=>
+            UnitySeekThumbnail.Read(authenticatedPreviewUnavailable||Snapshot.generation!=generation?"":player.url,position,cancellation);
         public void SetVolume(float value)=>audio.volume=value;public void SetSpeed(float value){if(player.canSetPlaybackSpeed)player.playbackSpeed=value;}
         public void SetRepeat(bool value)=>player.isLooping=value;
         public void SelectTrack(string id,int type){}

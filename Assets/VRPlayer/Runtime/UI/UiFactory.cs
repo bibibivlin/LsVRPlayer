@@ -161,17 +161,33 @@ namespace VRPlayer
         }
         public static void Clear(Transform parent){for(int i=parent.childCount-1;i>=0;i--){var child=parent.GetChild(i).gameObject;child.SetActive(false);if(Application.isPlaying)UnityEngine.Object.Destroy(child);else UnityEngine.Object.DestroyImmediate(child);}}
     }
-    public sealed class SeekGesture : MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IBeginDragHandler,IEndDragHandler
+    public sealed class SeekGesture : MonoBehaviour,IPointerDownHandler,IPointerUpHandler,IBeginDragHandler,IEndDragHandler,IDragHandler,IPointerEnterHandler,IPointerExitHandler,IPointerMoveHandler
     {
         public bool Dragging{get;private set;}
-        private int? owner;
+        private int? owner,hoverOwner;
+        private PlayerApp app;private int generation;private Action<bool,float> preview;
         public Action<float> Commit;
-        public void OnPointerDown(PointerEventData data){if(owner.HasValue)return;owner=data.pointerId;Dragging=true;}
+        public void Initialize(PlayerApp player,Action<bool,float> show){app=player;preview=show;}
+        private bool Ready=>app==null||app.Current!=null&&app.Backend?.Snapshot.generation==app.Generation&&app.Backend.Snapshot.duration>0;
+        private void Preview(PointerEventData data,bool dragging)
+        {
+            var slider=GetComponent<Slider>();float value=slider.value;
+            var track=slider.handleRect!=null?(RectTransform)slider.handleRect.parent:(RectTransform)transform;
+            if(!dragging&&RectTransformUtility.ScreenPointToLocalPointInRectangle(track,data.position,data.enterEventCamera,out var point)){
+                var rect=track.rect;value=Mathf.Clamp01((point.x-rect.xMin)/rect.width);
+            }
+            hoverOwner=data.pointerId;preview?.Invoke(true,value);
+        }
+        public void OnPointerDown(PointerEventData data){if(!Ready||owner.HasValue||data.button!=PointerEventData.InputButton.Left)return;owner=data.pointerId;generation=app?.Generation??0;Dragging=true;Preview(data,true);}
         public void OnBeginDrag(PointerEventData data){if(owner==data.pointerId)Dragging=true;}
-        public void OnPointerUp(PointerEventData data){if(owner!=data.pointerId)return;Cancel();Commit?.Invoke(GetComponent<Slider>().value);}
+        public void OnDrag(PointerEventData data){if(owner==data.pointerId)Preview(data,true);}
+        public void OnPointerEnter(PointerEventData data){if(Ready&&!Dragging)Preview(data,false);}
+        public void OnPointerMove(PointerEventData data){if(Ready&&!Dragging)Preview(data,false);else if(!Ready)Cancel();}
+        public void OnPointerExit(PointerEventData data){if(!Dragging&&hoverOwner==data.pointerId){hoverOwner=null;preview?.Invoke(false,0);}}
+        public void OnPointerUp(PointerEventData data){if(owner!=data.pointerId)return;bool commit=Ready&&(app==null||generation==app.Generation);float value=GetComponent<Slider>().value;Cancel();if(commit)Commit?.Invoke(value);}
         public void OnEndDrag(PointerEventData data){if(owner==data.pointerId)Cancel();}
-        public void Cancel(){owner=null;Dragging=false;}
-        public void Cancel(int pointerId){if(owner==pointerId)Cancel();}
+        public void Cancel(){owner=hoverOwner=null;Dragging=false;preview?.Invoke(false,0);}
+        public void Cancel(int pointerId){if(owner==pointerId||!owner.HasValue&&hoverOwner==pointerId)Cancel();}
         private void OnDisable()=>Cancel();
     }
     public sealed class OwnedSlider : Slider

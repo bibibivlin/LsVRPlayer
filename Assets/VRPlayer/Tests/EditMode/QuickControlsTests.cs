@@ -551,6 +551,30 @@ namespace VRPlayer.Tests
             surface.OnPointerDown(pointer);Set("Generation",2);surface.OnPointerUp(pointer);Assert.That(backend.seeks,Is.Zero);
             Set("Generation",1);surface.OnPointerDown(pointer);surface.Cancel();surface.OnPointerUp(pointer);Assert.That(backend.seeks,Is.Zero);
         }
+        [Test] public void HoverPreviewNeverSeeksAndHidingPanelCancelsFullDrag()
+        {
+            var gesture=ui.Canvas.GetComponentInChildren<SeekGesture>();var pointer=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-100};
+            gesture.OnPointerEnter(pointer);var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            Assert.That(preview.gameObject.activeSelf);Assert.That(backend.seeks,Is.Zero);
+            gesture.OnPointerDown(pointer);ui.Hide();gesture.OnPointerUp(pointer);
+            Assert.That(backend.seeks,Is.Zero);Assert.That(preview.gameObject.activeSelf,Is.False);
+        }
+        [Test] public void FullDragCannotCommitToReplacementFilm()
+        {
+            var gesture=ui.Canvas.GetComponentInChildren<SeekGesture>();var pointer=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-100};
+            gesture.OnPointerDown(pointer);Set("Generation",2);backend.Snapshot.generation=2;gesture.OnPointerUp(pointer);
+            Assert.That(backend.seeks,Is.Zero);Assert.That(gesture.Dragging,Is.False);
+        }
+        [Test] public void QuickPreviewDoesNotInterceptPointerAndOtherHandCannotHideOwnedDrag()
+        {
+            ui.Hide();ui.ShowQuick();var surface=ui.Quick.Canvas.GetComponentInChildren<QuickSeekSurface>(true);
+            var left=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-100};var right=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-101};
+            surface.OnPointerDown(left);surface.OnPointerMove(right);surface.OnPointerExit(right);
+            var preview=ui.Quick.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            Assert.That(preview.gameObject.activeSelf);Assert.That(backend.seeks,Is.Zero);
+            foreach(var graphic in preview.GetComponentsInChildren<Graphic>(true))Assert.That(graphic.raycastTarget,Is.False);
+            surface.Cancel(left.pointerId);Assert.That(preview.gameObject.activeSelf,Is.False);
+        }
         [Test] public void FullProjectionPageUpdatesDistanceRangeAfterProjectionChange()
         {
             ui.SelectTab("投影");app.ChangeFormat(view=>view.projection=Projection.Equirect360);

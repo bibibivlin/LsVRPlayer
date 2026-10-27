@@ -27,6 +27,7 @@ namespace VRPlayer
         private TextMeshProUGUI time,playLabel,keyboardPreview;
         private string lastStatus="";
         private Slider seek;private SeekGesture seekGesture;
+        private SeekThumbnailPreview seekPreview;
         private Button fullPrevious,fullNext,fullPlay;private Button[] fullTransportIcons;private float infoRefreshAt;
         private VirtualFileList subtitleList;
         private Slider volumeSlider,fullSpeedSlider;private TextMeshProUGUI fullSpeedNumber;
@@ -100,6 +101,8 @@ namespace VRPlayer
             var mute=UiFactory.IconButton(rect,"音量",QuickIcon.Volume,1064,950,app.ToggleMute,tooltip:"静音 / 恢复音量");UiFactory.ConfigureTransport(mute,false);volumeSlider=UiFactory.Slider(rect,1144,958,104,0,1,app.Store.Settings.volume,app.SetVolume);volumeSlider.name="主面板音量";
             UiFactory.IconButton(rect,"重试",QuickIcon.Refresh,1264,950,app.Retry,tooltip:"重试播放");UiFactory.IconButton(rect,"停止",QuickIcon.Stop,1344,950,app.Stop,tooltip:"停止播放");
             keyboard=UiFactory.Box(rect,"Virtual keyboard",30,340,1380,492,new Color(.025f,.065f,.09f,1),true);keyboard.gameObject.SetActive(false);
+            seekPreview=SeekThumbnailPreview.Create(rect,app,290,504,700);
+            seekGesture.Initialize(app,(visible,value)=>{if(visible)seekPreview.Show(value);else seekPreview.Hide();});
             var hud=new GameObject("Transport feedback",typeof(RectTransform),typeof(Canvas));transportRoot=(RectTransform)hud.transform;transportRoot.sizeDelta=new Vector2(1200,120);transportRoot.localScale=Vector3.one*.001f;hud.GetComponent<Canvas>().renderMode=RenderMode.WorldSpace;hud.GetComponent<Canvas>().sortingOrder=12;
             UiFactory.Box(transportRoot,"Backdrop",0,0,1200,120,UiFactory.Background);transportLabel=UiFactory.Label(transportRoot,"",20,0,1160,120,26);transportLabel.textWrappingMode=TextWrappingModes.Normal;hud.SetActive(false);
             Quick=gameObject.AddComponent<QuickControlsUI>();Quick.Initialize(this,app,head);

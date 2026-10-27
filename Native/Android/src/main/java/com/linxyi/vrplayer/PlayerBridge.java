@@ -54,6 +54,7 @@ public final class PlayerBridge {
     private static FormatMetadata.Hints probeHints=new FormatMetadata.Hints(),projectionHints=new FormatMetadata.Hints();
     private static Format lastProjectionFormat;
     private static final ScheduledExecutorService probeTimer=Executors.newSingleThreadScheduledExecutor();
+    private static final SeekThumbnailService thumbnails=new SeekThumbnailService();
     static {System.loadLibrary("vrplayerrender");nativeBootstrap();}
     private static native void nativeBootstrap();
     private static native void nativeFrameAvailable();
@@ -112,6 +113,7 @@ public final class PlayerBridge {
         PlaybackSession session=new PlaybackSession(token,smbReadAhead);playbackSession=session;telemetry.session(session);
         cancelProbe();probeHints=new FormatMetadata.Hints();projectionHints=new FormatMetadata.Hints();lastProjectionFormat=null;probeComplete=false;
         currentProbeToken=accessToken;
+        thumbnails.setSource(activity,uri,accessToken,token);
         DataSource.Factory http=accessToken.isEmpty()?null:()->new EmbyDataSource(session,uri,accessToken);
         DataSource.Factory factory=()->new RoutingDataSource(defaultSources,session,http);
         player.setMediaSource(new DefaultMediaSourceFactory(factory,AssRenderersFactory.extractors()).createMediaSource(MediaItem.fromUri(uri)),Math.max(0,position));
@@ -124,6 +126,7 @@ public final class PlayerBridge {
     // A/B switch for the next open only, reachable from the existing development command entrypoint.
     public static void setSmbReadAhead(boolean enabled){main.post(()->{if((activity.getApplicationInfo().flags&android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE)!=0)smbReadAhead=enabled;});}
     private static void retirePlayback(){
+        thumbnails.clear();
         currentProbeToken="";
         if(playbackSession!=null){playbackSession.buffering.finish(SystemClock.elapsedRealtime());telemetry.events(playbackSession);playbackSession.cancel();playbackSession=null;}
         if(telemetry!=null)telemetry.session(null);
@@ -140,6 +143,9 @@ public final class PlayerBridge {
         }catch(Exception ex){error="无法选择音轨或字幕轨";}
     });}
     public static String getSnapshot(){return snapshot;}
+    public static int beginThumbnail(long position,int expectedGeneration){return thumbnails.begin(position,expectedGeneration);}
+    public static String takeThumbnail(int id){return thumbnails.take(id);}
+    public static void cancelThumbnail(int id){thumbnails.cancel(id);}
     public static String getEmbeddedAss(int expectedGeneration){
         if(expectedGeneration!=generation||assRenderers==null)return "";
         AssTextRenderer.State value=assRenderers.ass.state();
