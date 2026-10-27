@@ -68,13 +68,21 @@ namespace VRPlayer.Tests
         {
             app.OpenEmbyLibrary(Library("movies"));yield return WaitUntilLoaded();
             var panel=Draw();var selector=Find(panel,"Emby sort selector");
-            Assert.That(selector.GetComponentInChildren<TMPro.TextMeshProUGUI>(true).text,Does.Contain("标题").And.Contain("↑"));
-            selector.onClick.Invoke();Assert.That(browser.BlocksInput,Is.True);
+            Assert.That(selector.GetComponentInChildren<TMPro.TextMeshProUGUI>(true).text,Is.EqualTo("排序 · 标题"));
+            selector.onClick.Invoke();Assert.That(browser.BlocksInput,Is.True);Assert.That(((RoundedPanelGraphic)selector.targetGraphic).Selected,Is.True);
             var menu=Field<RectTransform>(browser,"viewMenu");
             Assert.That(menu.GetComponentsInChildren<Button>(true).Count(button=>button.name=="Emby sort Title"||button.name=="Emby sort DateAdded"||button.name=="Emby sort ReleaseDate"),Is.EqualTo(3));
-            Find(menu,"Emby sort ReleaseDate").onClick.Invoke();yield return WaitUntilLoaded();
+            Assert.That(Find(menu,"Emby sort ascending").GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("标题正序"));
+            Assert.That(Find(menu,"Emby sort descending").GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("标题倒序"));
+            var firstDirection=(RectTransform)Find(menu,"Emby sort ascending").transform;var secondDirection=(RectTransform)Find(menu,"Emby sort descending").transform;
+            Assert.That(secondDirection.anchoredPosition.x,Is.GreaterThanOrEqualTo(firstDirection.anchoredPosition.x+firstDirection.rect.width+10));
+            Assert.That(menu.GetComponentsInChildren<TMPro.TextMeshProUGUI>(true).All(label=>!label.text.Contains("✓")&&!label.text.Contains("↑")&&!label.text.Contains("↓")),Is.True);
+            Find(menu,"Emby sort ReleaseDate").onClick.Invoke();Assert.That(Field<RectTransform>(browser,"viewMenu"),Is.Null);yield return WaitUntilLoaded();
             Assert.That(app.EmbyState.librarySort,Is.EqualTo(EmbyLibrarySort.ReleaseDate));Assert.That(app.EmbyState.librarySortDescending,Is.False);
-            browser.Render(true);Find(panel,"Emby sort selector").onClick.Invoke();Find(Field<RectTransform>(browser,"viewMenu"),"Emby sort descending").onClick.Invoke();
+            browser.Render(true);Find(panel,"Emby sort selector").onClick.Invoke();menu=Field<RectTransform>(browser,"viewMenu");
+            Assert.That(Find(menu,"Emby sort ascending").GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("较早在前"));
+            Assert.That(Find(menu,"Emby sort descending").GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("较晚在前"));
+            Find(menu,"Emby sort descending").onClick.Invoke();Assert.That(Field<RectTransform>(browser,"viewMenu"),Is.Null);
             yield return WaitUntilLoaded();Assert.That(app.EmbyState.librarySortDescending,Is.True);
             Assert.That(app.EmbyState.items.Select(item=>item.Id),Is.EqualTo(SortFixture.Expected(EmbyLibrarySort.ReleaseDate,true)));
             app.SearchEmbyLibrary("title & clip");yield return WaitUntilLoaded();
@@ -86,7 +94,7 @@ namespace VRPlayer.Tests
             Assert.That(server.Targets.Last(),Does.Contain("SortBy=SortName").And.Contain("SortOrder=Ascending"));
             browser.Render(true);Assert.That(panel.GetComponentsInChildren<Button>(true).Any(button=>button.name=="Emby sort selector"),Is.False);
             app.EmbyBack();Assert.That(app.EmbyState,Is.SameAs(rootState));browser.Render(true);
-            Assert.That(Find(panel,"Emby sort selector").GetComponentInChildren<TMPro.TextMeshProUGUI>(true).text,Does.Contain("发行日期").And.Contain("↓"));
+            Assert.That(Find(panel,"Emby sort selector").GetComponentInChildren<TMPro.TextMeshProUGUI>(true).text,Is.EqualTo("排序 · 发行日期"));
             app.OpenEmbyCategory("Genre","Fixture category");yield return WaitUntilLoaded();browser.Render(true);
             Assert.That(app.EmbyState.IsLibraryRoot,Is.False);
             Assert.That(panel.GetComponentsInChildren<Button>(true).Any(button=>button.name=="Emby sort selector"),Is.False);

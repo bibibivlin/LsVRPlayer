@@ -49,7 +49,7 @@ namespace VRPlayer
             for(int i=1;i<=36;i++)mesh.AddTriangle(0,i,i==36?1:i+1);
         }
     }
-    public enum QuickIcon { Subtitle, Volume, Muted, Previous, Play, Pause, Next, Mode, Speed, Close, Back, Up, Refresh, Star, Clock, Local, Network, Folder, Film, Flat, VR180, Globe, Fisheye, Cubemap, Eac, Sbs, Ou, Eye, Swap, Expand, Contract, Check, Trash, Search, Stop, Home, Add, Forward, Backspace, Open, Edit }
+    public enum QuickIcon { Subtitle, Volume, Muted, Previous, Play, Pause, Next, Mode, Speed, Close, Back, Up, Refresh, Star, Clock, Local, Network, Folder, Film, Flat, VR180, Globe, Fisheye, Cubemap, Eac, Sbs, Ou, Eye, Swap, Expand, Contract, Check, Trash, Search, Stop, Home, Add, Forward, Backspace, Open, Edit, ViewPoster, ViewBanner, ViewDisc, ViewLogo, ViewThumb, ViewList, ViewTable }
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class QuickIconGraphic : MaskableGraphic
     {
@@ -72,6 +72,13 @@ namespace VRPlayer
         {
             vh.Clear();mesh=vh;
             switch(icon){
+                case QuickIcon.ViewPoster:Rectangle(8,3,24,29);break;
+                case QuickIcon.ViewBanner:Rectangle(3,10,29,22);break;
+                case QuickIcon.ViewDisc:Ring(16,16,13);Ring(16,16,3);break;
+                case QuickIcon.ViewLogo:Line(6,25,26,25);Line(16,25,16,6);Line(11,6,21,6);break;
+                case QuickIcon.ViewThumb:Rectangle(3,7,29,25);Ring(10,18,2);Line(6,11,26,11,1.5f);break;
+                case QuickIcon.ViewList:Line(4,24,28,24);Line(4,16,28,16);Line(4,8,28,8);break;
+                case QuickIcon.ViewTable:Rectangle(3,5,29,27);Line(16,5,16,27);Line(3,16,29,16);break;
                 case QuickIcon.Search:Ring(13,19,9);Line(20,12,29,3);break;
                 case QuickIcon.Stop:Rectangle(6,6,26,26);break;
                 case QuickIcon.Home:Line(3,17,16,29);Line(16,29,29,17);Line(7,19,7,4);Line(7,4,25,4);Line(25,4,25,19);Rectangle(13,4,19,14);break;
@@ -123,6 +130,25 @@ namespace VRPlayer
                     Ring(16,11,13,0,180);Line(3,11,29,11,2);
                     for(int i=0;i<5;i++){float a=i*45*Mathf.Deg2Rad;Line(16+Mathf.Cos(a)*10,11+Mathf.Sin(a)*10,16+Mathf.Cos(a)*12,11+Mathf.Sin(a)*12,1.5f);}
                     Line(16,11,24,22,2.5f);Ring(16,11,2);break;
+            }
+        }
+    }
+    [RequireComponent(typeof(CanvasRenderer))]
+    public sealed class MenuHoverOutlineGraphic : MaskableGraphic
+    {
+        protected override void OnPopulateMesh(VertexHelper mesh)
+        {
+            mesh.Clear();Rect rect=rectTransform.rect;float radius=Mathf.Min(12,Mathf.Min(rect.width,rect.height)*.5f),inner=Mathf.Max(0,radius-1.5f);
+            const int steps=6;int points=4*(steps+1);
+            for(int corner=0;corner<4;corner++){
+                var center=new Vector2(corner==0||corner==3?rect.xMax-radius:rect.xMin+radius,corner<2?rect.yMax-radius:rect.yMin+radius);
+                for(int step=0;step<=steps;step++){
+                    float angle=(corner*90+step*90f/steps)*Mathf.Deg2Rad;var direction=new Vector2(Mathf.Cos(angle),Mathf.Sin(angle));
+                    mesh.AddVert(center+direction*radius,color,Vector2.zero);mesh.AddVert(center+direction*inner,color,Vector2.zero);
+                }
+            }
+            for(int i=0;i<points;i++){
+                int current=i*2,next=((i+1)%points)*2;mesh.AddTriangle(current,next,next+1);mesh.AddTriangle(current,next+1,current+1);
             }
         }
     }
