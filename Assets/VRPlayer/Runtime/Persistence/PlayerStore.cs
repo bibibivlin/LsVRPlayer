@@ -61,7 +61,7 @@ namespace VRPlayer
             value.background??=new CinemaBackgroundSettings();value.background.Normalize();
             value.cinemaComfort??=new CinemaComfortSettings();value.cinemaComfort.Normalize();
             value.embyLibraryViews.RemoveAll(item=>item==null||string.IsNullOrEmpty(item.accountId)||string.IsNullOrEmpty(item.libraryId));
-            foreach(var item in value.embyLibraryViews){item.view=EmbyLibraryViews.Normalize(item.view);item.size=EmbyLibraryViews.Normalize(item.size);}
+            foreach(var item in value.embyLibraryViews){item.view=EmbyLibraryViews.Normalize(item.view);item.size=EmbyLibraryViews.Normalize(item.size);item.sort=EmbyLibraryViews.Normalize(item.sort);}
             value.mainPanelDistance=NormalizeMainPanelDistance(value.mainPanelDistance);
             value.mainPanelScale=NormalizeZoom(value.mainPanelScale);
             float oldDistance=Finite(value.subtitleDistance,3);
@@ -100,20 +100,30 @@ namespace VRPlayer
         }
         public PlaybackRecord Find(string uri)=>Settings.history.FirstOrDefault(item=>item.uri==uri);
         public EmbyLibraryView GetEmbyLibraryView(string accountId,string libraryId)=>EmbyLibraryViews.Normalize(Settings.embyLibraryViews.LastOrDefault(item=>item.accountId==accountId&&item.libraryId==libraryId)?.view??EmbyLibraryView.Poster);
+        private EmbyLibraryViewPreference EditEmbyLibraryPreference(string accountId,string libraryId)
+        {
+            if(string.IsNullOrEmpty(accountId)||string.IsNullOrEmpty(libraryId))return null;
+            var item=Settings.embyLibraryViews.LastOrDefault(entry=>entry.accountId==accountId&&entry.libraryId==libraryId)??new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId};
+            Settings.embyLibraryViews.RemoveAll(entry=>entry.accountId==accountId&&entry.libraryId==libraryId);
+            Settings.embyLibraryViews.Add(item);return item;
+        }
         public void SetEmbyLibraryView(string accountId,string libraryId,EmbyLibraryView view)
         {
-            if(string.IsNullOrEmpty(accountId)||string.IsNullOrEmpty(libraryId))return;
-            var size=GetEmbyArtworkSize(accountId,libraryId);
-            Settings.embyLibraryViews.RemoveAll(item=>item.accountId==accountId&&item.libraryId==libraryId);
-            Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId,view=EmbyLibraryViews.Normalize(view),size=size});Save();
+            var item=EditEmbyLibraryPreference(accountId,libraryId);if(item==null)return;
+            item.view=EmbyLibraryViews.Normalize(view);Save();
         }
         public EmbyArtworkSize GetEmbyArtworkSize(string accountId,string libraryId)=>EmbyLibraryViews.Normalize(Settings.embyLibraryViews.LastOrDefault(item=>item.accountId==accountId&&item.libraryId==libraryId)?.size??EmbyArtworkSize.Large);
         public void SetEmbyArtworkSize(string accountId,string libraryId,EmbyArtworkSize size)
         {
-            if(string.IsNullOrEmpty(accountId)||string.IsNullOrEmpty(libraryId))return;
-            var view=GetEmbyLibraryView(accountId,libraryId);
-            Settings.embyLibraryViews.RemoveAll(item=>item.accountId==accountId&&item.libraryId==libraryId);
-            Settings.embyLibraryViews.Add(new EmbyLibraryViewPreference{accountId=accountId,libraryId=libraryId,view=view,size=EmbyLibraryViews.Normalize(size)});Save();
+            var item=EditEmbyLibraryPreference(accountId,libraryId);if(item==null)return;
+            item.size=EmbyLibraryViews.Normalize(size);Save();
+        }
+        public EmbyLibrarySort GetEmbyLibrarySort(string accountId,string libraryId)=>EmbyLibraryViews.Normalize(Settings.embyLibraryViews.LastOrDefault(item=>item.accountId==accountId&&item.libraryId==libraryId)?.sort??EmbyLibrarySort.Title);
+        public bool GetEmbyLibrarySortDescending(string accountId,string libraryId)=>Settings.embyLibraryViews.LastOrDefault(item=>item.accountId==accountId&&item.libraryId==libraryId)?.sortDescending??false;
+        public void SetEmbyLibrarySort(string accountId,string libraryId,EmbyLibrarySort sort,bool descending)
+        {
+            var item=EditEmbyLibraryPreference(accountId,libraryId);if(item==null)return;
+            item.sort=EmbyLibraryViews.Normalize(sort);item.sortDescending=descending;Save();
         }
         public PlaybackRecord Touch(FileEntry file,string directory)
         {
