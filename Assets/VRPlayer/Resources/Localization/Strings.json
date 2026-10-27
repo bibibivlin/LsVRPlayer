@@ -1,6 +1,41 @@
 {
   "entries": [
     {
+      "zh": "排序 · ",
+      "en": "Sort · ",
+      "ja": "並び順 · "
+    },
+    {
+      "zh": "标题",
+      "en": "Title",
+      "ja": "タイトル"
+    },
+    {
+      "zh": "加入日期",
+      "en": "Date added",
+      "ja": "追加日"
+    },
+    {
+      "zh": "发行日期",
+      "en": "Release date",
+      "ja": "公開日"
+    },
+    {
+      "zh": "排序方向",
+      "en": "Sort direction",
+      "ja": "並び順の方向"
+    },
+    {
+      "zh": "递增",
+      "en": "Ascending",
+      "ja": "昇順"
+    },
+    {
+      "zh": "递减",
+      "en": "Descending",
+      "ja": "降順"
+    },
+    {
       "zh": "正在加载预览…",
       "en": "Loading preview…",
       "ja": "プレビューを読み込み中…"

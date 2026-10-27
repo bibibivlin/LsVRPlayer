@@ -70,6 +70,7 @@ namespace VRPlayer.Tests
             var panel = Draw();
             Assert.That(panel.GetComponentsInChildren<TMPro.TextMeshProUGUI>(true).Any(label => label.text == "特别篇"), Is.True);
             Assert.That(panel.GetComponentsInChildren<Button>(true).Any(button => button.name == "Emby view selector"), Is.False);
+            Assert.That(panel.GetComponentsInChildren<Button>(true).Any(button => button.name == "Emby sort selector"), Is.False);
             var layout = Field<EmbyWallLayout>(browser, "posterLayout");
             Assert.That(layout.ArtworkWidth / layout.ArtworkHeight, Is.EqualTo(16f / 9).Within(.001));
             var cards = panel.GetComponentsInChildren<RowBinding>(true);
@@ -91,6 +92,7 @@ namespace VRPlayer.Tests
             var layout = Field<EmbyWallLayout>(browser, "posterLayout");
             Assert.That(layout.ArtworkWidth / layout.ArtworkHeight, Is.EqualTo(2f / 3).Within(.001));
             Assert.That(panel.GetComponentsInChildren<Button>(true).Any(button => button.name == "Emby view selector"), Is.False);
+            Assert.That(panel.GetComponentsInChildren<Button>(true).Any(button => button.name == "Emby sort selector"), Is.False);
             foreach (var season in seasonsPage.items)
             {
                 var artwork = EmbyLibraryViews.Artwork(season, EmbyLibraryView.Disc);

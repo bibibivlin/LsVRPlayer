@@ -74,6 +74,42 @@ namespace VRPlayer.Tests
                 Assert.That(loaded.GetEmbyArtworkSize("new","movies"),Is.EqualTo(EmbyArtworkSize.Large));Assert.That(loaded.Settings.embyLibraryViews.Count,Is.EqualTo(3));
             }finally{if(File.Exists(path))File.Delete(path);}
         }
+
+        [TestCase(1)][TestCase(2)][TestCase(3)] public void ExistingLibraryPreferencesDefaultToAscendingTitleSort(int version)
+        {
+            var settings=PlayerStore.ParseSettings("{\"version\":"+version+",\"embyLibraryViews\":[{\"accountId\":\"a\",\"libraryId\":\"movies\",\"view\":4,\"size\":2}]}");
+            var item=settings.embyLibraryViews.Single();
+            Assert.That(item.sort,Is.EqualTo(EmbyLibrarySort.Title));Assert.That(item.sortDescending,Is.False);
+            Assert.That(item.view,Is.EqualTo(EmbyLibraryView.Thumb));Assert.That(item.size,Is.EqualTo(EmbyArtworkSize.Small));
+        }
+
+        [TestCase(-1)][TestCase(999)] public void InvalidLibrarySortFallsBackToTitle(int sort)
+        {
+            var settings=PlayerStore.ParseSettings("{\"version\":3,\"embyLibraryViews\":[{\"accountId\":\"a\",\"libraryId\":\"movies\",\"sort\":"+sort+"}]}");
+            Assert.That(settings.embyLibraryViews.Single().sort,Is.EqualTo(EmbyLibrarySort.Title));
+        }
+
+        [TestCase(EmbyLibrarySort.Title,false)][TestCase(EmbyLibrarySort.Title,true)]
+        [TestCase(EmbyLibrarySort.DateAdded,false)][TestCase(EmbyLibrarySort.DateAdded,true)]
+        [TestCase(EmbyLibrarySort.ReleaseDate,false)][TestCase(EmbyLibrarySort.ReleaseDate,true)]
+        public void LibrarySortSurvivesRestartAndRemainsIndependentOfOtherPreferences(EmbyLibrarySort sort,bool descending)
+        {
+            string path=Path.Combine(Path.GetTempPath(),"VRPlayer-sort-"+Guid.NewGuid().ToString("N")+".json");
+            try{
+                var store=new PlayerStore(path);
+                store.SetEmbyLibraryView("a","movies",EmbyLibraryView.Disc);store.SetEmbyArtworkSize("a","movies",EmbyArtworkSize.Small);
+                store.SetEmbyLibrarySort("a","movies",sort,descending);
+                store.SetEmbyLibrarySort("a","shows",EmbyLibrarySort.ReleaseDate,true);store.SetEmbyLibrarySort("b","movies",EmbyLibrarySort.DateAdded,false);
+                store.SetEmbyLibraryView("a","movies",EmbyLibraryView.Thumb);store.SetEmbyArtworkSize("a","movies",EmbyArtworkSize.Medium);
+                var loaded=new PlayerStore(path);
+                Assert.That(loaded.GetEmbyLibrarySort("a","movies"),Is.EqualTo(sort));Assert.That(loaded.GetEmbyLibrarySortDescending("a","movies"),Is.EqualTo(descending));
+                Assert.That(loaded.GetEmbyLibraryView("a","movies"),Is.EqualTo(EmbyLibraryView.Thumb));Assert.That(loaded.GetEmbyArtworkSize("a","movies"),Is.EqualTo(EmbyArtworkSize.Medium));
+                Assert.That(loaded.GetEmbyLibrarySort("a","shows"),Is.EqualTo(EmbyLibrarySort.ReleaseDate));Assert.That(loaded.GetEmbyLibrarySortDescending("a","shows"),Is.True);
+                Assert.That(loaded.GetEmbyLibrarySort("b","movies"),Is.EqualTo(EmbyLibrarySort.DateAdded));Assert.That(loaded.GetEmbyLibrarySortDescending("b","movies"),Is.False);
+                Assert.That(loaded.GetEmbyLibrarySort("new","movies"),Is.EqualTo(EmbyLibrarySort.Title));Assert.That(loaded.GetEmbyLibrarySortDescending("new","movies"),Is.False);
+                Assert.That(loaded.Settings.embyLibraryViews.Count,Is.EqualTo(3));Assert.That(File.ReadAllText(path),Does.Not.Contain("accessToken"));
+            }finally{if(File.Exists(path))File.Delete(path);}
+        }
         [TestCase(EmbyLibraryView.Poster)][TestCase(EmbyLibraryView.Banner)][TestCase(EmbyLibraryView.Disc)]
         [TestCase(EmbyLibraryView.Logo)][TestCase(EmbyLibraryView.Thumb)][TestCase(EmbyLibraryView.List)][TestCase(EmbyLibraryView.Table)]
         public void ThreeArtworkSizesPreserveTheLargeLayoutAndKeepVirtualizationBounded(EmbyLibraryView view)

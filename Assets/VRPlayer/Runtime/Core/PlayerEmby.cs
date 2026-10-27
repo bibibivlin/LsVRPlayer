@@ -16,11 +16,15 @@ namespace VRPlayer
         public string filterKind="",filterValue="",filterId="";
         public string viewLibraryId="";
         public bool loading,canGoBack,episodesView;
+        public EmbyLibrarySort librarySort;
+        public bool librarySortDescending;
         public string playedItemId="",playedError="";
         public int revision,totalCount,startIndex;
         public EmbyItem[] views=Array.Empty<EmbyItem>(),resume=Array.Empty<EmbyItem>(),latest=Array.Empty<EmbyItem>(),items=Array.Empty<EmbyItem>(),parts=Array.Empty<EmbyItem>(),extras=Array.Empty<EmbyItem>();
         public EmbyItem selected,parent,episodeSeason;
         public EmbyItem[] specialEpisodes=Array.Empty<EmbyItem>();
+        public bool IsLibraryRoot=>page==EmbyPage.Library&&parent!=null&&!string.IsNullOrEmpty(viewLibraryId)&&parent.Id==viewLibraryId&&
+            string.IsNullOrEmpty(filterKind)&&parent.Type!="Series"&&parent.Type!="Season";
     }
 
     public sealed partial class PlayerApp
@@ -166,11 +170,22 @@ namespace VRPlayer
             else if(EmbyState.parent!=null)_ = LoadEmbyLibrary(EmbyState.parent,0,search);
         }
 
+        public void SetEmbyLibrarySort(EmbyLibrarySort sort,bool descending)
+        {
+            var state=EmbyState;var account=ActiveEmbyAccount;
+            if(Source!=FileSource.Emby||account==null||Store==null||!state.IsLibraryRoot||state.loading)return;
+            sort=EmbyLibraryViews.Normalize(sort);
+            if(state.librarySort==sort&&state.librarySortDescending==descending)return;
+            Store.SetEmbyLibrarySort(account.id,state.viewLibraryId,sort,descending);
+            _ = LoadEmbyLibrary(state.parent,0,state.search);
+        }
+
         private async Task LoadEmbyLibrary(EmbyItem parent,int startIndex,string search)
         {
             var account=ActiveEmbyAccount;if(account==null)return;
             string libraryId=parent.Type=="CollectionFolder"||parent.Type=="UserView"||EmbyState.page==EmbyPage.Home||string.IsNullOrEmpty(EmbyState.viewLibraryId)?parent.Id:EmbyState.viewLibraryId;
             var state=new EmbyBrowserState{page=EmbyPage.Library,parent=parent,title=parent.Name,loading=true,search=search??"",canGoBack=true,viewLibraryId=libraryId};
+            if(state.IsLibraryRoot){state.librarySort=Store?.GetEmbyLibrarySort(account.id,libraryId)??EmbyLibrarySort.Title;state.librarySortDescending=Store?.GetEmbyLibrarySortDescending(account.id,libraryId)??false;}
             var token=BeginEmbyRequest(state);
             try{
                 var metadata=string.IsNullOrEmpty(parent.Type)?await EmbyApi.GetItem(account,parent.Id,token):parent;
@@ -204,7 +219,8 @@ namespace VRPlayer
                     string seriesId=string.IsNullOrEmpty(metadata.SeriesId)?metadata.ParentId:metadata.SeriesId;
                     state.episodesView=true;
                     result=await EmbyApi.GetEpisodes(account,seriesId,metadata.Id,state.search,token);
-                }else result=await EmbyApi.GetAllItems(account,metadata,state.search,token);
+                }else if(state.IsLibraryRoot)result=await EmbyApi.GetAllItemsSorted(account,metadata,state.search,state.librarySort,state.librarySortDescending,token);
+                else result=await EmbyApi.GetAllItems(account,metadata,state.search,token);
                 if(token.IsCancellationRequested||ActiveEmbyAccount!=account)return;
                 state.parent=metadata;state.title=metadata.Type=="Season"&&!string.IsNullOrEmpty(metadata.SeriesName)?metadata.SeriesName+" · "+metadata.Name:metadata.Name;
                 state.items=result.Items??Array.Empty<EmbyItem>();state.totalCount=result.TotalRecordCount+state.specialEpisodes.Length;state.loading=false;PublishEmby(state);
@@ -287,7 +303,14 @@ namespace VRPlayer
         public void EmbyBack()
         {
             CancelEmbyBrowsing(false);
-            if(embyPages.Count>0){PublishEmby(embyPages.Pop());return;}
+            if(embyPages.Count>0){
+                var restored=embyPages.Pop();PublishEmby(restored);
+                if(restored.IsLibraryRoot&&ActiveEmbyAccount!=null&&Store!=null&&
+                    (restored.librarySort!=Store.GetEmbyLibrarySort(ActiveEmbyAccount.id,restored.viewLibraryId)||
+                     restored.librarySortDescending!=Store.GetEmbyLibrarySortDescending(ActiveEmbyAccount.id,restored.viewLibraryId)))
+                    _ = LoadEmbyLibrary(restored.parent,0,restored.search);
+                return;
+            }
             if(ReturnToRecentFromEmby())return;
             if(EmbyState.page==EmbyPage.Home)ShowEmbyAccounts();else EmbyHome();
         }

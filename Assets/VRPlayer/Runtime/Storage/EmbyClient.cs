@@ -103,10 +103,11 @@ namespace VRPlayer
         private static string ItemsPath(EmbyAccount account, string parentId, int startIndex, string search, bool movieLibrary)
             => PagedItemsPath(account, parentId, startIndex, search, movieLibrary, PageSize);
 
-        private static string PagedItemsPath(EmbyAccount account, string parentId, int startIndex, string search, bool movieLibrary, int pageSize)
+        private static string PagedItemsPath(EmbyAccount account, string parentId, int startIndex, string search, bool movieLibrary, int pageSize,
+            EmbyLibrarySort sort = EmbyLibrarySort.Title, bool descending = false)
         {
             string path = UserPath(account) + "/Items?Limit=" + pageSize + "&StartIndex=" + Math.Max(0, startIndex) +
-                "&EnableTotalRecordCount=true&SortBy=SortName&SortOrder=Ascending&Fields=" + Escape(Fields);
+                "&EnableTotalRecordCount=true&SortBy=" + EmbyLibraryViews.SortField(sort) + "&SortOrder=" + (descending ? "Descending" : "Ascending") + "&Fields=" + Escape(Fields);
             if (!string.IsNullOrEmpty(parentId)) path += "&ParentId=" + Escape(parentId);
             path += "&Recursive=" + (movieLibrary || !string.IsNullOrWhiteSpace(search) ? "true" : "false");
             if (movieLibrary) path += "&IncludeItemTypes=Movie";
@@ -117,6 +118,10 @@ namespace VRPlayer
         public Task<EmbyItemsResult> GetAllItems(EmbyAccount account, EmbyItem parent, string search = "", CancellationToken token = default)
             => CollectItems(start => SendAccount(account,
                 PagedItemsPath(account, parent?.Id, start, search, parent?.IsMovieLibrary == true, AllItemsPageSize), "GET", null, token, ParseItems), token);
+
+        public Task<EmbyItemsResult> GetAllItemsSorted(EmbyAccount account, EmbyItem parent, string search, EmbyLibrarySort sort, bool descending, CancellationToken token = default)
+            => CollectOrderedItems(start => SendAccount(account,
+                PagedItemsPath(account, parent?.Id, start, search, parent?.IsMovieLibrary == true, AllItemsPageSize, sort, descending), "GET", null, token, ParseItems), token, false);
 
         public Task<EmbyItemsResult> GetSeasons(EmbyAccount account, string seriesId, CancellationToken token = default)
         {

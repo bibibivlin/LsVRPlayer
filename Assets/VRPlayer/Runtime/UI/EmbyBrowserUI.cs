@@ -136,7 +136,7 @@ namespace VRPlayer
         {
             if(root==null||app==null)return;var state=app.EmbyState;
             if(!force&&revision==state.revision)return;
-            CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():"",state.page==EmbyPage.Library?ArtworkSize.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
+            CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():"",state.page==EmbyPage.Library?ArtworkSize.ToString():"",state.IsLibraryRoot?state.librarySort.ToString():"",state.IsLibraryRoot?state.librarySortDescending.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
             float offset=pageOffsets.TryGetValue(key,out var remembered)?remembered:0;viewKey=key;revision=state.revision;
             cardBuilds.Clear();CancelImages();ClearPosterWall();ClearCast();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
             UiFactory.Box(root,"Emby input surface",0,0,Width,root.rect.height,Color.clear,true);
@@ -319,10 +319,14 @@ namespace VRPlayer
         private void DrawLibrary()
         {
             var state=app.EmbyState;
-            float selectorWidth=296;
+            float selectorWidth=state.IsLibraryRoot?560:296;
             var search=UiFactory.Input(root,state.search??"",L.T("搜索当前影片列表"),0,80,Width-160-selectorWidth,64,keyboard);
             UiFactory.IconButton(root,"搜索",QuickIcon.Search,Width-144-selectorWidth,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
             UiFactory.IconButton(root,"清空",QuickIcon.Close,Width-64-selectorWidth,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");},tooltip:"清空搜索");
+            if(state.IsLibraryRoot){
+                var sort=Button(root,L.T("排序 · ")+L.T(EmbyLibraryViews.Label(state.librarySort))+(state.librarySortDescending?" ↓":" ↑"),Width-544,80,248,64,ToggleSortMenu);
+                sort.name="Emby sort selector";var label=sort.GetComponentInChildren<TextMeshProUGUI>();label.enableAutoSizing=true;label.fontSizeMin=18;label.fontSizeMax=26;
+            }
             if(!FixedSeriesView){
                 var selector=Button(root,L.T("视图 · ")+L.T(EmbyLibraryViews.Label(LibraryView)),Width-280,80,280,64,ToggleViewMenu);selector.name="Emby view selector";
                 selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,64);
@@ -346,6 +350,25 @@ namespace VRPlayer
                 if(FixedSeriesView)return app.EmbyState.episodesView||app.EmbyState.parent.Type=="Season"?EmbyLibraryView.Thumb:EmbyLibraryView.Poster;
                 return app.Store?.GetEmbyLibraryView(app.ActiveEmbyAccount?.id,ViewLibraryId)??EmbyLibraryView.Poster;
             }
+        }
+        private void ToggleSortMenu()
+        {
+            closeKeyboard?.Invoke();if(viewMenu!=null){CloseViewMenu();return;}
+            var state=app.EmbyState;if(!state.IsLibraryRoot)return;
+            viewMenu=UiFactory.Box(root,"Emby sort menu",0,0,Width,root.rect.height,Color.clear,true);
+            var outside=viewMenu.gameObject.AddComponent<Button>();outside.onClick.AddListener(CloseViewMenu);
+            var panel=UiFactory.Box(viewMenu,"Sort options",Width-656,148,360,312,Background,true);
+            var openedMenu=viewMenu;string accountId=app.ActiveEmbyAccount?.id,libraryId=state.viewLibraryId;
+            bool Current()=>viewMenu==openedMenu&&app.Source==FileSource.Emby&&app.EmbyState==state&&app.ActiveEmbyAccount?.id==accountId&&state.IsLibraryRoot&&state.viewLibraryId==libraryId;
+            void Apply(EmbyLibrarySort sort,bool descending){if(!Current())return;CloseViewMenu();app.SetEmbyLibrarySort(sort,descending);}
+            foreach(EmbyLibrarySort sort in Enum.GetValues(typeof(EmbyLibrarySort))){
+                var selected=sort;var option=Button(panel,(state.librarySort==sort?"✓ ":"")+L.T(EmbyLibraryViews.Label(sort)),8,8+(int)sort*64,344,58,()=>Apply(selected,state.librarySortDescending),state.librarySort==sort);
+                option.name="Emby sort "+sort;
+            }
+            UiFactory.Label(panel,L.T("排序方向"),16,204,328,40,25).color=Muted;
+            var ascending=Button(panel,L.T("递增")+" ↑",8,248,168,56,()=>Apply(state.librarySort,false),!state.librarySortDescending);ascending.name="Emby sort ascending";
+            var descending=Button(panel,L.T("递减")+" ↓",184,248,168,56,()=>Apply(state.librarySort,true),state.librarySortDescending);descending.name="Emby sort descending";
+            if(scroll!=null){scroll.StopMovement();scroll.enabled=false;}surfaceChanged?.Invoke();
         }
         private void ToggleViewMenu()
         {

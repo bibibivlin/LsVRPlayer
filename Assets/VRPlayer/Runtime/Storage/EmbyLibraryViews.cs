@@ -4,12 +4,15 @@ namespace VRPlayer
 {
     public enum EmbyLibraryView { Poster=0, Banner=1, Disc=2, Logo=3, Thumb=4, List=5, Table=6 }
     public enum EmbyArtworkSize { Large=0, Medium=1, Small=2 }
+    public enum EmbyLibrarySort { Title=0, DateAdded=1, ReleaseDate=2 }
 
     [Serializable] public sealed class EmbyLibraryViewPreference
     {
         public string accountId, libraryId;
         public EmbyLibraryView view;
         public EmbyArtworkSize size;
+        public EmbyLibrarySort sort;
+        public bool sortDescending;
     }
 
     public readonly struct EmbyWallLayout
@@ -33,6 +36,9 @@ namespace VRPlayer
     {
         public static EmbyLibraryView Normalize(EmbyLibraryView view)=>Enum.IsDefined(typeof(EmbyLibraryView),view)?view:EmbyLibraryView.Poster;
         public static EmbyArtworkSize Normalize(EmbyArtworkSize size)=>Enum.IsDefined(typeof(EmbyArtworkSize),size)?size:EmbyArtworkSize.Large;
+        public static EmbyLibrarySort Normalize(EmbyLibrarySort sort)=>Enum.IsDefined(typeof(EmbyLibrarySort),sort)?sort:EmbyLibrarySort.Title;
+        public static string Label(EmbyLibrarySort sort)=>Normalize(sort) switch {EmbyLibrarySort.DateAdded=>"加入日期",EmbyLibrarySort.ReleaseDate=>"发行日期",_=>"标题"};
+        public static string SortField(EmbyLibrarySort sort)=>Normalize(sort) switch {EmbyLibrarySort.DateAdded=>"DateCreated",EmbyLibrarySort.ReleaseDate=>"PremiereDate",_=>"SortName"};
         public static string Label(EmbyArtworkSize size)=>Normalize(size) switch {EmbyArtworkSize.Medium=>"中",EmbyArtworkSize.Small=>"小",_=>"大"};
         public static string Label(EmbyLibraryView view)=>Normalize(view) switch {
             EmbyLibraryView.Banner=>"横幅图",EmbyLibraryView.Disc=>"光盘封面",EmbyLibraryView.Logo=>"徽标",
