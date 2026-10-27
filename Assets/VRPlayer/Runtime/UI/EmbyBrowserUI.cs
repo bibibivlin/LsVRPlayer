@@ -324,14 +324,12 @@ namespace VRPlayer
             UiFactory.IconButton(root,"搜索",QuickIcon.Search,Width-144-selectorWidth,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary(search.text);},true);
             UiFactory.IconButton(root,"清空",QuickIcon.Close,Width-64-selectorWidth,80,()=>{closeKeyboard?.Invoke();app.SearchEmbyLibrary("");},tooltip:"清空搜索");
             if(state.IsLibraryRoot){
-                var sort=Button(root,L.T("排序 · ")+L.T(EmbyLibraryViews.Label(state.librarySort))+(state.librarySortDescending?" ↓":" ↑"),Width-544,80,248,64,ToggleSortMenu);
-                sort.name="Emby sort selector";var label=sort.GetComponentInChildren<TextMeshProUGUI>();label.enableAutoSizing=true;label.fontSizeMin=18;label.fontSizeMax=26;
+                var sort=Button(root,L.T("排序 · ")+L.T(EmbyLibraryViews.Label(state.librarySort)),Width-544,80,248,64,ToggleSortMenu);
+                sort.name="Emby sort selector";AlignMenuText(sort,16);var label=sort.GetComponentInChildren<TextMeshProUGUI>();label.enableAutoSizing=true;label.fontSizeMin=18;label.fontSizeMax=26;
             }
             if(!FixedSeriesView){
                 var selector=Button(root,L.T("视图 · ")+L.T(EmbyLibraryViews.Label(LibraryView)),Width-280,80,280,64,ToggleViewMenu);selector.name="Emby view selector";
-                selector.GetComponentInChildren<TextMeshProUGUI>().rectTransform.sizeDelta=new Vector2(232,64);
-                var left=UiFactory.Box(selector.transform,"Chevron left",253,32,12,3,Muted);left.pivot=new Vector2(.5f,.5f);left.localRotation=Quaternion.Euler(0,0,-45);
-                var right=UiFactory.Box(selector.transform,"Chevron right",261,32,12,3,Muted);right.pivot=new Vector2(.5f,.5f);right.localRotation=Quaternion.Euler(0,0,45);
+                AlignMenuText(selector,16);
             }
             else Button(root,L.T("图片大小")+" · "+L.T(EmbyLibraryViews.Label(ArtworkSize)),Width-280,80,280,64,ToggleViewMenu).name="Emby size selector";
             BeginScroll(160,root.rect.height-160);var items=state.items??Array.Empty<EmbyItem>();
@@ -357,48 +355,97 @@ namespace VRPlayer
             var state=app.EmbyState;if(!state.IsLibraryRoot)return;
             viewMenu=UiFactory.Box(root,"Emby sort menu",0,0,Width,root.rect.height,Color.clear,true);
             var outside=viewMenu.gameObject.AddComponent<Button>();outside.onClick.AddListener(CloseViewMenu);
-            var panel=UiFactory.Box(viewMenu,"Sort options",Width-656,148,360,312,Background,true);
+            const float menuWidth=392;var panel=MenuPanel(viewMenu,"Sort options",Width-296-menuWidth,148,menuWidth,416);
             var openedMenu=viewMenu;string accountId=app.ActiveEmbyAccount?.id,libraryId=state.viewLibraryId;
             bool Current()=>viewMenu==openedMenu&&app.Source==FileSource.Emby&&app.EmbyState==state&&app.ActiveEmbyAccount?.id==accountId&&state.IsLibraryRoot&&state.viewLibraryId==libraryId;
             void Apply(EmbyLibrarySort sort,bool descending){if(!Current())return;CloseViewMenu();app.SetEmbyLibrarySort(sort,descending);}
+            UiFactory.Label(panel,L.T("排序方式"),16,16,menuWidth-32,40,25).color=Muted;
             foreach(EmbyLibrarySort sort in Enum.GetValues(typeof(EmbyLibrarySort))){
-                var selected=sort;var option=Button(panel,(state.librarySort==sort?"✓ ":"")+L.T(EmbyLibraryViews.Label(sort)),8,8+(int)sort*64,344,58,()=>Apply(selected,state.librarySortDescending),state.librarySort==sort);
-                option.name="Emby sort "+sort;
+                var selected=sort;var option=MenuButton(panel,L.T(EmbyLibraryViews.Label(sort)),16,64+(int)sort*72,menuWidth-32,60,()=>Apply(selected,state.librarySortDescending),state.librarySort==sort);
+                option.name="Emby sort "+sort;AlignMenuText(option,16);
             }
-            UiFactory.Label(panel,L.T("排序方向"),16,204,328,40,25).color=Muted;
-            var ascending=Button(panel,L.T("递增")+" ↑",8,248,168,56,()=>Apply(state.librarySort,false),!state.librarySortDescending);ascending.name="Emby sort ascending";
-            var descending=Button(panel,L.T("递减")+" ↓",184,248,168,56,()=>Apply(state.librarySort,true),state.librarySortDescending);descending.name="Emby sort descending";
-            if(scroll!=null){scroll.StopMovement();scroll.enabled=false;}surfaceChanged?.Invoke();
+            UiFactory.Label(panel,L.T("排序方向"),16,284,menuWidth-32,40,25).color=Muted;
+            var direction=UiFactory.Rect(panel,"Sort direction group",16,334,menuWidth-32,68);float directionWidth=(menuWidth-52)/2;
+            bool title=state.librarySort==EmbyLibrarySort.Title;
+            var ascending=MenuButton(direction,L.T(title?"标题正序":"较早在前"),4,4,directionWidth,60,()=>Apply(state.librarySort,false),!state.librarySortDescending);ascending.name="Emby sort ascending";
+            var descending=MenuButton(direction,L.T(title?"标题倒序":"较晚在前"),16+directionWidth,4,directionWidth,60,()=>Apply(state.librarySort,true),state.librarySortDescending);descending.name="Emby sort descending";
+            if(scroll!=null){scroll.StopMovement();scroll.enabled=false;}HighlightMenuSelector("Emby sort selector");surfaceChanged?.Invoke();
         }
         private void ToggleViewMenu()
         {
             closeKeyboard?.Invoke();if(viewMenu!=null){CloseViewMenu();return;}
             viewMenu=UiFactory.Box(root,"Emby view menu",0,0,Width,root.rect.height,Color.clear,true);
             var outside=viewMenu.gameObject.AddComponent<Button>();outside.onClick.AddListener(CloseViewMenu);
-            var panel=UiFactory.Box(viewMenu,"Options",Width-374,148,360,FixedSeriesView?132:584,Background,true);
+            float menuWidth=FixedSeriesView?384:544;
+            var panel=MenuPanel(viewMenu,"Options",Width-menuWidth-14,148,menuWidth,FixedSeriesView?148:488);
             var openedMenu=viewMenu;var state=app.EmbyState;string accountId=app.ActiveEmbyAccount?.id,libraryId=ViewLibraryId;
-            if(!FixedSeriesView)foreach(EmbyLibraryView view in Enum.GetValues(typeof(EmbyLibraryView))){
-                var selected=view;Button(panel,(LibraryView==view?"✓ ":"")+L.T(EmbyLibraryViews.Label(view)),8,8+(int)view*64,344,58,()=>{
-                    if(viewMenu!=openedMenu||app.Source!=FileSource.Emby||app.EmbyState!=state||app.ActiveEmbyAccount?.id!=accountId||ViewLibraryId!=libraryId)return;
-                    app.Store?.SetEmbyLibraryView(accountId,libraryId,selected);Render(true);
-                },LibraryView==view);
+            if(!FixedSeriesView){
+                UiFactory.Label(panel,L.T("视图样式"),16,16,menuWidth-32,40,25).color=Muted;
+                float optionWidth=(menuWidth-44)/2;
+                foreach(EmbyLibraryView view in Enum.GetValues(typeof(EmbyLibraryView))){
+                    var selected=view;bool active=LibraryView==view;int index=(int)view;
+                    var option=MenuButton(panel,L.T(EmbyLibraryViews.Label(view)),16+(index%2)*(optionWidth+12),64+(index/2)*72,optionWidth,60,()=>{
+                        if(viewMenu!=openedMenu||app.Source!=FileSource.Emby||app.EmbyState!=state||app.ActiveEmbyAccount?.id!=accountId||ViewLibraryId!=libraryId)return;
+                        app.Store?.SetEmbyLibraryView(accountId,libraryId,selected);Render(true);
+                    },active);
+                    AlignMenuText(option,52);UiFactory.Icon(option.transform,ViewIcon(view),14,16,28,active?UiTheme.Ink:Muted);
+                }
             }
-            float sizeTop=FixedSeriesView?8:464;
-            UiFactory.Label(panel,L.T("图片大小"),16,sizeTop,328,40,25).color=Muted;
-            var sizes=UiFactory.Rect(panel,"Artwork sizes",8,sizeTop+48,344,56);
+            float sizeTop=FixedSeriesView?16:356;
+            UiFactory.Label(panel,L.T("图片大小"),16,sizeTop,menuWidth-32,40,25).color=Muted;
+            float sizeWidth=(menuWidth-64)/3;
+            var sizes=UiFactory.Rect(panel,"Artwork sizes",16,sizeTop+50,menuWidth-32,68);
             foreach(EmbyArtworkSize size in Enum.GetValues(typeof(EmbyArtworkSize))){
-                var selected=size;var option=Button(sizes,L.T(EmbyLibraryViews.Label(size)),(int)size*116,0,112,56,()=>{
+                var selected=size;var option=MenuButton(sizes,L.T(EmbyLibraryViews.Label(size)),4+(int)size*(sizeWidth+12),4,sizeWidth,60,()=>{
                     if(viewMenu!=openedMenu||app.Source!=FileSource.Emby||app.EmbyState!=state||app.ActiveEmbyAccount?.id!=accountId||ViewLibraryId!=libraryId)return;
                     app.Store?.SetEmbyArtworkSize(accountId,libraryId,selected);Render(true);
                 },ArtworkSize==size);option.name="Emby artwork size "+size;
             }
-            if(scroll!=null){scroll.StopMovement();scroll.enabled=false;}surfaceChanged?.Invoke();
+            if(scroll!=null){scroll.StopMovement();scroll.enabled=false;}HighlightMenuSelector(FixedSeriesView?"Emby size selector":"Emby view selector");surfaceChanged?.Invoke();
         }
+        private static RectTransform MenuPanel(Transform parent,string name,float x,float y,float width,float height)
+        {
+            return UiFactory.RoundedBox(parent,name,x,y,width,height,new Color(Background.r,Background.g,Background.b,1),true,14);
+        }
+        private static Button MenuButton(Transform parent,string text,float x,float y,float width,float height,Action clicked,bool selected)
+        {
+            var button=Button(parent,text,x,y,width,height,clicked,selected);var graphic=(RoundedPanelGraphic)button.targetGraphic;
+            graphic.Treatment=SurfaceTreatment.Control;graphic.shadow=0;graphic.border=.65f;graphic.color=Color.white;graphic.Selected=selected;
+            var colors=button.colors;colors.normalColor=selected?UiTheme.Selected:Color.clear;
+            colors.highlightedColor=selected?Color.Lerp(UiTheme.Selected,Color.white,.08f):Color.clear;
+            colors.selectedColor=colors.highlightedColor;colors.pressedColor=selected?UiTheme.Accent:Color.clear;
+            UiFactory.SetColorsImmediate(button,colors);
+            if(!selected){
+                var outline=UiFactory.Rect(button.transform,"Menu hover outline",0,0,width,height).gameObject.AddComponent<MenuHoverOutlineGraphic>();
+                outline.color=UiTheme.Accent;outline.raycastTarget=false;outline.gameObject.SetActive(false);
+                var pointers=new HashSet<int>();var hover=button.gameObject.AddComponent<QuickHoverLabel>();
+                hover.Change=(id,enter)=>{if(enter)pointers.Add(id);else pointers.Remove(id);if(outline!=null)outline.gameObject.SetActive(pointers.Count>0);};
+            }
+            return button;
+        }
+        private void HighlightMenuSelector(string name)
+        {
+            if(root==null)return;
+            foreach(var button in root.GetComponentsInChildren<Button>(true)){
+                if(button.name!="Emby sort selector"&&button.name!="Emby view selector"&&button.name!="Emby size selector")continue;
+                if(button.targetGraphic is RoundedPanelGraphic panel)panel.Selected=button.name==name;
+            }
+        }
+        private static void AlignMenuText(Button button,float left)
+        {
+            var label=button.GetComponentInChildren<TextMeshProUGUI>();label.alignment=TextAlignmentOptions.MidlineLeft;
+            label.rectTransform.anchoredPosition=new Vector2(left,label.rectTransform.anchoredPosition.y);
+            label.rectTransform.sizeDelta=new Vector2(((RectTransform)button.transform).rect.width-left-12,label.rectTransform.sizeDelta.y);
+        }
+        private static QuickIcon ViewIcon(EmbyLibraryView view)=>view switch {
+            EmbyLibraryView.Banner=>QuickIcon.ViewBanner,EmbyLibraryView.Disc=>QuickIcon.ViewDisc,EmbyLibraryView.Logo=>QuickIcon.ViewLogo,
+            EmbyLibraryView.Thumb=>QuickIcon.ViewThumb,EmbyLibraryView.List=>QuickIcon.ViewList,EmbyLibraryView.Table=>QuickIcon.ViewTable,_=>QuickIcon.ViewPoster
+        };
         private void CloseViewMenu()
         {
             if(viewMenu==null)return;viewMenu.gameObject.SetActive(false);
             if(Application.isPlaying)Destroy(viewMenu.gameObject);else DestroyImmediate(viewMenu.gameObject);
-            viewMenu=null;if(scroll!=null)scroll.enabled=!externallyBlocked;surfaceChanged?.Invoke();
+            viewMenu=null;HighlightMenuSelector(null);if(scroll!=null)scroll.enabled=!externallyBlocked;surfaceChanged?.Invoke();
         }
         private float TableHeader()
         {

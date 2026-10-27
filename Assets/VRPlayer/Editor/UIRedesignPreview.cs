@@ -89,6 +89,23 @@ namespace VRPlayer.Editor
                     File.WriteAllText(Path.Combine(folder,name+"-alignment.json"),JsonUtility.ToJson(new AlignmentCapture{labels=ui.ActiveCanvas.GetComponentsInChildren<TMPro.TextMeshProUGUI>().Where(text=>!string.IsNullOrWhiteSpace(text.text)&&text.GetComponentInParent<CaptionPresenter>()==null).Select(MeasureAlignment).ToArray()},true));
                     var old=RenderTexture.active;RenderTexture.active=rt;var png=new Texture2D(rt.width,rt.height,TextureFormat.RGB24,false);png.ReadPixels(new Rect(0,0,rt.width,rt.height),0,0);png.Apply();File.WriteAllBytes(Path.Combine(folder,name+".png"),png.EncodeToPNG());UnityEngine.Object.DestroyImmediate(png);RenderTexture.active=old;
                 }
+                void SaveEmbyMenus()
+                {
+                    ui.SelectTab("文件");var previewBrowser=Field<EmbyBrowserUI>(ui,"embyBrowser");Call(previewBrowser,"ToggleSortMenu");Save("47-EmbySortMenu");
+                    var pointer=new UnityEngine.EventSystems.PointerEventData(null){pointerId=-103};
+                    var sortHover=Field<RectTransform>(previewBrowser,"viewMenu").GetComponentsInChildren<QuickHoverLabel>().Single(item=>item.name=="Emby sort DateAdded");
+                    sortHover.OnPointerEnter(pointer);Save("49-EmbySortHover");sortHover.OnPointerExit(pointer);
+                    Call(previewBrowser,"CloseViewMenu");Call(previewBrowser,"ToggleViewMenu");Save("48-EmbyViewMenu");
+                    var viewHover=Field<RectTransform>(previewBrowser,"viewMenu").GetComponentsInChildren<QuickHoverLabel>().Single(item=>item.name==Localization.T("横幅图"));
+                    viewHover.OnPointerEnter(pointer);Save("50-EmbyViewHover");viewHover.OnPointerExit(pointer);Call(previewBrowser,"CloseViewMenu");
+                }
+                if(arguments.Contains("-uiMenuOnly")){
+                    Set(app,"Source",FileSource.Emby);Set(app,"ActiveEmbyAccount",new EmbyAccount{id="preview-account",serverUrl="https://example.invalid"});
+                    app.EmbyState.page=EmbyPage.Library;app.EmbyState.title="演示媒体库";app.EmbyState.parent=new EmbyItem{Id="library",Name="影片",Type="CollectionFolder"};
+                    app.EmbyState.viewLibraryId="library";app.EmbyState.librarySort=EmbyLibrarySort.ReleaseDate;app.EmbyState.librarySortDescending=true;
+                    app.EmbyState.items=Enumerable.Range(0,80).Select(i=>new EmbyItem{Id="film"+i,Name="演示影片 "+i.ToString("D2"),Type="Movie",ProductionYear=2024}).ToArray();
+                    SaveEmbyMenus();File.WriteAllText(Path.Combine(folder,"capture-result.txt"),store.Settings.language+" native uGUI menu fixtures using synthetic metadata only");return;
+                }
                 Set(app,"Source",FileSource.Directory);Set(app,"DirectoryUri","file:///storage/Movies");Set(app,"Files",Enumerable.Range(0,28).Select(i=>new FileEntry{name=i==0?"旅行记录":i==1?"远方的风景.mp4":"影片 "+i.ToString("D2")+".mp4",uri="file:///fixture/"+i,directory=i==0,size=2538000000}).ToList());ui.SelectTab("文件");Call(ui,"Update");Save("01-Files");
                 var iconHint=Field<RectTransform>(ui,"content").GetComponentsInChildren<UiIconTooltip>().Single(hint=>hint.name=="搜索");var pointer=new UnityEngine.EventSystems.PointerEventData(null){pointerId=-101};iconHint.OnPointerEnter(pointer);System.Threading.Thread.Sleep(360);Call(ui.Canvas.GetComponent<UiIconTooltipLayer>(),"LateUpdate");Save("16-IconTooltip");iconHint.OnPointerExit(pointer);
                 typeof(PlayerUI).GetMethod("ShowKeyboard",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).Invoke(ui,new object[]{Field<TMPro.TMP_InputField>(ui,"address")});Save("23-Keyboard");Call(ui,"CloseKeyboard");
@@ -117,6 +134,9 @@ namespace VRPlayer.Editor
                 resumeHover.OnPointerEnter(resumePointer);Save("39-EmbyResumeHover");resumeHover.OnPointerExit(resumePointer);
                 var previewAccounts=new EmbyAccountStore(Path.Combine(folder,"unused-preview-accounts.json"),()=>"{}",_=>true);previewAccounts.Accounts.AddRange(Enumerable.Range(0,2).Select(i=>new EmbyAccount{id="preview-account"+i,userId="fixture",name="演示账户 "+(i+1),username="preview",serverUrl="https://example.invalid"}));typeof(PlayerApp).GetField("embyAccounts",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic).SetValue(app,previewAccounts);Set(app,"ActiveEmbyAccount",previewAccounts.Accounts[1]);app.EmbyState.page=EmbyPage.Accounts;ui.SelectTab("文件");Save("26-EmbyAccounts");Set(app,"ActiveEmbyAccount",null);
                 app.EmbyState.page=EmbyPage.Library;app.EmbyState.parent=new EmbyItem{Id="library",Name="影片"};app.EmbyState.items=Enumerable.Range(0,80).Select(i=>new EmbyItem{Id="film"+i,Name="演示影片 "+i.ToString("D2"),Type="Movie",ProductionYear=2024,RunTimeTicks=TimeSpan.FromMinutes(120).Ticks}).ToArray();ui.SelectTab("文件");Save("07-EmbyWall");
+                Set(app,"ActiveEmbyAccount",previewAccounts.Accounts[1]);app.EmbyState.viewLibraryId="library";app.EmbyState.librarySort=EmbyLibrarySort.ReleaseDate;app.EmbyState.librarySortDescending=true;
+                SaveEmbyMenus();
+                Set(app,"ActiveEmbyAccount",null);app.EmbyState.viewLibraryId="";
                 app.EmbyState.page=EmbyPage.Details;app.EmbyState.selected=new EmbyItem{Id="main",Name="远方的风景",Type="Movie",ProductionYear=2024,RunTimeTicks=TimeSpan.FromMinutes(120).Ticks,Overview="一个用于检查界面层级与可读性的演示影片。所有名称均为测试数据。长片介绍按实际内容向下排版，演员和主创在片段之后完整横向展示。",People=Enumerable.Range(0,80).Select(i=>new EmbyPerson{Id="person"+i,Name="演示演员 "+(i+1),Role=i==0?"导演":"演员"}).ToArray()};app.EmbyState.parts=new[]{new EmbyItem{Id="main",Name="上半部",Type="Movie",RunTimeTicks=TimeSpan.FromMinutes(60).Ticks},new EmbyItem{Id="second",Name="下半部",Type="Video",RunTimeTicks=TimeSpan.FromMinutes(60).Ticks}};app.EmbyState.extras=new[]{new EmbyItem{Id="extra",Name="制作花絮",Type="Video",RunTimeTicks=TimeSpan.FromMinutes(8).Ticks}};
                 ui.SelectTab("文件");Save("08-EmbyDetails");var browser=Field<EmbyBrowserUI>(ui,"embyBrowser");Field<RectTransform>(browser,"body").anchoredPosition=new Vector2(0,510);Save("09-Cast");
                 app.EmbyState.parts=Array.Empty<EmbyItem>();app.EmbyState.extras=Array.Empty<EmbyItem>();ui.SelectTab("文件");Field<RectTransform>(browser,"body").anchoredPosition=Vector2.zero;Save("27-EmbyPlayButton");

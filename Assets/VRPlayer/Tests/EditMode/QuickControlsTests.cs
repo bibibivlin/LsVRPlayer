@@ -635,7 +635,8 @@ namespace VRPlayer.Tests
         {
             var browser=LibraryViewFixture();LibraryViewButton(browser);
             var options=LibraryViewOptions(browser);
-            Assert.That(options.Select(button=>button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text.TrimStart('✓',' ')),Is.EqualTo(new[]{"海报","横幅图","光盘封面","徽标","缩略图","列表","表格"}));
+            Assert.That(options.Select(button=>button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text),Is.EqualTo(new[]{"海报","横幅图","光盘封面","徽标","缩略图","列表","表格"}));
+            Assert.That(options.All(button=>button.GetComponentInChildren<QuickIconGraphic>()!=null),Is.True);
             options[(int)view].onClick.Invoke();
             while((bool)typeof(EmbyBrowserUI).GetMethod("BuildNextCard",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(browser,null)){}
             Assert.That(new PlayerStore(path).GetEmbyLibraryView("fixture","movies"),Is.EqualTo(view));
@@ -656,6 +657,39 @@ namespace VRPlayer.Tests
             LibraryViewButton(browser);stale.onClick.Invoke();Assert.That(store.GetEmbyLibraryView("fixture","movies"),Is.EqualTo(EmbyLibraryView.Poster));
             ui.Back();Assert.That(app.Source,Is.EqualTo(FileSource.Emby));
         }
+        [Test] public void LibraryViewMenuUsesTwoColumnsAndAccentWithoutSelectionMarks()
+        {
+            var browser=LibraryViewFixture();LibraryViewButton(browser);var options=LibraryViewOptions(browser);
+            Assert.That(options.Length,Is.EqualTo(7));
+            var first=(RectTransform)options[0].transform;var second=(RectTransform)options[1].transform;var third=(RectTransform)options[2].transform;
+            Assert.That(second.anchoredPosition.x,Is.GreaterThanOrEqualTo(first.anchoredPosition.x+first.rect.width+10));
+            Assert.That(second.anchoredPosition.y,Is.EqualTo(first.anchoredPosition.y));
+            Assert.That(third.anchoredPosition.y,Is.LessThanOrEqualTo(first.anchoredPosition.y-first.rect.height-10));
+            Assert.That(options.Single(button=>((RoundedPanelGraphic)button.targetGraphic).Selected),Is.SameAs(options[0]));
+            Assert.That(options.All(button=>((RoundedPanelGraphic)button.targetGraphic).Treatment==SurfaceTreatment.Control&&((RoundedPanelGraphic)button.targetGraphic).shadow==0&&((RoundedPanelGraphic)button.targetGraphic).border>0),Is.True);
+            Assert.That(options[0].colors.normalColor,Is.EqualTo(UiTheme.Selected));
+            Assert.That(options.Skip(1).All(button=>button.colors.normalColor.a==0&&button.colors.highlightedColor.a==0),Is.True);
+            Assert.That(options.All(button=>!button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text.Contains("✓")),Is.True);
+            Assert.That(options.All(button=>!button.GetComponentInChildren<QuickIconGraphic>().raycastTarget),Is.True);
+            var root=(RectTransform)typeof(EmbyBrowserUI).GetField("root",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(browser);
+            var selector=root.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby view selector");
+            Assert.That(selector.GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("视图 · 海报"));
+            Assert.That(selector.transform.Cast<Transform>().Any(child=>child.name.StartsWith("Chevron")),Is.False);
+            Assert.That(((RoundedPanelGraphic)selector.targetGraphic).Selected,Is.True);
+            Assert.That(ui.Back(),Is.True);Assert.That(((RoundedPanelGraphic)selector.targetGraphic).Selected,Is.False);
+        }
+        [Test] public void UnselectedViewOptionShowsOnlyAnOutlineWhileEitherPointerHovers()
+        {
+            var browser=LibraryViewFixture();LibraryViewButton(browser);var option=LibraryViewOptions(browser)[1];
+            var outline=option.transform.Find("Menu hover outline").gameObject;Assert.That(outline.activeSelf,Is.False);
+            var left=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-101};
+            var right=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-102};
+            ExecuteEvents.Execute(option.gameObject,left,ExecuteEvents.pointerEnterHandler);Assert.That(outline.activeSelf,Is.True);
+            ExecuteEvents.Execute(option.gameObject,right,ExecuteEvents.pointerEnterHandler);
+            ExecuteEvents.Execute(option.gameObject,left,ExecuteEvents.pointerExitHandler);Assert.That(outline.activeSelf,Is.True);
+            ExecuteEvents.Execute(option.gameObject,right,ExecuteEvents.pointerExitHandler);Assert.That(outline.activeSelf,Is.False);
+            Assert.That(outline.GetComponent<MenuHoverOutlineGraphic>().raycastTarget,Is.False);
+        }
         [Test] public void LoadedTransparentArtworkHidesThePlaceholderAndRecyclingRestoresIt()
         {
             var holder=UiFactory.Rect(ui.Canvas.transform,"Artwork test",0,0,120,120);
@@ -673,7 +707,7 @@ namespace VRPlayer.Tests
             store.SetEmbyLibraryView("fixture","movies",EmbyLibraryView.Table);store.SetEmbyLibraryView("fixture","shows",EmbyLibraryView.Banner);
             foreach(var target in new[]{new{account="fixture",library="movies",view="表格"},new{account="fixture",library="shows",view="横幅图"},new{account="other",library="movies",view="海报"}}){
                 var browser=LibraryViewFixture(target.account,target.library);LibraryViewButton(browser);
-                Assert.That(LibraryViewOptions(browser).Single(button=>button.GetComponentInChildren<TMPro.TextMeshProUGUI>().text.StartsWith("✓ ")).GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo("✓ "+target.view));ui.Back();
+                Assert.That(LibraryViewOptions(browser).Single(button=>((RoundedPanelGraphic)button.targetGraphic).Selected).GetComponentInChildren<TMPro.TextMeshProUGUI>().text,Is.EqualTo(target.view));ui.Back();
             }
         }
 

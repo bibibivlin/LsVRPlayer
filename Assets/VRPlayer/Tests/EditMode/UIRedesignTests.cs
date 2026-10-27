@@ -108,6 +108,9 @@ namespace VRPlayer.Tests
             Call(browser,"ToggleViewMenu");Assert.That(ui.BlocksScrolling,Is.True);
             var menu=Field<RectTransform>(browser,"viewMenu");
             Assert.That(menu.GetComponentsInChildren<Button>().Count(button=>button.name.StartsWith("Emby artwork size ")),Is.EqualTo(3));
+            var largeSize=(RectTransform)menu.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Large").transform;
+            var mediumSize=(RectTransform)menu.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Medium").transform;
+            Assert.That(mediumSize.anchoredPosition.x,Is.GreaterThanOrEqualTo(largeSize.anchoredPosition.x+largeSize.rect.width+10));
             menu.GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Small").onClick.Invoke();FinishCards();
             Assert.That(Field<EmbyWallLayout>(browser,"posterLayout").ArtworkWidth,Is.LessThan(large.ArtworkWidth));
             Assert.That(Field<RectTransform>(browser,"body").anchoredPosition.y,Is.Zero);Assert.That(ui.BlocksScrolling,Is.False);
@@ -125,6 +128,18 @@ namespace VRPlayer.Tests
             Call(browser,"ToggleViewMenu");var stale=Field<RectTransform>(browser,"viewMenu").GetComponentsInChildren<Button>().Single(button=>button.name=="Emby artwork size Small");
             Set("ActiveEmbyAccount",new EmbyAccount{id="other"});stale.onClick.Invoke();
             Assert.That(app.Store.GetEmbyArtworkSize("fixture","library"),Is.EqualTo(EmbyArtworkSize.Large));Assert.That(app.Store.GetEmbyArtworkSize("other","library"),Is.EqualTo(EmbyArtworkSize.Large));
+        }
+        [Test] public void SubtleViewOptionsRemainReachableByThePointer()
+        {
+            var browser=ArtworkLibrary();Call(browser,"ToggleViewMenu");var menu=Field<RectTransform>(browser,"viewMenu");
+            var option=menu.GetComponentsInChildren<Button>().Single(button=>button.transform.parent.name=="Options"&&button.name=="横幅图");
+            var camera=head.GetComponent<Camera>();var previousTarget=camera.targetTexture;var previousActive=RenderTexture.active;
+            var target=new RenderTexture(1280,960,24);camera.targetTexture=target;
+            try{
+                Canvas.ForceUpdateCanvases();camera.Render();var hits=new List<RaycastResult>();
+                ui.Canvas.GetComponent<GraphicRaycaster>().Raycast(Pointer((RectTransform)option.transform,20,30),hits);
+                Assert.That(hits.Count,Is.GreaterThan(0));Assert.That(hits[0].gameObject,Is.SameAs(option.gameObject));
+            }finally{camera.targetTexture=previousTarget;RenderTexture.active=previousActive;target.Release();UnityEngine.Object.DestroyImmediate(target);}
         }
         [Test] public void EmbyHomeFitsFiveLandscapeResumeCardsAcrossTheSourcePage()
         {
