@@ -1,5 +1,7 @@
 # L's VRPlayer
 
+**简体中文** | [English](README.en.md)
+
 [![Android Build](https://github.com/bibibivlin/LsVRPlayer/actions/workflows/android-release.yml/badge.svg)](https://github.com/bibibivlin/LsVRPlayer/actions/workflows/android-release.yml)
 [![release v1.3.0](https://img.shields.io/badge/release-v1.3.0-blue)](https://github.com/bibibivlin/LsVRPlayer/releases/latest)
 [![license MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
