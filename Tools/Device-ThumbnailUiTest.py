@@ -109,7 +109,8 @@ class ThumbnailUiRun(base.BackNavigationRun):
         return self.read_status()['snapshot']
 
     def thumbnail(self, label='thumbnail loaded'):
-        return self.wait_ui(lambda s: s.get('thumbnail', {}).get('visible') and s['thumbnail']['hasImage'], label)['thumbnail']
+        return self.wait_ui(lambda s: s.get('thumbnail', {}).get('visible') and s['thumbnail']['hasImage']
+                            and s['thumbnail'].get('imageKey') == s['thumbnail']['key'], label)['thumbnail']
 
     def capture(self, name):
         self.guard()

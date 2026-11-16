@@ -12,6 +12,31 @@ namespace VRPlayer
         Task<Texture2D> ReadThumbnail(long position,int generation,CancellationToken cancellation);
     }
 
+    // Preview-only spatial hysteresis and bounded debounce. Never used to commit a seek.
+    public sealed class SeekThumbnailTarget
+    {
+        public const double SettleSeconds=.18,MaximumWaitSeconds=.35;
+        private bool initialized,waiting;
+        private float candidate;
+        private double stableSince,waitingSince;
+        public float Value{get;private set;}
+        public static float DeadZone(float trackWidth)=>Mathf.Min(4,Mathf.Max(1,trackWidth)*.005f);
+        public bool Update(float value,float trackWidth,double now)
+        {
+            value=Mathf.Clamp01(value);trackWidth=Mathf.Max(1,trackWidth);
+            if(!initialized)return Accept(value);
+            float distance=Mathf.Abs(value-Value)*trackWidth,zone=DeadZone(trackWidth);
+            if(distance<=zone){waiting=false;return false;}
+            if(distance>=zone*4)return Accept(value);
+            if(!waiting){waiting=true;candidate=value;stableSince=waitingSince=now;return false;}
+            if(Mathf.Abs(value-candidate)*trackWidth>zone*.5f){candidate=value;stableSince=now;}
+            if(now-stableSince<SettleSeconds&&now-waitingSince<MaximumWaitSeconds)return false;
+            return Accept(value);
+        }
+        private bool Accept(float value){Value=value;initialized=true;waiting=false;return true;}
+        public void Reset(){initialized=waiting=false;Value=0;}
+    }
+
     // All texture ownership and continuations stay on Unity's main thread.
     public sealed class SeekThumbnailCache : IDisposable
     {
@@ -23,6 +48,11 @@ namespace VRPlayer
         public int Count=>frames.Count;
         public static long Position(float value,long duration)=>duration<=0?0:Math.Min(duration-1,(long)(Mathf.Clamp01(value)*duration));
         public static long Key(long position)=>Math.Max(0,position)/2000*2000;
+        public bool TryGet(long position,out Texture2D frame)
+        {
+            long key=Key(position);if(!frames.TryGetValue(key,out frame))return false;
+            recent.Remove(key);recent.AddLast(key);return true;
+        }
         public void SetGeneration(int value)
         {
             if(value==generation)return;generation=value;lifetime.Cancel();lifetime.Dispose();lifetime=new CancellationTokenSource();
@@ -32,7 +62,7 @@ namespace VRPlayer
         {
             cancellation.ThrowIfCancellationRequested();if(source==null||expectedGeneration!=generation)return null;
             long key=Key(position);
-            if(frames.TryGetValue(key,out var cached)){recent.Remove(key);recent.AddLast(key);return cached;}
+            if(TryGet(key,out var cached))return cached;
             using var linked=CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token,cancellation);
             Texture2D frame=await source.ReadThumbnail(key,expectedGeneration,linked.Token);
             if(linked.IsCancellationRequested||expectedGeneration!=generation){Release(frame);return null;}
@@ -52,7 +82,7 @@ namespace VRPlayer
         {
 #if UNITY_ANDROID && !UNITY_EDITOR
             cancellation.ThrowIfCancellationRequested();int id=AndroidBridge.Api.CallStatic<int>("beginThumbnail",position,generation);if(id==0)return null;
-            using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancellation);timeout.CancelAfter(8000);
+            using var timeout=CancellationTokenSource.CreateLinkedTokenSource(cancellation);timeout.CancelAfter(25000);
             try{
                 while(true){
                     timeout.Token.ThrowIfCancellationRequested();string json=AndroidBridge.Api.CallStatic<string>("takeThumbnail",id);

@@ -10,21 +10,22 @@ import java.nio.channels.FileChannel;
 
 /** Random access for the preview decoder only. Never borrows the playback loader or socket. */
 final class ThumbnailDataSource extends MediaDataSource {
-    private static final int BLOCK=64*1024;
-    private static final long MAX_BYTES=24L*1024*1024;
-    private final NetworkSockets sockets=new NetworkSockets(null,2500);
+    private final NetworkSockets sockets=new NetworkSockets(null,5000);
     private volatile boolean cancelled;
     private volatile HttpFormatReader http;
     private FormatMetadata.Reader reader;
-    private long length,readBytes,blockOffset=-1;
-    private byte[] block;
+    private long length;
+    volatile long readBytes,readCalls;volatile String failure="";
+    private ThumbnailRangeCache cache;
 
     void open(Context context,String location,String token)throws Exception {
         check();Uri uri=Uri.parse(location);String scheme=uri.getScheme();
         if("http".equals(scheme)||"https".equals(scheme)){
-            http=new HttpFormatReader(location,token);check();reader=http;
+            http=new HttpFormatReader(location,token,5000);check();reader=http;
         }else if("smb".equals(scheme)){
-            SmbStore.Handle handle=SmbStore.connect(uri,sockets,2500);
+            // A decoder can spend seconds on one 8K frame without reading. Keep SMB request
+            // deadlines, but don't let its idle packet reader kill a reusable preview session.
+            SmbStore.Handle handle=SmbStore.connect(uri,sockets,0);
             try{
                 check();com.hierynomus.smbj.share.File file=handle.open();
                 reader=new FormatMetadata.Reader(){
@@ -52,23 +53,20 @@ final class ThumbnailDataSource extends MediaDataSource {
                 };
             }catch(Exception ex){if(descriptor!=null)descriptor.close();throw ex;}
         }
-        check();length=reader.length();if(length<=0)throw new IOException("Preview length unavailable");
+        check();length=reader.length();if(length<=0)throw new IOException("Preview length unavailable");cache=new ThumbnailRangeCache(reader,length);
     }
     private void check()throws InterruptedIOException {if(cancelled||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Preview cancelled");}
+    synchronized void beginRequest()throws IOException {check();cache.beginRequest();readBytes=readCalls=0;failure="";}
     @Override public long getSize()throws IOException {check();return length;}
     @Override public synchronized int readAt(long position,byte[] buffer,int offset,int size)throws IOException {
-        check();if(position<0||offset<0||size<0||offset>buffer.length-size)throw new IOException("Invalid preview range");
-        if(size==0)return 0;if(position>=length)return -1;
-        if(block==null||position<blockOffset||position>=blockOffset+block.length){
-            long start=position/BLOCK*BLOCK;int count=(int)Math.min(BLOCK,length-start);
-            if(readBytes+count>MAX_BYTES)throw new IOException("Preview read budget exhausted");
-            readBytes+=count;block=reader.read(start,count);blockOffset=start;check();
-        }
-        int index=(int)(position-blockOffset),count=Math.min(size,block.length-index);
-        System.arraycopy(block,index,buffer,offset,count);return count;
+        check();
+        try{int count=cache.read(position,buffer,offset,size);check();return count;}
+        catch(ThumbnailRangeCache.BudgetExceeded ex){failure="read_budget";throw ex;}
+        catch(IOException ex){if(failure.isEmpty())failure=cancelled?"cancelled":"network_read";throw ex;}
+        finally{readBytes=cache.readBytes;readCalls=cache.readCalls;}
     }
     // Mark cancellation synchronously; interrupt network I/O on the preview cleanup thread.
     void cancel(){cancelled=true;}
     void abortNetwork(){sockets.close();HttpFormatReader value=http;if(value!=null)value.close();}
-    @Override public void close(){cancel();abortNetwork();if(reader!=null)try{reader.close();}catch(Exception ignored){}reader=null;block=null;}
+    @Override public void close(){cancel();abortNetwork();if(reader!=null)try{reader.close();}catch(Exception ignored){}reader=null;if(cache!=null)cache.clear();}
 }

@@ -7,13 +7,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Independent small range requests; cancellation never closes the playback connection. */
 final class HttpFormatReader implements FormatMetadata.Reader {
-    private final String location,token;private final URI origin;
+    private final String location,token;private final URI origin;private final int timeout;
     private final AtomicBoolean cancelled=new AtomicBoolean();
     private volatile HttpURLConnection connection;private long length=-1;
-    HttpFormatReader(String location,String token)throws IOException {this.location=location;this.token=token;origin=EmbyHttpTransport.location(location);}
+    HttpFormatReader(String location,String token)throws IOException {this(location,token,2500);}
+    HttpFormatReader(String location,String token,int timeout)throws IOException {this.location=location;this.token=token;this.timeout=timeout;origin=EmbyHttpTransport.location(location);}
     private void check()throws InterruptedIOException {if(cancelled.get()||Thread.currentThread().isInterrupted())throw new InterruptedIOException("Metadata cancelled");}
     private EmbyHttpTransport.Response open(long offset,int count)throws IOException {
-        check();return EmbyHttpTransport.open(origin,location,token,offset,count,Collections.emptyMap(),2500,value->{connection=value;if(cancelled.get()){value.disconnect();throw new InterruptedIOException("Metadata cancelled");}check();});
+        check();return EmbyHttpTransport.open(origin,location,token,offset,count,Collections.emptyMap(),timeout,value->{connection=value;if(cancelled.get()){value.disconnect();throw new InterruptedIOException("Metadata cancelled");}check();});
     }
     public long length()throws IOException {
         if(length>=0)return length;
