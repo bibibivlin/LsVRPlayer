@@ -19,6 +19,48 @@ namespace VRPlayer.Tests
         {
             Assert.That(SeekThumbnailCache.Position(value,duration),Is.EqualTo(expected));
         }
+        [TestCase(504)][TestCase(1440)]
+        public void LongFilmTremorAcrossTimeBucketsKeepsThePreviewTarget(float width)
+        {
+            var target=new SeekThumbnailTarget();Assert.That(target.Update(.5f,width,0));
+            float jitter=SeekThumbnailTarget.DeadZone(width)*.9f/width;
+            for(int i=1;i<=200;i++)Assert.That(target.Update(.5f+(i%2==0?jitter:-jitter),width,i*.02),Is.False);
+            Assert.That(target.Value,Is.EqualTo(.5f));
+            Assert.That(SeekThumbnailCache.Key(SeekThumbnailCache.Position(.5f+jitter,7200000)),Is.Not.EqualTo(3600000));
+        }
+        [TestCase(504)][TestCase(1440)]
+        public void SmallIntentionalMovementSettlesWithoutNeedingAnotherPointerEvent(float width)
+        {
+            var target=new SeekThumbnailTarget();target.Update(.5f,width,0);float next=.5f+SeekThumbnailTarget.DeadZone(width)*1.5f/width;
+            Assert.That(target.Update(next,width,.1),Is.False);Assert.That(target.Update(next,width,.27),Is.False);
+            Assert.That(target.Update(next,width,.29));Assert.That(target.Value,Is.EqualTo(next));
+            Assert.That(target.Update(next-SeekThumbnailTarget.DeadZone(width)*.4f/width,width,.5),Is.False,"Hysteresis must follow the accepted position");
+        }
+        [Test] public void BriefMotionOutsideTheDeadZoneDoesNotChangeThePreview()
+        {
+            var target=new SeekThumbnailTarget();target.Update(.5f,1000,0);
+            Assert.That(target.Update(.507f,1000,.01),Is.False);Assert.That(target.Update(.5f,1000,.1),Is.False);
+            Assert.That(target.Update(.5f,1000,1),Is.False);Assert.That(target.Value,Is.EqualTo(.5f));
+        }
+        [Test] public void MovingOutsideTheDeadZoneHasABoundedDebounceWait()
+        {
+            var target=new SeekThumbnailTarget();target.Update(.5f,1000,0);
+            Assert.That(target.Update(.506f,1000,.01),Is.False);
+            Assert.That(target.Update(.512f,1000,.11),Is.False);Assert.That(target.Update(.506f,1000,.21),Is.False);
+            Assert.That(target.Update(.512f,1000,.31),Is.False);Assert.That(target.Update(.506f,1000,.37));
+            Assert.That(target.Value,Is.EqualTo(.506f));
+        }
+        [Test] public void LargeMovementUpdatesImmediatelyAndResetForgetsThePreviousAnchor()
+        {
+            var target=new SeekThumbnailTarget();target.Update(.2f,504,0);Assert.That(target.Update(.8f,504,.001));
+            target.Reset();Assert.That(target.Update(.801f,504,.002));Assert.That(target.Value,Is.EqualTo(.801f));
+        }
+        [Test] public void SlowIntentionalMovementAccumulatesBeyondTheDeadZone()
+        {
+            var target=new SeekThumbnailTarget();target.Update(.3f,1000,0);bool changed=false;
+            for(int i=1;i<=30;i++)changed|=target.Update(.3f+i*.001f,1000,i*.04);
+            Assert.That(changed);Assert.That(target.Value,Is.GreaterThan(.32f));
+        }
         [Test] public async Task NearbyPositionsReuseFrameAndCacheEvictsLeastRecentlyViewedTexture()
         {
             int reads=0;using var cache=new SeekThumbnailCache();cache.SetGeneration(1);

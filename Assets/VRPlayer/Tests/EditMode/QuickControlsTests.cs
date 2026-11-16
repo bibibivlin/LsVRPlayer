@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using UnityEngine;
@@ -559,6 +560,127 @@ namespace VRPlayer.Tests
             gesture.OnPointerDown(pointer);ui.Hide();gesture.OnPointerUp(pointer);
             Assert.That(backend.seeks,Is.Zero);Assert.That(preview.gameObject.activeSelf,Is.False);
         }
+        [Test] public async Task LongFilmPointerMotionCompletesActivePreviewThenLoadsOnlyTheLatestTarget()
+        {
+            backend.Snapshot.duration=7200000;var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            var first=new TaskCompletionSource<Texture2D>();var latest=new TaskCompletionSource<Texture2D>();
+            int reads=0;long target=0;CancellationToken active=default;
+            backend.thumbnail=(position,token)=>{target=position;active=token;return ++reads==1?first.Task:latest.Task;};
+            preview.Show(.2f);for(int i=0;i<100&&reads==0;i++)await Task.Delay(10);
+            Assert.That(reads,Is.EqualTo(1));
+            preview.Show(.3f);preview.Show(.4f);preview.Show(.6f);
+            Assert.That(active.IsCancellationRequested,Is.False,"Pointer motion must not repeatedly abort network/index preparation");
+            Assert.That(reads,Is.EqualTo(1));first.SetResult(new Texture2D(2,2));
+            for(int i=0;i<100&&reads<2;i++)await Task.Delay(10);
+            Assert.That(reads,Is.EqualTo(2));Assert.That(target,Is.EqualTo(SeekThumbnailCache.Key(preview.Position)));
+            Assert.That(preview.HasImage,"A completed first picture must remain visible while the latest target loads");
+            Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(1440000));Assert.That(preview.Diagnostics.retainedImage);
+            latest.SetResult(new Texture2D(2,2));for(int i=0;i<100&&preview.Diagnostics.imageKey!=target;i++)await Task.Delay(10);
+            Assert.That(preview.HasImage);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(target));Assert.That(backend.seeks,Is.Zero);
+            preview.Show(.2f);Assert.That(preview.HasImage,"Completed earlier positions should be cached");Assert.That(reads,Is.EqualTo(2));
+        }
+        [Test] public async Task ContinuousPointerMotionDoesNotRestartTheInitialPreviewDelay()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);int reads=0;
+            backend.thumbnail=(_,__)=>{reads++;return Task.FromResult(new Texture2D(2,2));};
+            for(int i=0;i<25;i++){preview.Show(.1f+i*.025f);await Task.Delay(20);}
+            Assert.That(reads,Is.GreaterThan(0),"The first decode must start even while the controller keeps moving");
+        }
+        [Test] public async Task HidingPreviewCancelsSlowNetworkReadAndReleasesLateFrame()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);var result=new TaskCompletionSource<Texture2D>();
+            bool started=false;CancellationToken active=default;
+            backend.thumbnail=(_,token)=>{started=true;active=token;return result.Task;};
+            preview.Show(.5f);for(int i=0;i<100&&!started;i++)await Task.Delay(10);
+            Assert.That(started);preview.Hide();Assert.That(active.IsCancellationRequested);
+            var frame=new Texture2D(2,2);result.SetResult(frame);for(int i=0;i<100&&frame!=null;i++)await Task.Delay(10);
+            Assert.That(frame==null);Assert.That(app.Thumbnails.Count,Is.Zero);Assert.That(preview.HasImage,Is.False);
+        }
+        [Test] public async Task FailedPreviewEndsLoadingAndAnotherTargetCanRecover()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            backend.thumbnail=(_,__)=>Task.FromException<Texture2D>(new TimeoutException());
+            preview.Show(.2f);for(int i=0;i<100&&preview.Diagnostics.loading;i++)await Task.Delay(10);
+            Assert.That(preview.Diagnostics.loading,Is.False);Assert.That(preview.HasImage,Is.False);
+            Assert.That(preview.Diagnostics.status,Is.EqualTo(Localization.T("预览暂不可用")));
+            backend.thumbnail=(_,__)=>Task.FromResult(new Texture2D(2,2));preview.Show(.6f);
+            for(int i=0;i<100&&!preview.HasImage;i++)await Task.Delay(10);
+            Assert.That(preview.HasImage);Assert.That(backend.seeks,Is.Zero);
+        }
+        [TestCase(false)][TestCase(true)]
+        public async Task HandTremorKeepsTheFirstLongFilmPreviewAndRawTargetTime(bool quick)
+        {
+            if(quick){ui.Hide();ui.ShowQuick();}
+            var preview=(quick?ui.Quick.Canvas:ui.Canvas).GetComponentInChildren<SeekThumbnailPreview>(true);
+            backend.Snapshot.duration=7200000;int reads=0;CancellationToken active=default;
+            var result=new TaskCompletionSource<Texture2D>();backend.thumbnail=(_,token)=>{reads++;active=token;return result.Task;};
+            preview.Show(.5f);for(int i=0;i<100&&reads==0;i++)await Task.Delay(10);
+            Assert.That(reads,Is.EqualTo(1));
+            for(int i=0;i<30;i++)preview.Show(i%2==0?.499f:.501f);
+            Assert.That(active.IsCancellationRequested,Is.False);Assert.That(preview.Diagnostics.key,Is.EqualTo(3600000));
+            Assert.That(preview.Position,Is.EqualTo(SeekThumbnailCache.Position(.501f,backend.Snapshot.duration)));
+            result.SetResult(new Texture2D(2,2));for(int i=0;i<100&&!preview.HasImage;i++)await Task.Delay(10);
+            Assert.That(preview.HasImage);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(3600000));Assert.That(preview.Diagnostics.retainedImage);
+            preview.Show(.499f);Assert.That(preview.HasImage);Assert.That(reads,Is.EqualTo(1));Assert.That(backend.seeks,Is.Zero);
+        }
+        [Test] public async Task LoadingAndFailureKeepTheLastPictureWithItsOwnTimestamp()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);var first=new Texture2D(2,2);
+            backend.thumbnail=(_,__)=>Task.FromResult(first);preview.Show(.2f);
+            for(int i=0;i<100&&!preview.HasImage;i++)await Task.Delay(10);
+            long firstKey=preview.Diagnostics.imageKey;var failed=new TaskCompletionSource<Texture2D>();
+            backend.thumbnail=(_,__)=>failed.Task;preview.Show(.8f);
+            Assert.That(preview.HasImage);Assert.That(preview.Diagnostics.retainedImage);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(firstKey));
+            failed.SetException(new System.IO.IOException());
+            for(int i=0;i<100&&preview.Diagnostics.loading;i++)await Task.Delay(10);
+            Assert.That(preview.Diagnostics.loading,Is.False);Assert.That(preview.HasImage);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(firstKey));
+            Assert.That(preview.GetComponentInChildren<RoundedRawImage>(true).texture,Is.SameAs(first));
+            var stamp=preview.transform.Find("Frame/Preview frame time").GetComponentInChildren<TMPro.TextMeshProUGUI>();
+            Assert.That(stamp.text,Is.EqualTo(string.Format(Localization.T("预览 {0}"),"00:24")));
+            preview.Hide();Assert.That(preview.HasImage,Is.False);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(-1));
+        }
+        [Test] public async Task LateIntermediateFrameCannotReplaceTheAlreadyCachedTarget()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);var cached=new Texture2D(2,2);
+            backend.thumbnail=(_,__)=>Task.FromResult(cached);await app.Thumbnails.Get(backend,96000,1,default);
+            var slow=new TaskCompletionSource<Texture2D>();bool started=false;
+            backend.thumbnail=(_,__)=>{started=true;return slow.Task;};preview.Show(.2f);
+            for(int i=0;i<100&&!started;i++)await Task.Delay(10);
+            Assert.That(started);preview.Show(.8f);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(96000));
+            slow.SetResult(new Texture2D(2,2));for(int i=0;i<100&&preview.Diagnostics.loading;i++)await Task.Delay(10);
+            Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(96000));Assert.That(preview.GetComponentInChildren<RoundedRawImage>(true).texture,Is.SameAs(cached));
+        }
+        [Test] public async Task ContinuousDragKeepsDisplayingCompletedFramesWhileTheLatestTargetLoads()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            var first=new TaskCompletionSource<Texture2D>();var second=new TaskCompletionSource<Texture2D>();var last=new TaskCompletionSource<Texture2D>();int reads=0;
+            backend.thumbnail=(_,__)=>++reads==1?first.Task:reads==2?second.Task:last.Task;
+            preview.Show(.1f);for(int i=0;i<100&&reads<1;i++)await Task.Delay(10);
+            preview.Show(.3f);first.SetResult(new Texture2D(2,2));for(int i=0;i<100&&reads<2;i++)await Task.Delay(10);
+            Assert.That(preview.HasImage);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(12000));
+            preview.Show(.75f);second.SetResult(new Texture2D(2,2));for(int i=0;i<100&&reads<3;i++)await Task.Delay(10);
+            Assert.That(preview.HasImage);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(36000));Assert.That(preview.Diagnostics.retainedImage);
+            last.SetResult(new Texture2D(2,2));for(int i=0;i<100&&preview.Diagnostics.imageKey!=90000;i++)await Task.Delay(10);
+            Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(90000));Assert.That(backend.seeks,Is.Zero);
+        }
+        [Test] public async Task ReplacementFilmImmediatelyClearsARetainedPreview()
+        {
+            var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            backend.thumbnail=(_,__)=>Task.FromResult(new Texture2D(2,2));preview.Show(.2f);
+            for(int i=0;i<100&&!preview.HasImage;i++)await Task.Delay(10);
+            Assert.That(preview.HasImage);var next=new TaskCompletionSource<Texture2D>();backend.thumbnail=(_,__)=>next.Task;
+            Set("Generation",2);backend.Snapshot.generation=2;preview.Show(.8f);
+            Assert.That(preview.HasImage,Is.False);Assert.That(preview.Diagnostics.imageKey,Is.EqualTo(-1));preview.Hide();
+        }
+        [Test] public void PreviewDeadZoneDoesNotQuantizeTheReleasedSeekPosition()
+        {
+            backend.Snapshot.duration=7200000;var gesture=ui.Canvas.GetComponentInChildren<SeekGesture>();var slider=gesture.GetComponent<Slider>();
+            var pointer=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-100};var preview=ui.Canvas.GetComponentInChildren<SeekThumbnailPreview>(true);
+            slider.value=.5f;gesture.OnPointerDown(pointer);slider.value=.501f;gesture.OnDrag(pointer);
+            Assert.That(preview.Diagnostics.key,Is.EqualTo(3600000));Assert.That(preview.Position,Is.GreaterThan(3600000));
+            gesture.OnPointerUp(pointer);Assert.That(backend.seeks,Is.EqualTo(1));
+            Assert.That(backend.Snapshot.position,Is.EqualTo((long)(.501f*backend.Snapshot.duration)));
+        }
         [Test] public void FullDragCannotCommitToReplacementFilm()
         {
             var gesture=ui.Canvas.GetComponentInChildren<SeekGesture>();var pointer=new PointerEventData(events.GetComponent<EventSystem>()){pointerId=-100};
@@ -833,8 +955,10 @@ namespace VRPlayer.Tests
             var permission=ui.ExplainStoragePermission("media");FileButton("继续系统授权 / Continue");
             Assert.That(permission.Result,Is.True);Assert.That(ui.FullModal,Is.Empty);
         }
-        private sealed class TestBackend : IMediaBackend
+        private sealed class TestBackend : IMediaBackend,ISeekThumbnailSource
         {
+            public Func<long,CancellationToken,Task<Texture2D>> thumbnail;
+            public Task<Texture2D> ReadThumbnail(long position,int generation,CancellationToken cancellation)=>thumbnail?.Invoke(position,cancellation)??Task.FromResult<Texture2D>(null);
             public MediaSnapshot Snapshot{get;private set;}=new MediaSnapshot{tracks=new[]{new MediaTrack{id="generated",type=3,supported=true,name="Generated subtitle"}}};
             public float volume;public string track;public int seeks,stops;
             public Texture Texture=>null;public bool RequiresGammaConversion=>false;public int RenderedFrames=>0;

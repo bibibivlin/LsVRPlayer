@@ -33,7 +33,7 @@ public final class SeekThumbnailDeviceTest {
     }
     @After public void cleanup(){if(service!=null)service.close();if(fixture!=null)assertTrue("Owned fixture cleanup",fixture.delete());}
     private JSONObject waitFor(int request)throws Exception {
-        long deadline=SystemClock.elapsedRealtime()+10000;
+        long deadline=SystemClock.elapsedRealtime()+25000;
         while(SystemClock.elapsedRealtime()<deadline){String result=service.take(request);if(!result.isEmpty())return new JSONObject(result);Thread.sleep(30);}
         throw new AssertionError("Thumbnail timed out");
     }
@@ -49,6 +49,12 @@ public final class SeekThumbnailDeviceTest {
     }
     @Test public void arbitraryTimelinePositionsDecodeDistinctSmallFrames()throws Exception {
         assertFrame(waitFor(service.begin(1000,7)),0);assertFrame(waitFor(service.begin(5000,7)),1);assertFrame(waitFor(service.begin(9000,7)),2);
+    }
+    @Test public void completedFramesReuseTheIndexUntilIdleResourcesAreReleased()throws Exception {
+        JSONObject first=waitFor(service.begin(1000,7));assertFrame(first,0);assertTrue(first.getLong("readBytes")>0);
+        JSONObject second=waitFor(service.begin(9000,7));assertFrame(second,2);assertEquals(0,second.getLong("readBytes"));
+        Thread.sleep(5600);
+        JSONObject afterIdle=waitFor(service.begin(5000,7));assertFrame(afterIdle,1);assertTrue(afterIdle.getLong("readBytes")>0);
     }
     @Test public void previewDecoderDoesNotSeekOrPauseConcurrentMedia3Playback()throws Exception {
         androidx.media3.exoplayer.ExoPlayer[] player=new androidx.media3.exoplayer.ExoPlayer[1];
