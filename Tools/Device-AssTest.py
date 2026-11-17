@@ -134,7 +134,7 @@ def main():
         command('subtitle-off');check('Off clears ASS overlay',lambda s:not s.get('assVisible') and s.get('subtitleSelection')=='Off')
         command('subtitle-enabled',flag=True);check('Enable restores prior ASS selection',lambda s:s.get('assVisible'))
         command('subtitle',uri=uri+'Malformed.ass');check('Malformed ASS clears previous pixels',lambda s:not s.get('assVisible'))
-        command('subtitle',uri=uri+'AssFixture.srt');check('SRT floating captions remain available',lambda s:'SRT regression' in s.get('caption','') and not s.get('assVisible'))
+        command('subtitle',uri=uri+'AssFixture.srt');check('SRT captions remain available in flat projection',lambda s:'SRT regression' in s.get('caption','') and not s.get('assVisible'))
         command('open',uri=uri+'EmbeddedFixture.mkv',name='EmbeddedFixture.mkv')
         value=check('Embedded ASS is selectable',lambda s:s.get('snapshot',{}).get('state')==3 and any(t.get('codec')=='text/x-ssa' for t in s['snapshot'].get('tracks',[])))
         track=next(t['id'] for t in value['snapshot']['tracks'] if t.get('codec')=='text/x-ssa')

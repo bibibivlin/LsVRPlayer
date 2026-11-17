@@ -127,7 +127,7 @@ namespace VRPlayer.Tests
         [Test] public void AssBrightnessIsIndependentOfFilmGainAndPreservesCoverage()
         {
             overlay.SetPixel(0,0,new Color(.5f,.5f,.5f,.5f));overlay.Apply();
-            video.SetTexture("_AssTex",overlay);video.SetFloat("_AssEnabled",1);video.SetFloat("_SubtitleBrightness",.6f);
+            video.SetTexture("_SubtitleTex",overlay);video.SetInt("_SubtitleMode",2);video.SetFloat("_SubtitleBrightness",.6f);
             video.SetFloat("_Brightness",.5f);Mode(HighlightCompression.Strong);
             var output=Render(video,i=>new Color(.2f,.2f,.2f,1));
             // Half-covered white at 60% + half of the .1 film pixel: .30 + .05.

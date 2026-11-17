@@ -120,7 +120,9 @@ namespace VRPlayer.Editor
                 app.SubtitleCandidates.AddRange(Enumerable.Range(0,12).Select(i=>new FileEntry{name="远方的风景."+(i%2==0?"zh-CN":"en")+"."+(i+1).ToString("D2")+".srt",uri="file:///subtitle-fixture/"+i+".srt"}));
                 app.Current.subtitle=app.SubtitleCandidates[0].uri;ui.SelectTab("字幕");Save("03b-SubtitleMatches");
                 Call(ui,"DrawTracks");Save("22-Tracks");ui.SelectTab("字幕");
+                app.ChangeFormat(view=>view.projection=Projection.Equirect180);
                 Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<UnityEngine.UI.Button>().Single(b=>b.name=="位置").onClick.Invoke();store.Settings.subtitleSize=80.54f;store.Settings.subtitleOffset=-1.42f;store.Settings.subtitleDistance=.57f;ui.SelectTab("字幕");Save("17-SubtitlePosition");
+                app.ChangeFormat(view=>view.projection=Projection.Flat);ui.SelectTab("字幕");
                 var tabPointer=new UnityEngine.EventSystems.PointerEventData(null){pointerId=-102};var subtitleHover=Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<UiTabButton>().Single(button=>button.name=="选择");subtitleHover.OnPointerEnter(tabPointer);Save("19-SubtitleTabHover");subtitleHover.OnPointerExit(tabPointer);
                 var primaryHover=ui.Canvas.GetComponentsInChildren<UiTabButton>().Single(button=>button.name=="文件");primaryHover.OnPointerEnter(tabPointer);Save("20-PrimaryTabHover");primaryHover.OnPointerExit(tabPointer);
                 Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<UnityEngine.UI.Button>().Single(b=>b.name=="样式").onClick.Invoke();Call(ui,"Update");Save("04-SubtitleStyle");

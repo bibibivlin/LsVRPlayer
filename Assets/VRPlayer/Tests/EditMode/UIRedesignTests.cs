@@ -94,6 +94,35 @@ namespace VRPlayer.Tests
             ui.Hide();ui.ShowQuick();ui.Quick.TogglePopup("subtitles");ui.ScrollList(-1);
             Assert.That(info.anchoredPosition.y,Is.EqualTo(80));
         }
+        [Test] public void SubtitleControlsFollowTheCurrentProjection()
+        {
+            var settings=app.Store.Settings;
+            ui.SelectTab("字幕");
+            var tabs=Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<Button>();
+            tabs.Single(button=>button.name=="位置").onClick.Invoke();
+            Slider SliderFor(string name)=>ui.Canvas.GetComponentsInChildren<Slider>().FirstOrDefault(slider=>slider.name==Localization.T(name)+" slider");
+            Assert.That(SliderFor("字幕距离"),Is.Null);
+            SliderFor("字幕大小").value=65;
+            SliderFor("上下位置").value=.6f;
+            tabs.Single(button=>button.name=="样式").onClick.Invoke();
+            ui.Canvas.GetComponentsInChildren<Button>().Single(button=>button.name==Localization.T("黄字黑边")).onClick.Invoke();
+
+            app.ChangeFormat(view=>view.projection=Projection.Equirect180);
+            Call(ui,"Update");
+            tabs.Single(button=>button.name=="位置").onClick.Invoke();
+            Assert.That(SliderFor("上下位置"),Is.Null);
+            Assert.That(SliderFor("字幕大小").value,Is.EqualTo(42));
+            SliderFor("字幕距离").value=.7f;
+            Assert.That(settings.subtitleDistance,Is.EqualTo(.7f));
+            Assert.That(settings.subtitleStyle.textColor,Is.Not.EqualTo(Color.yellow));
+
+            app.ChangeFormat(view=>view.projection=Projection.Flat);
+            Call(ui,"Update");
+            Assert.That(SliderFor("字幕距离"),Is.Null);
+            Assert.That(SliderFor("字幕大小").value,Is.EqualTo(65));
+            Assert.That(SliderFor("上下位置").value,Is.EqualTo(.6f));
+            Assert.That(settings.flatSubtitles.style.textColor,Is.EqualTo(Color.yellow));
+        }
         private EmbyBrowserUI ArtworkLibrary()
         {
             Set("Source",FileSource.Emby);Set("ActiveEmbyAccount",new EmbyAccount{id="fixture"});
@@ -302,11 +331,13 @@ namespace VRPlayer.Tests
             Assert.That(app.Store.Settings.loop,Is.EqualTo(controls.Single(c=>c.name=="单片循环").Value));
             Assert.That(app.Store.Settings.autoLoadSubtitles,Is.EqualTo(controls.Single(c=>c.name=="自动加载同名字幕").Value));
         }
-        [Test] public void SubtitleEffectsAndPresetSelectionUpdateWithoutRebuildingTheStylePage()
+        [TestCase(Projection.Flat)][TestCase(Projection.Equirect180)]
+        public void SubtitleEffectsAndPresetSelectionUpdateWithoutRebuildingTheStylePage(Projection projection)
         {
+            app.Presenter.Settings.projection=projection;
             ui.SelectTab("字幕");Field<RectTransform>(ui,"subtitleNavigation").GetComponentsInChildren<Button>().Single(b=>b.name=="样式").onClick.Invoke();
             var content=Field<RectTransform>(ui,"content");var outline=content.GetComponentsInChildren<UiSwitch>().Single(c=>c.name=="描边开关");
-            var shadow=content.GetComponentsInChildren<UiSwitch>().Single(c=>c.name=="阴影开关");var style=app.Store.Settings.subtitleStyle;
+            var shadow=content.GetComponentsInChildren<UiSwitch>().Single(c=>c.name=="阴影开关");var style=app.Store.Settings.SubtitleStyleFor(projection==Projection.Flat);
             bool before=style.outline;outline.onClick.Invoke();shadow.onClick.Invoke();Call(ui,"Update");
             Assert.That(style.outline,Is.EqualTo(!before));Assert.That(style.shadow,Is.True);
             Assert.That(content.GetComponentsInChildren<UiSwitch>(),Does.Contain(outline));Assert.That(content.GetComponentsInChildren<UiSwitch>(),Does.Contain(shadow));

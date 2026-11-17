@@ -4,7 +4,7 @@ Shader "VRPlayer/Subtitle Background"
     SubShader {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" }
         Cull Off ZWrite Off ZTest Always
-        Blend SrcAlpha OneMinusSrcAlpha
+        Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
         Pass {
             CGPROGRAM
             #pragma vertex vert

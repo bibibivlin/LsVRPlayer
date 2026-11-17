@@ -686,6 +686,21 @@
       "ja": "字幕のサイズ"
     },
     {
+      "zh": "上下位置",
+      "en": "Vertical position",
+      "ja": "上下の位置"
+    },
+    {
+      "zh": "平面字幕",
+      "en": "Flat subtitles",
+      "ja": "平面動画の字幕"
+    },
+    {
+      "zh": "VR 字幕",
+      "en": "VR subtitles",
+      "ja": "VR 動画の字幕"
+    },
+    {
       "zh": "视觉高度",
       "en": "Visual height",
       "ja": "表示の高さ"
@@ -3337,9 +3352,9 @@
       "ja": "Exporting source… / 正在导出源码"
     },
     {
-      "zh": "ASS 使用脚本样式与位置，仅在画面内显示；可调整字幕延后。",
-      "en": "ASS uses script styling and positions inside the video. Subtitle delay remains adjustable.",
-      "ja": "ASS は動画内でスクリプトの装飾と位置を使用します。字幕の遅延は調整できます。"
+      "zh": "ASS 保留脚本样式和动画。",
+      "en": "ASS preserves script styles and animations.",
+      "ja": "ASS はスクリプトのスタイルとアニメーションを保持します。"
     },
     {
       "zh": "ASS 仅支持平面视频，当前投影已暂停显示。",

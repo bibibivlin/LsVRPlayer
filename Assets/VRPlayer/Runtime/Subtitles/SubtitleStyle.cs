@@ -25,4 +25,30 @@ namespace VRPlayer
             return style;
         }
     }
+
+    [Serializable]
+    public sealed class FlatSubtitleSettings
+    {
+        public const float MinSize = 12, MaxSize = 200;
+        public const float MinAssScale = .5f, MaxAssScale = 1.5f, MaxAssOffset = .25f;
+
+        public float size = 42;
+        public float verticalPosition;
+        public SubtitleStyle style = new SubtitleStyle();
+        public float assScale = 1;
+        public float assOffset;
+
+        public void Normalize()
+        {
+            size = Clamp(size, 42, MinSize, MaxSize);
+            verticalPosition = Clamp(verticalPosition, 0, 0, 1);
+            style ??= new SubtitleStyle();
+            style.Normalize();
+            assScale = Clamp(assScale, 1, MinAssScale, MaxAssScale);
+            assOffset = Clamp(assOffset, 0, -MaxAssOffset, MaxAssOffset);
+        }
+
+        private static float Clamp(float value, float fallback, float min, float max) =>
+            Mathf.Clamp(float.IsFinite(value) ? value : fallback, min, max);
+    }
 }

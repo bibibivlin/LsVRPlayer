@@ -1,4 +1,4 @@
-"""Capture subtitle distance/style cases on an explicitly selected PICO development APK.
+"""Capture VR subtitle distance/style cases on an explicitly selected PICO development APK.
 
 Requires generated Baseline fixtures on the device. Screenshots still need visual review.
 """
@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,8 +18,35 @@ parser.add_argument('--adb', default=r'C:\Program Files\Unity\Hub\Editor\6000.3.
 args = parser.parse_args()
 report = []
 
+def adb_result(*items, check=True):
+    return subprocess.run([args.adb, '-s', args.serial, *items], capture_output=True, check=check)
+
 def adb(*items):
-    return subprocess.run([args.adb, '-s', args.serial, *items], capture_output=True, check=True).stdout.decode('utf-8', errors='replace')
+    return adb_result(*items).stdout.decode('utf-8', errors='replace')
+
+def read_settings(path):
+    result = adb_result('shell', 'test', '-e', path, check=False)
+    if result.returncode == 1 and not result.stderr:
+        return None
+    result.check_returncode()
+    return adb_result('exec-out', 'cat', path).stdout
+
+def restore_settings(saved, backup_path):
+    adb('shell', 'am', 'force-stop', PACKAGE)
+    failures = []
+    for path, original in saved.items():
+        name = Path(path).name
+        try:
+            if original is None:
+                adb('shell', 'rm', '-f', path)
+            else:
+                adb('push', str(backup_path / name), path)
+            if read_settings(path) != original:
+                failures.append(name)
+        except subprocess.CalledProcessError:
+            failures.append(name)
+    if failures:
+        raise RuntimeError('Could not restore ' + ', '.join(failures))
 
 def wait(read, predicate):
     deadline = time.monotonic() + 30
@@ -53,15 +81,27 @@ def capture(name):
     adb('pull', '/sdcard/vrplayer-caption.png', str(target))
     return str(target.relative_to(ROOT))
 
+saved_settings = {}
 try:
+    adb('shell', 'run-as', PACKAGE, 'id')
+    saved = {EXTERNAL + name: read_settings(EXTERNAL + name) for name in ('settings.json', 'settings.json.tmp')}
+    validation = ROOT / 'Docs/Validation'
+    validation.mkdir(parents=True, exist_ok=True)
+    backup_path = Path(tempfile.mkdtemp(prefix='caption-settings-', dir=validation))
+    for path, original in saved.items():
+        if original is not None:
+            (backup_path / Path(path).name).write_bytes(original)
+    saved_settings = saved
+    report.append(dict(settingsBackup=str(backup_path.relative_to(ROOT))))
     command('quality', preset=1)
     previous = status()['snapshot']['generation']
     command('open', uri='file:///sdcard/Movies/VRPlayerTest/Baseline.2D.mp4', name='Baseline.2D.mp4')
     wait(status, lambda r: r['snapshot']['generation'] != previous and r['snapshot']['state'] == 3)
     command('pause')
+    command('projection', projection=2, stereo=0)
     command('subtitle', uri='file:///sdcard/Movies/VRPlayerTest/Baseline.2D.chs.srt')
     command('seek', position=2000)
-    wait(status, lambda r: '你好' in r['caption'])
+    wait(status, lambda r: r['projection'] == 'Equirect360' and '你好' in r['caption'])
     command('menu', flag=False)
     for distance in [.1, .3, 1, 3, 6]:
         command('caption-settings', distance=distance, size=42, offset=-.75, preset=1)
@@ -73,12 +113,17 @@ try:
         time.sleep(.5)
         report.append(dict(preset=preset, screenshot=capture('caption-preset-' + str(preset)), state=status()))
         print('CAPTURE subtitle preset ' + str(preset), flush=True)
-    command('caption-settings', distance=3, size=42, offset=-.75, preset=0)
-    command('menu', flag=True)
 except Exception as error:
     report.append(dict(error=str(error)))
     raise
 finally:
-    target = ROOT / 'Docs/Validation/caption-device.json'
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+    try:
+        if saved_settings:
+            restore_settings(saved_settings, backup_path)
+    except Exception as error:
+        report.append(dict(restorationError=str(error)))
+        raise
+    finally:
+        target = ROOT / 'Docs/Validation/caption-device.json'
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
