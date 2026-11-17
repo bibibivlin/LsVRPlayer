@@ -20,7 +20,7 @@ android.permission.INTERNET：连接你配置的 SMB / Emby 服务器，读取�
 
 android.permission.ACCESS_NETWORK_STATE：判断网络连接状态，支持连接错误处理。
 
-android.permission.ACCESS_WIFI_STATE：读取局域网地址/子网信息，用于当前 Wi-Fi 网络的 SMB 发现；不使用位置定位。
+android.permission.ACCESS_WIFI_STATE：读取局域网地址/子网信息，用于当前 Wi-Fi 网络的 SMB / Emby 发现；不使用位置定位。
 
 android.permission.CHANGE_WIFI_MULTICAST_STATE：在你启动局域网发现时接收服务发现组播数据；离开/取消发现后释放资源。
 

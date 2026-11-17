@@ -66,7 +66,7 @@ namespace VRPlayer
         public bool BlocksTransport=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||modal!=""||(keyboard!=null&&keyboard.gameObject.activeSelf)||(seekGesture!=null&&seekGesture.Dragging))||Quick!=null&&Quick.BlocksTransport;
         public bool CastHovered=>Visible&&tab=="文件"&&app.Source==FileSource.Emby&&!BlocksScrolling&&embyBrowser!=null&&embyBrowser.CastHovered;
         public void ScrollCast(int direction)=>embyBrowser?.ScrollCast(direction);
-        public bool BlocksScrolling=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksInput||keyboard!=null&&keyboard.gameObject.activeSelf||modal!=""&&modal!="legal");
+        public bool BlocksScrolling=>Visible&&(embyBrowser!=null&&embyBrowser.BlocksScrolling||keyboard!=null&&keyboard.gameObject.activeSelf||modal!=""&&modal!="legal");
         private CancellationTokenSource connection;
         public bool CanDiscover=>!privacyGate&&Visible&&tab=="文件"&&modal==""&&!keyboard.gameObject.activeSelf;
         public string SelectedTab=>tab;
@@ -570,7 +570,7 @@ namespace VRPlayer
         }
         public void CancelSmbConnection(){connection?.Cancel();connection?.Dispose();connection=null;if(modal=="connecting")Draw();}
         private void CloseKeyboard(){keyboardTarget?.DeactivateInputField();keyboardTarget=null;if(keyboard!=null)keyboard.gameObject.SetActive(false);fileList?.Block(false);subtitleList?.Block(false);embyBrowser?.Block(false);}
-        private void CompleteKeyboard(){bool search=keyboardTarget==filter;CloseKeyboard();if(search)Draw();else if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Render();}
+        private void CompleteKeyboard(){bool search=keyboardTarget==filter;if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.CompleteInput(keyboardTarget);CloseKeyboard();if(search)Draw();else if(tab=="文件"&&app.Source==FileSource.Emby)embyBrowser?.Render();}
         private void BeginModal(string name){CancelPermissionNotice();SurfaceRevision++;CancelSmbConnection();app.StopDiscovery();CloseKeyboard();RememberFileOffset();fileRowsReady=false;subtitleNavigation.gameObject.SetActive(false);UiFactory.Clear(content);fileList=null;subtitleList=null;infoScroll=null;infoBody=null;infoCards=null;preview=brightPreview=null;modal=name;}
         private void ReturnFromModal(){CancelSmbConnection();CloseKeyboard();Draw();if(CanDiscover&&app.Source==FileSource.Smb)app.StartDiscovery();}
         private void ConnectHost(DiscoveredSmbHost host)=>_ = EnumerateShares(new SmbServer{name=host.name,host=host.host,port=host.port});
