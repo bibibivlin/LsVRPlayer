@@ -2,15 +2,18 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using NUnit.Framework;
 using TMPro;
 using UnityEngine;
 using UnityEngine.TestTools;
+using UnityEngine.UI;
 
 namespace VRPlayer.Tests
 {
@@ -164,6 +167,87 @@ namespace VRPlayer.Tests
                 Assert.That(GetPrivate(browser,"login"),Is.True);Assert.That(GetPrivate(browser,"busy"),Is.True);Assert.That(GetPrivate(browser,"loginError"),Is.EqualTo("new form state"));
                 Assert.That(app.EmbyState.page,Is.EqualTo(EmbyPage.Accounts));
             }finally{app.CancelEmbyBrowsing(false);listener.Stop();UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [Test] public void BackFromServerPickerCancelsScanWithoutLeavingLogin()
+        {
+            var root=new GameObject("Emby discovery back regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            var cancellation=new CancellationTokenSource();var token=cancellation.Token;
+            try{
+                SetPrivate(browser,"login",true);SetPrivate(browser,"serverScan",cancellation);
+                var page=typeof(EmbyBrowserUI).GetNestedType("LoginPage",BindingFlags.NonPublic);
+                SetPrivate(browser,"loginPage",Enum.Parse(page,"Servers"));
+                Assert.That(browser.TryBack());Assert.That(token.IsCancellationRequested);
+                Assert.That(GetPrivate(browser,"login"),Is.True);Assert.That(GetPrivate(browser,"loginPage").ToString(),Is.EqualTo("Form"));
+            }finally{UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [Test] public void ServerAndUserPickersAllowListScrollingWhileBlockingPlaybackControls()
+        {
+            var root=new GameObject("Emby picker scrolling regression");root.SetActive(false);var browser=root.AddComponent<EmbyBrowserUI>();
+            var panel=new GameObject("Emby panel",typeof(RectTransform));panel.transform.SetParent(root.transform,false);
+            try{
+                SetPrivate(browser,"root",panel.GetComponent<RectTransform>());SetPrivate(browser,"login",true);
+                var page=typeof(EmbyBrowserUI).GetNestedType("LoginPage",BindingFlags.NonPublic);
+                foreach(string name in new[]{"Servers","Users"}){
+                    SetPrivate(browser,"loginPage",Enum.Parse(page,name));
+                    Assert.That(browser.BlocksInput,Is.True);Assert.That(browser.BlocksScrolling,Is.False);
+                }
+                SetPrivate(browser,"loginPage",Enum.Parse(page,"Form"));
+                Assert.That(browser.BlocksInput,Is.True);Assert.That(browser.BlocksScrolling,Is.True);
+            }finally{UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [UnityTest] public IEnumerator ChangingAddressCancelsPublicUserLookupAndCannotOverwriteNewSelection()
+        {
+            var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
+            var root=new GameObject("Emby stale users regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            try{
+                typeof(PlayerApp).GetProperty("EmbyApi").SetValue(app,new EmbyClient("user-regression"));
+                SetPrivate(browser,"login",true);SetPrivate(browser,"serverAddress","127.0.0.1");SetPrivate(browser,"serverPort",((IPEndPoint)listener.LocalEndpoint).Port.ToString());
+                var request=(Task)typeof(EmbyBrowserUI).GetMethod("LoadPublicUsers",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(browser,new object[]{false});
+                Assert.That(request.IsCompleted,Is.False);
+                typeof(EmbyBrowserUI).GetMethod("InvalidateUsers",BindingFlags.Instance|BindingFlags.NonPublic).Invoke(browser,null);
+                var replacement=new[]{new EmbyPublicUser{Id="new",Name="New server user"}};
+                SetPrivate(browser,"publicUsers",replacement);SetPrivate(browser,"usersServer","http://new-server");SetPrivate(browser,"usersStatus","new status");
+                float deadline=Time.realtimeSinceStartup+5;
+                while(!request.IsCompleted&&Time.realtimeSinceStartup<deadline)yield return null;
+                Assert.That(request.IsCompleted);Assert.That(request.IsFaulted,Is.False);
+                Assert.That(GetPrivate(browser,"publicUsers"),Is.SameAs(replacement));Assert.That(GetPrivate(browser,"usersServer"),Is.EqualTo("http://new-server"));Assert.That(GetPrivate(browser,"usersStatus"),Is.EqualTo("new status"));
+            }finally{listener.Stop();UnityEngine.Object.DestroyImmediate(root);}
+        }
+
+        [UnityTest] public IEnumerator SelectingDiscoveredServerLoadsAndSelectsItsPublicUser()
+        {
+            var listener=new TcpListener(IPAddress.Loopback,0);listener.Start();
+            var previousLanguage=Localization.Preference;Localization.SetLanguage(AppLanguage.Chinese);
+            var root=new GameObject("Emby selection regression");root.SetActive(false);var app=root.AddComponent<PlayerApp>();var browser=root.AddComponent<EmbyBrowserUI>();browser.Initialize(app,_=>{},()=>{},()=>{});
+            var panel=new GameObject("Emby panel",typeof(RectTransform));panel.transform.SetParent(root.transform,false);var rect=panel.GetComponent<RectTransform>();rect.sizeDelta=new Vector2(1376,720);
+            var fixture=Task.Run(async()=>{
+                using var client=await listener.AcceptTcpClientAsync();using var stream=client.GetStream();var bytes=new byte[8192];int count=0;
+                while(count<bytes.Length){int read=await stream.ReadAsync(bytes,count,bytes.Length-count);if(read==0)break;count+=read;if(Encoding.ASCII.GetString(bytes,0,count).Contains("\r\n\r\n"))break;}
+                string received=Encoding.ASCII.GetString(bytes,0,count);string body="[{\"Id\":\"user-a\",\"Name\":\"Fixture Viewer\",\"HasPassword\":true}]";
+                byte[] payload=Encoding.UTF8.GetBytes(body),header=Encoding.ASCII.GetBytes("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "+payload.Length+"\r\nConnection: close\r\n\r\n");
+                await stream.WriteAsync(header,0,header.Length);await stream.WriteAsync(payload,0,payload.Length);return received;
+            });
+            try{
+                typeof(PlayerApp).GetProperty("EmbyApi").SetValue(app,new EmbyClient("fixture-device"));
+                SetPrivate(browser,"login",true);SetPrivate(browser,"loginPage",Enum.Parse(typeof(EmbyBrowserUI).GetNestedType("LoginPage",BindingFlags.NonPublic),"Servers"));
+                int port=((IPEndPoint)listener.LocalEndpoint).Port;
+                SetPrivate(browser,"discoveredServers",new[]{new EmbyDiscoveredServer{Id="fixture",Name="Fixture server",Address="http://127.0.0.1:"+port+"/proxy"}});
+                browser.Bind(rect);panel.GetComponentsInChildren<Button>(true).Single(button=>button.name=="Emby discovered server").onClick.Invoke();
+                Assert.That(((TMP_InputField)GetPrivate(browser,"addressField")).text,Is.EqualTo("127.0.0.1/proxy"));
+                Assert.That(((TMP_InputField)GetPrivate(browser,"portField")).text,Is.EqualTo(port.ToString()));
+                float deadline=Time.realtimeSinceStartup+5;
+                while(!(bool)GetPrivate(browser,"usersLoaded")&&Time.realtimeSinceStartup<deadline)yield return null;
+                Assert.That(GetPrivate(browser,"usersLoaded"),Is.True);Assert.That(fixture.IsCompleted,Is.True);Assert.That(fixture.IsFaulted,Is.False);
+                Assert.That(fixture.Result,Does.StartWith("GET /proxy/Users/Public HTTP/1.1"));
+                Assert.That(fixture.Result,Does.Not.Contain("X-Emby-Token"));
+                panel.GetComponentsInChildren<Button>(true).Single(button=>button.name=="选择账户").onClick.Invoke();
+                panel.GetComponentsInChildren<Button>(true).Single(button=>button.name=="Emby public user").onClick.Invoke();
+                Assert.That(((TMP_InputField)GetPrivate(browser,"userField")).text,Is.EqualTo("Fixture Viewer"));
+                Assert.That(((TMP_InputField)GetPrivate(browser,"passwordField")).text,Is.Empty);
+            }finally{listener.Stop();UnityEngine.Object.DestroyImmediate(root);Localization.SetLanguage(previousLanguage);}
         }
 
         private static void SetPrivate(object target,string name,object value)=>target.GetType().GetField(name,BindingFlags.Instance|BindingFlags.NonPublic).SetValue(target,value);

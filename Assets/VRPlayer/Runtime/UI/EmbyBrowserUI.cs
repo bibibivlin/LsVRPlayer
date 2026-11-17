@@ -3,6 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using TMPro;
 using Unity.Profiling;
 using UnityEngine;
@@ -43,6 +45,7 @@ namespace VRPlayer
         private EmbyPerson[] castPeople=Array.Empty<EmbyPerson>();private readonly List<CastSlot> castPool=new List<CastSlot>();private int castFirst=-1;
         private sealed class CastSlot{public RectTransform root,art;public RawImage image;public TextMeshProUGUI name,role,placeholder;public RowBinding binding;public ImageBinding imageBinding;}
         public bool BlocksInput=>root!=null&&(viewMenu!=null||login||!string.IsNullOrEmpty(removing));
+        public bool BlocksScrolling=>root!=null&&(viewMenu!=null||login&&loginPage==LoginPage.Form||!string.IsNullOrEmpty(removing));
         public bool CastHovered=>castScroll!=null&&castScroll.enabled&&castRegion.Hovered&&!castScroll.HasDragOwner;
         private RectTransform viewMenu;
         private bool externallyBlocked;
@@ -52,6 +55,14 @@ namespace VRPlayer
         private int revision=-1,imageGeneration,loginGeneration;
         private string viewKey="",serverAddress="",serverPort="8096",username="",password="",loginError="",removing="";
         private bool login,remember=true,busy,useHttps;
+        private enum LoginPage { Form, Servers, Users }
+        private LoginPage loginPage;
+        private CancellationTokenSource serverScan,userLookup;
+        private int serverScanGeneration,userLookupGeneration;
+        private EmbyDiscoveredServer[] discoveredServers=Array.Empty<EmbyDiscoveredServer>();
+        private EmbyPublicUser[] publicUsers=Array.Empty<EmbyPublicUser>();
+        private string scanStatus="",usersStatus="",usersServer="";
+        private bool usersLoaded,loginPresentationDirty;
         private TMP_InputField addressField,portField,userField,passwordField;
         private readonly Queue<ImageJob> imageQueue=new Queue<ImageJob>();
         private readonly Dictionary<string,ImageJob> imageJobs=new Dictionary<string,ImageJob>();
@@ -98,26 +109,32 @@ namespace VRPlayer
         }
         public void ReleasePanel()
         {
-            CaptureLogin();RememberOffset();CloseViewMenu();cardBuilds.Clear();CancelImages();ClearPosterWall();ClearCast();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
+            CaptureLogin();CancelServerScan();CancelUserLookup();RememberOffset();CloseViewMenu();cardBuilds.Clear();CancelImages();ClearPosterWall();ClearCast();root=null;scroll=null;body=null;addressField=portField=userField=passwordField=null;
         }
-        public void Suspend(){CloseViewMenu();CancelImages();}
+        public void Suspend(){CancelServerScan();CancelUserLookup();CloseViewMenu();CancelImages();}
         public bool TryBack()
         {
             if(app==null)return false;
             if(viewMenu!=null){CloseViewMenu();return true;}
-            if(login){ReturnFromLogin();return true;}
+            if(login){if(loginPage!=LoginPage.Form)ReturnFromLoginPicker();else ReturnFromLogin();return true;}
             if(!string.IsNullOrEmpty(removing)){closeKeyboard?.Invoke();removing="";Render(true);return true;}
             if(app.EmbyState.page==EmbyPage.Accounts)return app.ReturnToRecentFromEmby();
             closeKeyboard?.Invoke();app.EmbyBack();return true;
         }
         private void ReturnFromLogin()
         {
-            closeKeyboard?.Invoke();loginGeneration++;busy=false;passwordField?.SetTextWithoutNotify("");password="";login=false;loginError="";removing="";app.ShowEmbyAccounts();
+            closeKeyboard?.Invoke();CancelServerScan();CancelUserLookup();loginGeneration++;busy=false;passwordField?.SetTextWithoutNotify("");password="";login=false;loginPage=LoginPage.Form;loginError="";removing="";app.ShowEmbyAccounts();
+        }
+        private void ReturnFromLoginPicker()
+        {
+            closeKeyboard?.Invoke();CancelServerScan();CancelUserLookup();loginPage=LoginPage.Form;Render(true);
         }
         public void Block(bool blocked)
         {
-            externallyBlocked=blocked;if(scroll==null)return;scroll.enabled=!blocked&&viewMenu==null;if(blocked)scroll.StopMovement();
+            externallyBlocked=blocked;if(!blocked&&loginPresentationDirty){loginPresentationDirty=false;Render(true);return;}
+            if(scroll==null)return;scroll.enabled=!blocked&&viewMenu==null;if(blocked)scroll.StopMovement();
         }
+        private void RefreshLoginPresentation(){if(externallyBlocked)loginPresentationDirty=true;else Render(true);}
         public void Scroll(float axis)
         {
             if(scroll==null||!scroll.enabled||scroll.HasDragOwner||Mathf.Abs(axis)<=.2f)return;
@@ -136,7 +153,7 @@ namespace VRPlayer
         {
             if(root==null||app==null)return;var state=app.EmbyState;
             if(!force&&revision==state.revision)return;
-            CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():"",state.page==EmbyPage.Library?ArtworkSize.ToString():"",state.IsLibraryRoot?state.librarySort.ToString():"",state.IsLibraryRoot?state.librarySortDescending.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
+            CaptureLogin();RememberOffset();CloseViewMenu();string key=string.Concat(new[]{state.page.ToString(),login.ToString(),login?loginPage.ToString():"",state.parent?.Id,state.selected?.Id,state.filterKind,state.filterValue,state.filterId,state.search,app.ActiveEmbyAccount?.id,state.page==EmbyPage.Library?LibraryView.ToString():"",state.page==EmbyPage.Library?ArtworkSize.ToString():"",state.IsLibraryRoot?state.librarySort.ToString():"",state.IsLibraryRoot?state.librarySortDescending.ToString():""}.Select(value=>(value?.Length??0)+":"+(value??"")));
             float offset=pageOffsets.TryGetValue(key,out var remembered)?remembered:0;viewKey=key;revision=state.revision;
             cardBuilds.Clear();CancelImages();ClearPosterWall();ClearCast();UiFactory.Clear(root);scroll=null;body=null;addressField=portField=userField=passwordField=null;surfaceChanged?.Invoke();
             UiFactory.Box(root,"Emby input surface",0,0,Width,root.rect.height,Color.clear,true);
@@ -213,7 +230,7 @@ namespace VRPlayer
                     card.GetComponent<RoundedPanelGraphic>().Selected=active;
                     var open=Button(card,"",0,0,cardWidth-208,104,()=>{
                         removing="";
-                        if(string.IsNullOrEmpty(selected.accessToken)){login=true;EmbyServerAddress.Parse(selected.serverUrl,out useHttps,out serverAddress,out serverPort);username=selected.username;password="";loginError="";remember=selected.remember;Render(true);}
+                        if(string.IsNullOrEmpty(selected.accessToken)){login=true;loginPage=LoginPage.Form;InvalidateUsers();EmbyServerAddress.Parse(selected.serverUrl,out useHttps,out serverAddress,out serverPort);username=selected.username;password="";loginError="";remember=selected.remember;Render(true);}
                         else{login=false;app.SelectEmbyAccount(selected.id);}
                     });
                     open.targetGraphic.color=Color.white;var colors=open.colors;colors.normalColor=colors.selectedColor=Color.clear;colors.highlightedColor=UiTheme.Elevated;colors.pressedColor=UiTheme.SelectedMuted;UiFactory.SetColorsImmediate(open,colors);
@@ -228,39 +245,133 @@ namespace VRPlayer
                 }
                 FinishScroll(errorHeight+index*120);
             }
-            Button(root,L.T("添加服务器 / 账户"),24,root.rect.height-64,600,54,()=>{login=true;useHttps=false;serverPort="8096";serverAddress=username=password=loginError="";remember=true;Render(true);},true);
+            Button(root,L.T("添加服务器 / 账户"),24,root.rect.height-64,600,54,()=>{login=true;useHttps=false;serverPort="8096";serverAddress=username=password=loginError="";remember=true;InvalidateUsers();_ = ScanServers();},true);
             UiFactory.Label(root,L.T("切换账户后显示该账户可访问的媒体库"),644,root.rect.height-64,Width-668,54,23,TextAlignmentOptions.Right).color=Muted;
         }
         private void DrawLogin()
         {
+            if(loginPage==LoginPage.Servers){DrawServerPicker();return;}
+            if(loginPage==LoginPage.Users){DrawUserPicker();return;}
             UiFactory.IconButton(root,busy?L.T("取消登录"):L.T("返回"),QuickIcon.Back,0,0,ReturnFromLogin);
             UiFactory.Label(root,L.T("添加 Emby 服务器 / 账户"),80,0,Width-80,64,32);
-            UiFactory.Label(root,L.T("输入服务器地址，并使用该服务器已有的账户登录"),24,73,Width-48,44,24).color=Muted;
+            UiFactory.Label(root,L.T("选择服务器或输入地址，再使用已有账户登录"),24,73,Width-330,44,24).color=Muted;
+            var scan=Button(root,L.T("搜索局域网服务器"),Width-296,70,272,52,()=>{CaptureLogin();closeKeyboard?.Invoke();_ = ScanServers();});scan.interactable=!busy;
             UiFactory.Label(root,L.T("连接协议"),24,130,224,52,26);
-            var protocol=Button(root,useHttps?"HTTPS":"HTTP",258,130,190,52,()=>{CaptureLogin();closeKeyboard?.Invoke();useHttps=!useHttps;Render(true);},true);protocol.interactable=!busy;
+            var protocol=Button(root,useHttps?"HTTPS":"HTTP",258,130,190,52,()=>{CaptureLogin();closeKeyboard?.Invoke();useHttps=!useHttps;InvalidateUsers();Render(true);_ = LoadPublicUsers(false);},true);protocol.interactable=!busy;
             UiFactory.Label(root,L.T("点击按钮切换 HTTP / HTTPS"),468,130,Width-492,52,24).color=Muted;
             UiFactory.Label(root,L.T("地址 / IP"),24,194,224,58,26);
             addressField=UiFactory.Input(root,serverAddress,L.T("IP 地址或域名"),258,194,Width-588,58,keyboard);addressField.name="Emby server address";
             UiFactory.Label(root,L.T("端口"),Width-314,194,86,58,26);
             portField=UiFactory.Input(root,serverPort,"8096",Width-212,194,198,58,keyboard);portField.name="Emby server port";portField.characterLimit=5;
+            addressField.onValueChanged.AddListener(_=>InvalidateUsers());portField.onValueChanged.AddListener(_=>InvalidateUsers());
             UiFactory.Label(root,L.T("用户名"),24,270,224,58,26);
-            userField=UiFactory.Input(root,username,L.T("Emby 用户名"),258,270,Width-272,58,keyboard);
+            userField=UiFactory.Input(root,username,L.T("Emby 用户名"),258,270,Width-574,58,keyboard);
+            var chooseUser=Button(root,L.T("选择账户"),Width-296,270,282,58,()=>{CaptureLogin();closeKeyboard?.Invoke();_ = LoadPublicUsers(true);});chooseUser.interactable=!busy;
             UiFactory.Label(root,L.T("密码"),24,346,224,58,26);
             passwordField=UiFactory.Input(root,password,L.T("账户密码"),258,346,Width-272,58,keyboard,true);
             addressField.interactable=portField.interactable=userField.interactable=passwordField.interactable=!busy;
             var keep=UiFactory.ToggleRow(root,L.T("记住登录"),L.T("记住登录"),()=>remember,24,422,350,value=>remember=value,64);keep.interactable=!busy;
             UiFactory.Label(root,L.T("可在账户列表切换或移除登录"),398,422,Width-422,58,23).color=Muted;
             string error=string.IsNullOrEmpty(loginError)?app.EmbyState.error:loginError;
-            var errorText=UiFactory.Label(root,busy?L.T("正在登录…"):L.Message(error)??"",24,496,Width-48,60,22);errorText.textWrappingMode=TextWrappingModes.Normal;
+            var errorText=UiFactory.Label(root,busy?L.T("正在登录…"):!string.IsNullOrEmpty(error)?L.Message(error):L.T(usersStatus),24,496,Width-48,60,22);errorText.textWrappingMode=TextWrappingModes.Normal;
             var submit=Button(root,busy?L.T("正在连接…"):L.T("登录并打开媒体库"),24,578,Width-48,64,()=>{CaptureLogin();closeKeyboard?.Invoke();_ = Login();},true);submit.interactable=!busy;
         }
         private void CaptureLogin()
         {
             if(addressField!=null)serverAddress=addressField.text;if(portField!=null)serverPort=portField.text;if(userField!=null)username=userField.text;if(passwordField!=null)password=passwordField.text;
         }
+        public void CompleteInput(TMP_InputField field)
+        {
+            if(!login||loginPage!=LoginPage.Form||busy||(field!=addressField&&field!=portField))return;
+            CaptureLogin();_ = LoadPublicUsers(false);
+        }
+
+        private async Task ScanServers()
+        {
+            CancelServerScan();CancelUserLookup();loginPage=LoginPage.Servers;discoveredServers=Array.Empty<EmbyDiscoveredServer>();
+            scanStatus="正在搜索局域网 Emby 服务器…";var cancellation=new CancellationTokenSource();serverScan=cancellation;
+            int generation=serverScanGeneration;Render(true);
+            try{
+                var result=await EmbyDiscovery.Scan(cancellation.Token);
+                if(this==null||cancellation.IsCancellationRequested||generation!=serverScanGeneration||!login||loginPage!=LoginPage.Servers)return;
+                discoveredServers=result;scanStatus=result.Length==0?"未找到服务器，请重试或手动输入地址":"选择要连接的服务器";serverScan=null;cancellation.Dispose();RefreshLoginPresentation();
+            }catch(OperationCanceledException){}catch(Exception){
+                if(this!=null&&!cancellation.IsCancellationRequested&&generation==serverScanGeneration&&login&&loginPage==LoginPage.Servers){scanStatus="搜索失败，请检查网络或手动输入地址";serverScan=null;cancellation.Dispose();RefreshLoginPresentation();}
+            }finally{if(ReferenceEquals(serverScan,cancellation)){serverScan=null;cancellation.Dispose();}}
+        }
+        private void CancelServerScan()
+        {
+            serverScanGeneration++;var cancellation=serverScan;serverScan=null;if(cancellation!=null){cancellation.Cancel();cancellation.Dispose();scanStatus="搜索已停止，可重新搜索";}
+        }
+        private void CancelUserLookup()
+        {
+            userLookupGeneration++;var cancellation=userLookup;userLookup=null;if(cancellation!=null){cancellation.Cancel();cancellation.Dispose();usersStatus="账户读取已停止，可重新读取";}
+        }
+        private void InvalidateUsers()
+        {
+            CancelUserLookup();publicUsers=Array.Empty<EmbyPublicUser>();usersServer=usersStatus="";usersLoaded=false;loginPresentationDirty=false;
+        }
+        private async Task LoadPublicUsers(bool showPicker)
+        {
+            if(!login||busy||app?.EmbyApi==null)return;
+            string server;
+            try{server=EmbyServerAddress.Build(useHttps,serverAddress,serverPort);}
+            catch(ArgumentException ex){if(showPicker){loginError=ex.Message;Render(true);}return;}
+            loginError="";
+            if(usersLoaded&&usersServer==server){if(showPicker){loginPage=LoginPage.Users;Render(true);}return;}
+            if(userLookup!=null&&usersServer==server){if(showPicker){loginPage=LoginPage.Users;Render(true);}return;}
+            CancelUserLookup();publicUsers=Array.Empty<EmbyPublicUser>();usersServer=server;usersLoaded=false;usersStatus="正在读取可选账户…";
+            var cancellation=new CancellationTokenSource();userLookup=cancellation;int generation=userLookupGeneration;
+            if(showPicker)loginPage=LoginPage.Users;RefreshLoginPresentation();
+            try{
+                var result=await app.EmbyApi.GetPublicUsers(server,cancellation.Token);
+                if(this==null||cancellation.IsCancellationRequested||generation!=userLookupGeneration||!login||usersServer!=server)return;
+                publicUsers=result;usersLoaded=true;usersStatus=result.Length==0?"服务器未公开账户，请手动输入用户名":"选择账户或手动输入用户名";userLookup=null;cancellation.Dispose();RefreshLoginPresentation();
+            }catch(OperationCanceledException){}catch(Exception){
+                if(this!=null&&!cancellation.IsCancellationRequested&&generation==userLookupGeneration&&login&&usersServer==server){usersStatus="无法读取账户列表，可手动输入用户名";userLookup=null;cancellation.Dispose();RefreshLoginPresentation();}
+            }finally{if(ReferenceEquals(userLookup,cancellation)){userLookup=null;cancellation.Dispose();}}
+        }
+        private void DrawServerPicker()
+        {
+            UiFactory.IconButton(root,L.T("返回"),QuickIcon.Back,0,0,ReturnFromLoginPicker);
+            UiFactory.Label(root,L.T("选择局域网 Emby 服务器"),80,0,Width-80,64,32);
+            UiFactory.Label(root,L.T(scanStatus),24,72,Width-48,52,24).color=Muted;
+            BeginScroll(132,root.rect.height-214);
+            for(int i=0;i<discoveredServers.Length;i++){
+                var server=discoveredServers[i];float y=i*100;
+                var button=Button(body,"",14,y,BodyWidth-28,88,()=>{
+                    CancelServerScan();InvalidateUsers();EmbyServerAddress.Parse(server.Address,out useHttps,out serverAddress,out serverPort);
+                    username=password=loginError="";loginPage=LoginPage.Form;Render(true);_ = LoadPublicUsers(false);
+                });
+                button.name="Emby discovered server";
+                var name=UiFactory.Label(button.transform,server.Name,20,8,BodyWidth-68,36,26);name.richText=false;
+                var address=UiFactory.Label(button.transform,server.Address,20,46,BodyWidth-68,32,21);address.richText=false;address.color=Muted;
+            }
+            FinishScroll(discoveredServers.Length*100);
+            Button(root,L.T("手动输入地址"),24,root.rect.height-64,Width/2-36,54,ReturnFromLoginPicker,true);
+            var refresh=Button(root,L.T("重新搜索"),Width/2+12,root.rect.height-64,Width/2-36,54,()=>_ = ScanServers());refresh.interactable=serverScan==null;
+        }
+        private void DrawUserPicker()
+        {
+            UiFactory.IconButton(root,L.T("返回"),QuickIcon.Back,0,0,ReturnFromLoginPicker);
+            UiFactory.Label(root,L.T("选择 Emby 账户"),80,0,Width-80,64,32);
+            UiFactory.Label(root,L.T(usersStatus),24,72,Width-48,52,24).color=Muted;
+            BeginScroll(132,root.rect.height-214);
+            for(int i=0;i<publicUsers.Length;i++){
+                var user=publicUsers[i];var button=Button(body,"",14,i*76,BodyWidth-28,64,()=>{
+                    username=user.Name;password="";loginPage=LoginPage.Form;Render(true);
+                });
+                button.name="Emby public user";
+                var label=UiFactory.Label(button.transform,user.Name,20,0,BodyWidth-68,64,26);label.richText=false;
+            }
+            FinishScroll(publicUsers.Length*76);
+            Button(root,L.T("手动输入用户名"),24,root.rect.height-64,Width/2-36,54,ReturnFromLoginPicker,true);
+            var refresh=Button(root,L.T("重新读取账户"),Width/2+12,root.rect.height-64,Width/2-36,54,()=>{InvalidateUsers();_ = LoadPublicUsers(true);});refresh.interactable=userLookup==null;
+        }
         private async System.Threading.Tasks.Task Login()
         {
             if(busy)return;
+            CancelServerScan();CancelUserLookup();
             string server;
             try{server=EmbyServerAddress.Build(useHttps,serverAddress,serverPort);}
             catch(ArgumentException ex){loginError=ex.Message;Render(true);return;}
@@ -875,7 +986,7 @@ namespace VRPlayer
         }
         private void OnDestroy()
         {
-            CancelImages();ClearPosterWall();ClearCast();pageOffsets.Clear();foreach(var cached in images.Values)if(cached.texture!=null)Destroy(cached.texture);images.Clear();textureBytes=0;password="";
+            CancelServerScan();CancelUserLookup();CancelImages();ClearPosterWall();ClearCast();pageOffsets.Clear();foreach(var cached in images.Values)if(cached.texture!=null)Destroy(cached.texture);images.Clear();textureBytes=0;password="";
         }
         // Reject large responses before decoding, then validate JPEG/PNG dimensions.
         private sealed class LimitedImageDownload : DownloadHandlerScript

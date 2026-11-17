@@ -20,7 +20,7 @@ android.permission.INTERNET connects to your configured SMB/Emby servers for aut
 
 android.permission.ACCESS_NETWORK_STATE supports connection-state checks and error handling.
 
-android.permission.ACCESS_WIFI_STATE supplies LAN address/subnet information for SMB discovery; the app does not use location services.
+android.permission.ACCESS_WIFI_STATE supplies LAN address/subnet information for SMB/Emby discovery; the app does not use location services.
 
 android.permission.CHANGE_WIFI_MULTICAST_STATE enables service-discovery multicast while you start LAN discovery. Resources are released when discovery stops or you leave.
 

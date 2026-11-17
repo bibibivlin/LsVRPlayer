@@ -15,6 +15,12 @@ namespace VRPlayer
         public EmbyAuthenticationException() : base("Emby 登录已失效，请重新登录") { }
     }
 
+    [Serializable] public sealed class EmbyPublicUser
+    {
+        public string Id, Name;
+        public bool HasPassword;
+    }
+
     public sealed class EmbyClient
     {
         public const int PageSize = 30;
@@ -27,6 +33,7 @@ namespace VRPlayer
         [Serializable] private sealed class AuthenticationRequest { public string Username, Pw; }
         [Serializable] private sealed class AuthenticationUser { public string Id, Name; }
         [Serializable] private sealed class AuthenticationResponse { public AuthenticationUser User; public string AccessToken, ServerId; }
+        [Serializable] private sealed class PublicUsersResponse { public EmbyPublicUser[] Items; }
         [Serializable] private sealed class PlaybackInfoResponse { public EmbyMediaSource[] MediaSources; public string PlaySessionId, ErrorCode; }
         [Serializable] private sealed class DirectPlayProfile { public string Type = "Video"; }
         [Serializable] private sealed class DeviceProfile
@@ -72,6 +79,21 @@ namespace VRPlayer
                 userId = response.User.Id, username = response.User.Name ?? username.Trim(),
                 name = response.User.Name ?? username.Trim(), accessToken = response.AccessToken, remember = true
             };
+        }
+
+        public Task<EmbyPublicUser[]> GetPublicUsers(string serverUrl, CancellationToken token = default)
+            => Send(serverUrl, "/Users/Public", null, "GET", null, token, ParsePublicUsers, 256 * 1024);
+
+        public static EmbyPublicUser[] ParsePublicUsers(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json) || !json.TrimStart().StartsWith("[", StringComparison.Ordinal))
+                throw new InvalidOperationException("Emby 返回的账户列表无法识别");
+            var result = Parse<PublicUsersResponse>("{\"Items\":" + json + "}");
+            if (result?.Items == null) throw new InvalidOperationException("Emby 返回的账户列表无法识别");
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return result.Items.Where(user => user != null && !string.IsNullOrWhiteSpace(user.Id) && user.Id.Length <= 256 &&
+                    !string.IsNullOrWhiteSpace(user.Name) && user.Name.Length <= 256 && seen.Add(user.Id.Trim()))
+                .Take(256).ToArray();
         }
 
         public async Task<EmbyItemsResult> GetViews(EmbyAccount account, CancellationToken token = default)
