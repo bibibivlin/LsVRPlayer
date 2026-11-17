@@ -21,6 +21,7 @@ namespace VRPlayer
         public string playedItemId="",playedError="";
         public int revision,totalCount,startIndex;
         public EmbyItem[] views=Array.Empty<EmbyItem>(),resume=Array.Empty<EmbyItem>(),latest=Array.Empty<EmbyItem>(),items=Array.Empty<EmbyItem>(),parts=Array.Empty<EmbyItem>(),extras=Array.Empty<EmbyItem>();
+        internal Dictionary<string,(int Number,EmbyPartResume Target)> resumeParts=new Dictionary<string,(int,EmbyPartResume)>(StringComparer.Ordinal);
         public EmbyItem selected,parent,episodeSeason;
         public EmbyItem[] specialEpisodes=Array.Empty<EmbyItem>();
         public bool IsLibraryRoot=>page==EmbyPage.Library&&parent!=null&&!string.IsNullOrEmpty(viewLibraryId)&&parent.Id==viewLibraryId&&
@@ -152,6 +153,7 @@ namespace VRPlayer
                 if(token.IsCancellationRequested||ActiveEmbyAccount!=account)return;
                 state.views=views.Result.Items??Array.Empty<EmbyItem>();state.resume=resume.Result.Items??Array.Empty<EmbyItem>();state.latest=latest.Result.Items??Array.Empty<EmbyItem>();
                 state.loading=false;PublishEmby(state);
+                await LoadEmbyMultipartResume(account,state,token);
             }catch(OperationCanceledException){}catch(Exception ex){FailEmby(token,ex,account);}
         }
 
@@ -309,6 +311,10 @@ namespace VRPlayer
                     (restored.librarySort!=Store.GetEmbyLibrarySort(ActiveEmbyAccount.id,restored.viewLibraryId)||
                      restored.librarySortDescending!=Store.GetEmbyLibrarySortDescending(ActiveEmbyAccount.id,restored.viewLibraryId)))
                     _ = LoadEmbyLibrary(restored.parent,0,restored.search);
+                else if(restored.page==EmbyPage.Home&&ActiveEmbyAccount!=null&&Store!=null&&EmbyState==restored){
+                    embyBrowsing=new CancellationTokenSource();
+                    _ = LoadEmbyMultipartResume(ActiveEmbyAccount,restored,embyBrowsing.Token,true);
+                }
                 return;
             }
             if(ReturnToRecentFromEmby())return;
@@ -360,16 +366,79 @@ namespace VRPlayer
             _ = ResolveEmbyVideo(ActiveEmbyAccount,item.Id,null,null,false,resume,parts);
         }
 
-        public EmbyPartResume EmbyMovieResume
+        public EmbyPartResume EmbyMovieResume => ActiveEmbyAccount == null ? null
+            : SelectEmbyMovieResume(EmbyMovieParts.FromDetails(ActiveEmbyAccount.id, EmbyState));
+
+        private EmbyPartResume SelectEmbyMovieResume(EmbyMovieParts parts)
         {
-            get{
-                var parts=ActiveEmbyAccount==null?null:EmbyMovieParts.FromDetails(ActiveEmbyAccount.id,EmbyState);
-                if(parts==null)return null;
-                var snapshot=Backend?.Snapshot;
-                if(!EmbyProgressSuppressed&&!embyMarkingPlayback&&parts.IndexOfUri(Current?.uri)>=0&&snapshot?.generation==Generation&&snapshot.state==3)
-                    return ReadEmbyPartProgress(parts,parts.Items[parts.IndexOfUri(Current.uri)]);
-                if(parts.Items.All(item=>item.UserData?.Played==true&&item.UserData.PlaybackPositionTicks==0))return null;
-                return parts.LastPlayed(Store==null?null:new Func<string,PlaybackRecord>(Store.Find));
+            if (parts == null) return null;
+            var snapshot = Backend?.Snapshot;
+            int playingIndex = parts.IndexOfUri(Current?.uri);
+            if (!EmbyProgressSuppressed && !embyMarkingPlayback && playingIndex >= 0 && snapshot?.generation == Generation && snapshot.state == 3)
+                return ReadEmbyPartProgress(parts, parts.Items[playingIndex]);
+            if (parts.Items.All(item => item.UserData?.Played == true && item.UserData.PlaybackPositionTicks == 0)) return null;
+            return parts.LastPlayed(Store == null ? null : new Func<string, PlaybackRecord>(Store.Find));
+        }
+
+        private async Task LoadEmbyMultipartResume(EmbyAccount account, EmbyBrowserState state, CancellationToken token, bool refreshServer = false)
+        {
+            int revision = state.revision;
+            try
+            {
+                await embyReports;
+                token.ThrowIfCancellationRequested();
+                var official = refreshServer ? (await EmbyApi.GetResume(account, token)).Items : state.resume;
+                var officialIds = new HashSet<string>(official.Select(item => item.Id), StringComparer.Ordinal);
+                var hints = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+                if (Store != null)
+                {
+                    // Existing history stores the main movie URI as the directory for its CD files.
+                    foreach (var record in Store.Settings.history)
+                    {
+                        if (record.position <= 0 ||
+                            !EmbyIdentity.TryParse(record.uri, out string itemAccount, out string cdId) || itemAccount != account.id ||
+                            !EmbyIdentity.TryParse(record.directory, out string mainAccount, out string mainId) || mainAccount != account.id ||
+                            cdId == mainId || mainId == "library" || officialIds.Contains(mainId) || officialIds.Contains(cdId)) continue;
+                        if (!hints.TryGetValue(mainId, out var ids)) hints.Add(mainId, ids = new HashSet<string>(StringComparer.Ordinal));
+                        ids.Add(cdId);
+                    }
+                }
+
+                var movies = new List<EmbyItem>();
+                var resumeParts = new Dictionary<string, (int Number, EmbyPartResume Target)>(StringComparer.Ordinal);
+                foreach (var main in await EmbyApi.GetMoviesByIds(account, hints.Keys.ToArray(), token))
+                {
+                    if (!hints.TryGetValue(main.Id, out var ids) || resumeParts.ContainsKey(main.Id)) continue;
+                    EmbyItem[] additional;
+                    try { additional = await EmbyApi.GetAdditionalParts(account, main.Id, token); }
+                    catch (InvalidOperationException ex) when (!(ex is EmbyAuthenticationException)) { continue; }
+                    var parts = EmbyMovieParts.Create(account.id, main, additional.Where(part => part.Type == "Movie" || part.Type == "Video"));
+                    if (parts == null || !parts.Items.Skip(1).Any(item => ids.Contains(item.Id)) ||
+                        parts.Items.Any(item => officialIds.Contains(item.Id))) continue;
+                    var target = SelectEmbyMovieResume(parts);
+                    if (target == null || target.PositionTicks <= 0 ||
+                        (target.Item.RunTimeTicks > 0 && target.PositionTicks >= target.Item.RunTimeTicks)) continue;
+                    movies.Add(main);
+                    resumeParts.Add(main.Id, (parts.IndexOf(target.Item.Id) + 1, target));
+                }
+                if (token.IsCancellationRequested || ActiveEmbyAccount != account || EmbyState != state ||
+                    Source != FileSource.Emby || state.revision != revision || EmbyPlayedBusy) return;
+                if (!refreshServer && movies.Count == 0) return;
+                state.resume = movies.Count == 0 ? official : official.Concat(movies)
+                    .OrderByDescending(item => resumeParts.TryGetValue(item.Id, out var part)
+                        ? part.Target.LastPlayedAt : EmbyMovieParts.PlayedTime(item.UserData?.LastPlayedDate))
+                    .Take(EmbyClient.PageSize).ToArray();
+                state.resumeParts = resumeParts;
+                PublishEmby(state);
+            }
+            catch (OperationCanceledException) { }
+            catch (EmbyAuthenticationException ex)
+            {
+                if (ActiveEmbyAccount == account && EmbyState == state) FailEmby(token, ex, account);
+            }
+            catch (InvalidOperationException)
+            {
+                // This lookup augments the home page. Keep the displayed Emby results if it fails.
             }
         }
 
