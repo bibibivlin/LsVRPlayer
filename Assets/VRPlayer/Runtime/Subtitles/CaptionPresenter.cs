@@ -14,31 +14,39 @@ namespace VRPlayer
         private bool overlayText;
         private readonly Dictionary<int,Material> materials=new Dictionary<int,Material>();
         private int styleHash;
-        private float width,height;
-        private bool initialized;
+        private float width,height,requestedSize;
+        private bool initialized,fitToCanvas;
         public string Text=>label==null?"":label.text;
         public bool BackgroundVisible=>background!=null&&background.gameObject.activeSelf;
+        internal float ContentHeight { get; private set; }
         public static float DistanceScale(float distance)=>Mathf.Clamp(distance,.1f,6)/3;
-        public void Initialize(float w=1300,float h=300,bool overlay=false,bool opticalCenter=false)
+        public void Initialize(float w=1300,float h=300,bool overlay=false,bool opticalCenter=false,bool fitToCanvas=false)
         {
             width=w;height=h;
+            this.fitToCanvas=fitToCanvas;
             overlayText=overlay;textShader=Shader.Find("VRPlayer/Subtitle SDF");
             background=UiFactory.Box(transform,"Subtitle background",0,0,w,h,Color.clear).GetComponent<Image>();
             if(overlay){backgroundMaterial=new Material(Shader.Find("VRPlayer/Subtitle Background"));background.material=backgroundMaterial;}
             label=UiFactory.Label(transform,"",0,0,w,h,42,TextAlignmentOptions.Center,opticalCenter);
             label.textWrappingMode=TextWrappingModes.Normal;label.overflowMode=TextOverflowModes.Overflow;
+            if(fitToCanvas){label.enableAutoSizing=true;label.fontSizeMin=1;label.overflowMode=TextOverflowModes.Truncate;}
             label.extraPadding=true;
             var material=new Material(UiFactory.Font.material){name="Subtitle independent SDF"};
             if(textShader!=null){material.shader=textShader;material.SetFloat("_ZTest",overlayText?8:4);material.renderQueue=3000;}
             label.fontSharedMaterial=material;materials[material.mainTexture.GetInstanceID()]=material;
         }
-        public void SetText(string text,float size,SubtitleStyle style,float brightness=1)
+        internal void Resize(float w,float h)
         {
-            if(label==null)return;text??="";style??=new SubtitleStyle();
+            width=w;height=h;label.rectTransform.sizeDelta=new Vector2(w,h);initialized=false;
+        }
+        public bool SetText(string text,float size,SubtitleStyle style,float brightness=1)
+        {
+            if(label==null)return false;text??="";style??=new SubtitleStyle();
             brightness=CinemaComfortSettings.NormalizeSubtitleBrightness(brightness);
             int hash=System.HashCode.Combine(style.textColor,style.outlineColor,style.outline,style.outlineWidth,style.shadow,style.shadowStrength,style.background,style.backgroundOpacity)^style.backgroundColor.GetHashCode()^brightness.GetHashCode();
-            if(initialized&&label.text==text&&Mathf.Approximately(label.fontSize,size)&&hash==styleHash)return;
-            initialized=true;styleHash=hash;label.text=text;label.fontSize=size;label.color=style.textColor;
+            if(initialized&&label.text==text&&Mathf.Approximately(requestedSize,size)&&hash==styleHash)return false;
+            initialized=true;styleHash=hash;requestedSize=size;label.text=text;label.fontSize=size;label.color=style.textColor;
+            if(fitToCanvas)label.fontSizeMax=size;
             label.ForceMeshUpdate();
             // Own one material per atlas. Never mutate the menu font or TMP's shared fallback presets.
             var shared=label.fontSharedMaterials;
@@ -56,15 +64,18 @@ namespace VRPlayer
                 shared[i]=material;
             }
             label.fontSharedMaterials=shared;label.UpdateMeshPadding();label.ForceMeshUpdate();
+            var contentSize=fitToCanvas?label.textBounds.size:Vector3.zero;
+            ContentHeight=Mathf.Min(height,contentSize.y+20);
             bool visible=style.background!=SubtitleBackground.None&&!string.IsNullOrWhiteSpace(text);background.gameObject.SetActive(visible);
             if(visible){
-                Vector2 preferred=label.GetPreferredValues(text,width-32,0);
+                Vector2 preferred=fitToCanvas?(Vector2)contentSize:label.GetPreferredValues(text,width-32,0);
                 float w=style.background==SubtitleBackground.FullLine?width:Mathf.Min(width,preferred.x+32),h=Mathf.Min(height,preferred.y+20);
                 background.rectTransform.sizeDelta=new Vector2(w,h);background.rectTransform.anchoredPosition=new Vector2((width-w)/2,-(height-h)/2);
                 Color color=style.backgroundColor;
                 if(brightness<1){Color linear=color.linear;linear.r*=brightness;linear.g*=brightness;linear.b*=brightness;color=linear.gamma;}
                 color.a=style.backgroundOpacity;background.color=color;
             }
+            return true;
         }
         public void Position(Camera head,Transform presenter,UserSettings settings)
         {
@@ -74,6 +85,15 @@ namespace VRPlayer
             transform.SetPositionAndRotation(head.transform.position+rotation*new Vector3(0,settings.subtitleOffset*ratio,settings.subtitleDistance),rotation);
             transform.localScale=Vector3.one*(.0015f*ratio);
         }
-        private void OnDestroy(){foreach(var material in materials.Values)if(material!=null)Destroy(material);if(backgroundMaterial!=null)Destroy(backgroundMaterial);}
+        private void OnDestroy()
+        {
+            foreach(var material in materials.Values)ReleaseMaterial(material);
+            ReleaseMaterial(backgroundMaterial);
+        }
+        private static void ReleaseMaterial(Material material)
+        {
+            if(material==null)return;
+            if(Application.isPlaying)Destroy(material);else DestroyImmediate(material);
+        }
     }
 }

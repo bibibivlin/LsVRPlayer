@@ -28,6 +28,37 @@ namespace VRPlayer.Tests
             settings.history.Add(new PlaybackRecord{uri="smb://stable-id/movie.mp4",position=12345});settings.favorites.Add(new Favorite{name="电影",uri="smb://stable-id/"});
             var read=PlayerStore.ParseSettings(JsonUtility.ToJson(settings));Assert.That(read.subtitleDistance,Is.EqualTo(.1f));Assert.That(read.subtitleStyle.background,Is.EqualTo(SubtitleBackground.TextBox));Assert.That(read.history[0].position,Is.EqualTo(12345));Assert.That(read.favorites[0].uri,Is.EqualTo(settings.favorites[0].uri));
         }
+        [Test] public void LegacySubtitlePreferencesRemainAvailableForVr()
+        {
+            var settings=PlayerStore.ParseSettings("{\"version\":3,\"subtitleSize\":75,\"subtitleOffset\":-1.5,\"subtitleDistance\":0.3,\"subtitleFollow\":false,\"subtitleStyle\":{\"background\":2}}");
+            Assert.That(settings.subtitleSize,Is.EqualTo(75));
+            Assert.That(settings.subtitleOffset,Is.EqualTo(-1.5f));
+            Assert.That(settings.subtitleDistance,Is.EqualTo(.3f));
+            Assert.That(settings.subtitleFollow,Is.False);
+            Assert.That(settings.subtitleStyle.background,Is.EqualTo(SubtitleBackground.FullLine));
+            Assert.That(settings.flatSubtitles.size,Is.EqualTo(42));
+            Assert.That(settings.flatSubtitles.verticalPosition,Is.Zero);
+            Assert.That(settings.flatSubtitles.style.background,Is.EqualTo(SubtitleBackground.None));
+            Assert.That(settings.flatSubtitles.assScale,Is.EqualTo(1));
+        }
+        [Test] public void FlatSubtitlePreferencesRoundTripIndependentlyOfVr()
+        {
+            var settings=new UserSettings{subtitleSize=91,subtitleDistance=.8f,subtitleStyle=SubtitleStyle.Preset(1)};
+            settings.flatSubtitles.size=52;
+            settings.flatSubtitles.verticalPosition=.67f;
+            settings.flatSubtitles.assScale=1.3f;
+            settings.flatSubtitles.assOffset=-.1f;
+            settings.SetSubtitleStyle(true,SubtitleStyle.Preset(3));
+            var read=PlayerStore.ParseSettings(JsonUtility.ToJson(settings));
+            Assert.That(read.flatSubtitles.size,Is.EqualTo(52));
+            Assert.That(read.flatSubtitles.verticalPosition,Is.EqualTo(.67f));
+            Assert.That(read.flatSubtitles.assScale,Is.EqualTo(1.3f));
+            Assert.That(read.flatSubtitles.assOffset,Is.EqualTo(-.1f));
+            Assert.That(read.SubtitleStyleFor(true).background,Is.EqualTo(SubtitleBackground.TextBox));
+            Assert.That(read.SubtitleStyleFor(false).textColor,Is.EqualTo(Color.yellow));
+            Assert.That(read.subtitleSize,Is.EqualTo(91));
+            Assert.That(read.subtitleDistance,Is.EqualTo(.8f));
+        }
         [Test] public void FavoriteRemovalAndUndoPreserveOrderAndPersist()
         {
             string path=Path.Combine(Path.GetTempPath(),"vrplayer-"+Guid.NewGuid()+".json");

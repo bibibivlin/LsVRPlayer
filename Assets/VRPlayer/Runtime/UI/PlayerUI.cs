@@ -50,6 +50,8 @@ namespace VRPlayer
         private TextMeshProUGUI scanLabel;
         private Button undoButton;
         private CaptionPresenter preview,brightPreview;
+        private PlaybackRecord subtitleSettingsVideo;
+        private bool subtitleSettingsFlat,subtitleSettingsAss;
         private readonly List<Button> stylePresets=new List<Button>();
         private static readonly SubtitleStyle[] stylePresetValues={SubtitleStyle.Preset(0),SubtitleStyle.Preset(1),SubtitleStyle.Preset(2),SubtitleStyle.Preset(3)};
         private int stylePresetState=-2;
@@ -201,9 +203,11 @@ namespace VRPlayer
                 }
             }
             if(undoButton!=null)undoButton.gameObject.SetActive(removedFavorite!=null&&Time.unscaledTime<undoUntil);
+            if(Visible&&tab=="字幕"&&subtitlePage!=0&&modal==""&&!keyboard.gameObject.activeSelf&&
+                (subtitleSettingsVideo!=app.Current||subtitleSettingsFlat!=(app.Presenter.Settings.projection==Projection.Flat)||subtitleSettingsAss!=app.AssSubtitlesSelected))Draw();
             if(preview!=null){
-                var style=app.Store.Settings.subtitleStyle;
-                preview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);brightPreview?.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);
+                var style=app.Store.Settings.SubtitleStyleFor(subtitleSettingsFlat);
+                UpdateSubtitleStylePreview(style);
                 int preset=-1;for(int i=0;i<stylePresetValues.Length;i++)if(SameStyle(style,stylePresetValues[i])){preset=i;break;}
                 if(preset!=stylePresetState){stylePresetState=preset;for(int i=0;i<stylePresets.Count;i++)UiFactory.SetAccent(stylePresets[i],i==preset);}
             }
@@ -401,22 +405,15 @@ namespace VRPlayer
         private void DrawSubtitles()
         {
             for(int i=0;i<subtitleTabs.Count;i++)UiFactory.SetAccent(subtitleTabs[i],subtitlePage==i);
-            var settings=app.Store.Settings;
-            if(app.AssSubtitlesSelected&&subtitlePage!=0){
-                var panel=UiFactory.RoundedBox(content,"ASS script settings",0,76,UiTheme.PageWidth,240,UiTheme.Surface);
-                Setting(panel,L.T("字幕延后"),24,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,L.T("秒"));
-                UiFactory.Label(panel,L.T(app.AssSubtitleNotice),24,116,1304,100,25);return;
-            }
-            if(subtitlePage==2){DrawSubtitleStyle();return;}
-            if(subtitlePage==1){var panel=UiFactory.RoundedBox(content,"Subtitle position settings",0,76,UiTheme.PageWidth,386,UiTheme.Surface);
-                Setting(panel,L.T("字幕延后"),24,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,L.T("秒"));
-                Setting(panel,L.T("字幕大小"),92,12,200,settings.subtitleSize,v=>settings.subtitleSize=v);
-                Setting(panel,L.T("视觉高度"),160,-4,4,settings.subtitleOffset,v=>settings.subtitleOffset=v);
-                Setting(panel,L.T("字幕距离"),228,.1f,6,settings.subtitleDistance,v=>settings.subtitleDistance=v,L.T("米"));
-                UiFactory.Button(panel,L.T("−0.01 米"),24,306,230,56,()=>{settings.subtitleDistance=Mathf.Max(.1f,settings.subtitleDistance-.01f);Draw();});
-                UiFactory.Button(panel,L.T("+0.01 米"),270,306,230,56,()=>{settings.subtitleDistance=Mathf.Min(6,settings.subtitleDistance+.01f);Draw();});
-                UiFactory.ToggleRow(panel,L.T("字幕跟随视线"),L.T("字幕跟随视线"),()=>settings.subtitleFollow,548,306,440,value=>settings.subtitleFollow=value,56);
-                UiFactory.Label(content,L.T("改变距离时保持视觉大小与相对高度；字号和高度可单独调整。"),24,486,1304,60,25);return;
+            if(subtitlePage!=0){
+                subtitleSettingsVideo=app.Current;
+                subtitleSettingsFlat=app.Presenter.Settings.projection==Projection.Flat;
+                subtitleSettingsAss=app.AssSubtitlesSelected;
+                UiFactory.Label(content,L.T(subtitleSettingsFlat?"平面字幕":"VR 字幕"),1048,0,280,56,24,TextAlignmentOptions.Right).color=UiTheme.Muted;
+                if(subtitlePage==1)DrawSubtitlePosition();
+                else if(subtitleSettingsAss)UiFactory.Label(content,L.T(subtitleSettingsFlat?"ASS 保留脚本样式和动画。":"ASS 仅支持平面视频，当前投影已暂停显示。"),24,100,1304,60,25);
+                else DrawSubtitleStyle();
+                return;
             }
             var choices=UiFactory.RoundedBox(content,"Subtitle selection",0,76,UiTheme.PageWidth,718,UiTheme.Surface,false,22,SurfaceTreatment.Inset);
             const float actionWidth=314,actionPitch=330;
@@ -432,13 +429,45 @@ namespace VRPlayer
             if(rows.Count==0)rows.Add(new BrowserRow{key="empty",label=L.T("未发现匹配字幕，可手动选择字幕 文件。")});subtitleList.SetRows(rows);
             UiFactory.Button(choices,L.T("内嵌字幕与音轨…"),468,630,416,64,DrawTracks);
         }
+        private void DrawSubtitlePosition()
+        {
+            var settings=app.Store.Settings;
+            var panel=UiFactory.RoundedBox(content,"Subtitle position settings",0,76,UiTheme.PageWidth,subtitleSettingsFlat||subtitleSettingsAss?232:386,UiTheme.Surface);
+            Setting(panel,L.T("字幕延后"),24,-10,10,app.Current?.subtitleDelay??0,app.SetSubtitleDelay,L.T("秒"));
+            if(subtitleSettingsAss&&!subtitleSettingsFlat){
+                UiFactory.Label(panel,L.T("ASS 仅支持平面视频，当前投影已暂停显示。"),24,116,1304,60,25);return;
+            }
+            if(subtitleSettingsFlat){
+                var flat=settings.flatSubtitles;
+                if(subtitleSettingsAss){
+                    SubtitlePercentSlider(panel,"字幕大小",92,FlatSubtitleSettings.MinAssScale,FlatSubtitleSettings.MaxAssScale,flat.assScale,v=>flat.assScale=v);
+                    SubtitlePercentSlider(panel,"上下位置",160,-FlatSubtitleSettings.MaxAssOffset,FlatSubtitleSettings.MaxAssOffset,flat.assOffset,v=>flat.assOffset=v);
+                }else{
+                    Setting(panel,L.T("字幕大小"),92,FlatSubtitleSettings.MinSize,FlatSubtitleSettings.MaxSize,flat.size,v=>flat.size=v);
+                    SubtitlePercentSlider(panel,"上下位置",160,0,1,flat.verticalPosition,v=>flat.verticalPosition=v);
+                }
+                return;
+            }
+            Setting(panel,L.T("字幕大小"),92,12,200,settings.subtitleSize,v=>settings.subtitleSize=v);
+            Setting(panel,L.T("视觉高度"),160,-4,4,settings.subtitleOffset,v=>settings.subtitleOffset=v);
+            Setting(panel,L.T("字幕距离"),228,.1f,6,settings.subtitleDistance,v=>settings.subtitleDistance=v,L.T("米"));
+            UiFactory.Button(panel,L.T("−0.01 米"),24,306,230,56,()=>{settings.subtitleDistance=Mathf.Max(.1f,settings.subtitleDistance-.01f);Draw();});
+            UiFactory.Button(panel,L.T("+0.01 米"),270,306,230,56,()=>{settings.subtitleDistance=Mathf.Min(6,settings.subtitleDistance+.01f);Draw();});
+            UiFactory.ToggleRow(panel,L.T("字幕跟随视线"),L.T("字幕跟随视线"),()=>settings.subtitleFollow,548,306,440,value=>settings.subtitleFollow=value,56);
+            UiFactory.Label(content,L.T("改变距离时保持视觉大小与相对高度；字号和高度可单独调整。"),24,486,1304,60,25);
+        }
+        private void SubtitlePercentSlider(Transform panel,string name,float y,float min,float max,float value,Action<float> change)
+        {
+            UiFactory.ValueSlider(panel,L.T(name),24,y,1304,min,max,value,v=>{change(v);LastInteraction=Time.unscaledTime;},v=>$"{v*100:0}%");
+        }
         private void DrawSubtitleStyle()
         {
-            var style=app.Store.Settings.subtitleStyle;string[] presets={L.T("白字黑边"),L.T("黄字黑边"),L.T("阴影"),L.T("半透明底")};
+            bool flat=subtitleSettingsFlat;
+            var style=app.Store.Settings.SubtitleStyleFor(flat);string[] presets={L.T("白字黑边"),L.T("黄字黑边"),L.T("阴影"),L.T("半透明底")};
             stylePresets.Clear();stylePresetState=-2;
             var controls=UiFactory.RoundedBox(content,"Subtitle style settings",0,76,664,718,UiTheme.Surface,false,18,SurfaceTreatment.Inset);
             UiFactory.Label(controls,L.T("预设样式"),24,24,616,48,28);
-            for(int i=0;i<4;i++){int preset=i;var button=UiFactory.Button(controls,presets[i],24+i*158,88,142,56,()=>{app.Store.Settings.subtitleStyle=SubtitleStyle.Preset(preset);Draw();},SameStyle(style,SubtitleStyle.Preset(preset)));button.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;stylePresets.Add(button);}
+            for(int i=0;i<4;i++){int preset=i;var button=UiFactory.Button(controls,presets[i],24+i*158,88,142,56,()=>{app.Store.Settings.SetSubtitleStyle(flat,SubtitleStyle.Preset(preset));Draw();},SameStyle(style,stylePresetValues[i]));button.GetComponentInChildren<TextMeshProUGUI>().fontSize=23;stylePresets.Add(button);}
             UiFactory.Box(controls,"Style separator",24,164,616,1,new Color(.20f,.31f,.37f,.28f));
             ColorRow(controls,L.T("文字颜色"),176,style.textColor,c=>style.textColor=c);
             UiFactory.Box(controls,"Outline separator",24,264,616,1,new Color(.20f,.31f,.37f,.28f));
@@ -454,7 +483,7 @@ namespace VRPlayer
             var bright=UiFactory.Box(sample,"Bright scene",0,0,616,126,new Color(.70f,.72f,.69f,1));var dark=UiFactory.Box(sample,"Dark scene",0,126,616,126,new Color(.035f,.048f,.06f,1));
             brightPreview=bright.gameObject.AddComponent<CaptionPresenter>();brightPreview.Initialize(616,126,opticalCenter:true);
             preview=dark.gameObject.AddComponent<CaptionPresenter>();preview.Initialize(616,126,opticalCenter:true);
-            preview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);brightPreview.SetText(L.T("字幕样式实时预览\nSubtitle preview"),32,style,app.Presenter.Settings.projection==Projection.Flat?app.Store.Settings.cinemaComfort.subtitleBrightness:1);
+            UpdateSubtitleStylePreview(style);
             UiFactory.Label(previewRoot,L.T("明亮 / 深色背景"),24,352,616,40,23).color=UiTheme.Muted;
             UiFactory.Box(previewRoot,"Background separator",24,416,616,1,new Color(.20f,.31f,.37f,.28f));
             UiFactory.Label(previewRoot,L.T("字幕背景"),24,436,616,44,28);
@@ -462,6 +491,13 @@ namespace VRPlayer
             for(int i=0;i<3;i++){int bg=i;float width=(664-48-32)/3f;UiFactory.Button(previewRoot,backgrounds[i],24+i*(width+16),496,width,56,()=>{style.background=(SubtitleBackground)bg;Draw();},(int)style.background==i);}
             ColorRow(previewRoot,L.T("背景颜色"),568,style.backgroundColor,c=>style.backgroundColor=c);
             UiFactory.ValueSlider(previewRoot,L.T("背景透明度"),24,646,616,0,1,1-style.backgroundOpacity,v=>style.backgroundOpacity=1-v,v=>$"{v*100:0}%",24,128,64);
+        }
+        private void UpdateSubtitleStylePreview(SubtitleStyle style)
+        {
+            string sample=L.T("字幕样式实时预览\nSubtitle preview");
+            float brightness=subtitleSettingsFlat?app.Store.Settings.cinemaComfort.subtitleBrightness:1;
+            preview.SetText(sample,32,style,brightness);
+            brightPreview.SetText(sample,32,style,brightness);
         }
         private void ColorRow(Transform parent,string name,float y,Color selected,Action<Color> change)
         {

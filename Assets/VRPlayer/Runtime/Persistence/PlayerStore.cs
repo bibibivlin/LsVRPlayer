@@ -34,11 +34,20 @@ namespace VRPlayer
         public CinemaBackgroundSettings background=new CinemaBackgroundSettings();
         public CinemaComfortSettings cinemaComfort=new CinemaComfortSettings();
         public SubtitleStyle subtitleStyle=new SubtitleStyle();
+        public FlatSubtitleSettings flatSubtitles=new FlatSubtitleSettings();
         public bool subtitleFollow=true,sequential,loop,autoHide=true;
         public List<PlaybackRecord> history=new List<PlaybackRecord>();
         public List<Favorite> favorites=new List<Favorite>();
         public List<string> vr180Directories=new List<string>();
         public List<EmbyLibraryViewPreference> embyLibraryViews=new List<EmbyLibraryViewPreference>();
+
+        public SubtitleStyle SubtitleStyleFor(bool flat) => flat ? flatSubtitles.style : subtitleStyle;
+
+        public void SetSubtitleStyle(bool flat, SubtitleStyle style)
+        {
+            if (flat) flatSubtitles.style = style;
+            else subtitleStyle = style;
+        }
     }
     public sealed class PlayerStore
     {
@@ -82,6 +91,7 @@ namespace VRPlayer
             float remembered=Finite(value.lastAudibleVolume,.8f);value.lastAudibleVolume=value.volume>0?value.volume:Mathf.Clamp(remembered>0?remembered:.8f,.01f,1);
             value.subtitleSize=Mathf.Clamp(Finite(value.subtitleSize,42),12,200);
             value.subtitleOffset=Mathf.Clamp(Finite(value.subtitleOffset,-.75f),-4,4);
+            value.flatSubtitles??=new FlatSubtitleSettings();value.flatSubtitles.Normalize();
             if(!Enum.IsDefined(typeof(RenderQuality),value.renderQuality))value.renderQuality=RenderQuality.High;
             value.subtitleStyle.Normalize();return value;
         }

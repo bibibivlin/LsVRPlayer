@@ -7,6 +7,9 @@ namespace VRPlayer
         private Transform cameraTransform,screen,sphere;
         private Material material;
         private Mesh screenMesh;
+        private Camera viewCamera;
+        private int excludedSubtitleLayer;
+        private VideoCaptionCanvas captionCanvas;
         private Quaternion viewingRotation=Quaternion.identity;
         private string geometryKey;
         private CinemaBackground background;
@@ -14,18 +17,52 @@ namespace VRPlayer
         public CinemaComfortSettings ComfortSettings{get;set;}=new CinemaComfortSettings();
         public bool BackgroundVisible=>background!=null&&background.Visible;
         public ViewSettings Settings{get;set;}=new ViewSettings();
-        public void SetAssOverlay(Texture texture)
+        public void ClearSubtitleOverlay()
         {
             if(material==null)return;
-            material.SetTexture("_AssTex",texture!=null?texture:Texture2D.blackTexture);
-            material.SetFloat("_AssEnabled",texture!=null&&AssPresentation.Supported(Settings.projection)?1:0);
+            material.SetInt("_SubtitleMode",0);
+            material.SetTexture("_SubtitleTex",null);
+        }
+        public void UpdateSubtitles(string text, Texture ass, FlatSubtitleSettings settings, float aspect)
+        {
+            if (material == null) return;
+            if (Settings.projection != Projection.Flat || (ass == null && string.IsNullOrWhiteSpace(text)))
+            {
+                ClearSubtitleOverlay();
+                return;
+            }
+
+            if (ass != null)
+            {
+                float inverseScale = 1 / settings.assScale;
+                // Scale around the horizontal center and lower edge of the video.
+                material.SetVector("_SubtitleUV", new Vector4(inverseScale, inverseScale, .5f * (1 - inverseScale), -settings.assOffset * inverseScale));
+                material.SetTexture("_SubtitleTex", ass);
+                material.SetInt("_SubtitleMode", 2);
+                return;
+            }
+
+            if (captionCanvas == null)
+            {
+                var rasterizer = new GameObject("Video subtitle rasterizer");
+                rasterizer.transform.SetParent(transform, false);
+                captionCanvas = rasterizer.AddComponent<VideoCaptionCanvas>();
+                captionCanvas.Initialize();
+            }
+            Texture caption = captionCanvas.Render(text, settings, AssPresentation.FrameSize(aspect));
+            material.SetVector("_SubtitleUV", new Vector4(1, 1, 0, 0));
+            material.SetTexture("_SubtitleTex", caption);
+            material.SetInt("_SubtitleMode", caption != null ? 1 : 0);
         }
         public void Initialize(Camera camera)
         {
+            viewCamera=camera;
+            excludedSubtitleLayer=camera.cullingMask&(1<<VideoCaptionCanvas.Layer);
+            camera.cullingMask&=~excludedSubtitleLayer;
             cameraTransform=camera.transform;if(camera.GetComponent<VideoEyeSelector>()==null)camera.gameObject.AddComponent<VideoEyeSelector>();
             material=new Material(Shader.Find("VRPlayer/VideoProjection")){name="Video projection material"};
             var quad=new GameObject("Cinema Screen",typeof(MeshFilter),typeof(MeshRenderer));quad.transform.SetParent(transform,false);quad.GetComponent<MeshRenderer>().sharedMaterial=material;screen=quad.transform;
-            var globe=GameObject.CreatePrimitive(PrimitiveType.Sphere);globe.name="Immersive Video";globe.transform.SetParent(transform,false);Destroy(globe.GetComponent<Collider>());globe.GetComponent<MeshRenderer>().sharedMaterial=material;sphere=globe.transform;sphere.localScale=Vector3.one*60;
+            var globe=GameObject.CreatePrimitive(PrimitiveType.Sphere);globe.name="Immersive Video";globe.transform.SetParent(transform,false);Release(globe.GetComponent<Collider>());globe.GetComponent<MeshRenderer>().sharedMaterial=material;sphere=globe.transform;sphere.localScale=Vector3.one*60;
             viewingRotation=Quaternion.Euler(0,cameraTransform.eulerAngles.y,0);
             transform.SetPositionAndRotation(cameraTransform.position,viewingRotation);
             var backdrop=new GameObject("Cinema Background");backdrop.transform.SetParent(transform,false);
@@ -55,9 +92,18 @@ namespace VRPlayer
             for(int i=0;i<=segments;i++){float u=i/(float)segments;float x=(u-.5f)*width,z=0;if(curve>.01f){float radius=width/Mathf.Deg2Rad/curve;float angle=(u-.5f)*curve*Mathf.Deg2Rad;x=Mathf.Sin(angle)*radius;z=(Mathf.Cos(angle)-1)*radius;}
                 vertices[i*2]=new Vector3(x,-height*.5f,z);vertices[i*2+1]=new Vector3(x,height*.5f,z);uvs[i*2]=new Vector2(u,0);uvs[i*2+1]=new Vector2(u,1);
                 if(i<segments){int t=i*6,a=i*2;triangles[t]=a;triangles[t+1]=a+1;triangles[t+2]=a+2;triangles[t+3]=a+2;triangles[t+4]=a+1;triangles[t+5]=a+3;}}
-            if(screenMesh!=null)Destroy(screenMesh);screenMesh=new Mesh{name="Curved cinema screen",vertices=vertices,uv=uvs,triangles=triangles};screenMesh.RecalculateBounds();screen.GetComponent<MeshFilter>().sharedMesh=screenMesh;
+            Release(screenMesh);screenMesh=new Mesh{name="Curved cinema screen",vertices=vertices,uv=uvs,triangles=triangles};screenMesh.RecalculateBounds();screen.GetComponent<MeshFilter>().sharedMesh=screenMesh;
         }
-        private void OnDestroy(){if(material!=null)Destroy(material);if(screenMesh!=null)Destroy(screenMesh);}
+        private void OnDestroy()
+        {
+            if(viewCamera!=null)viewCamera.cullingMask|=excludedSubtitleLayer;
+            Release(material);Release(screenMesh);
+        }
+        private static void Release(Object value)
+        {
+            if(value==null)return;
+            if(Application.isPlaying)Destroy(value);else DestroyImmediate(value);
+        }
     }
     public sealed class VideoEyeSelector : MonoBehaviour
     {

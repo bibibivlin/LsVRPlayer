@@ -16,11 +16,14 @@ namespace VRPlayer.Tests
             var image=new Texture2D(8,8,TextureFormat.RGBA32,false,true);var previous=RenderTexture.active;
             float oldEye=Shader.GetGlobalFloat("_VRPlayerEye");
             try{
-                Shader.SetGlobalFloat("_VRPlayerEye",eye);material.SetInt("_Stereo",stereo);material.SetFloat("_AssEnabled",1);material.SetTexture("_AssTex",overlay);
-                Graphics.Blit(Texture2D.blackTexture,target,material);RenderTexture.active=target;image.ReadPixels(new Rect(0,0,8,8),0,0);image.Apply();
-                Assert.That(image.GetPixel(1,6).r,Is.GreaterThan(.9));Assert.That(image.GetPixel(6,6).r,Is.LessThan(.05));Assert.That(image.GetPixel(1,1).r,Is.LessThan(.05));
-                material.SetInt("_Projection",2);Graphics.Blit(Texture2D.blackTexture,target,material);image.ReadPixels(new Rect(0,0,8,8),0,0);image.Apply();
-                Assert.That(image.GetPixel(1,6).r,Is.LessThan(.05),"Immersive shader must reject ASS independently of the UI");
+                Shader.SetGlobalFloat("_VRPlayerEye",eye);material.SetInt("_Stereo",stereo);material.SetTexture("_SubtitleTex",overlay);
+                foreach(int mode in new[]{1,2}){
+                    material.SetInt("_SubtitleMode",mode);material.SetInt("_Projection",0);
+                    Graphics.Blit(Texture2D.blackTexture,target,material);RenderTexture.active=target;image.ReadPixels(new Rect(0,0,8,8),0,0);image.Apply();
+                    Assert.That(image.GetPixel(1,6).r,Is.GreaterThan(.9));Assert.That(image.GetPixel(6,6).r,Is.LessThan(.05));Assert.That(image.GetPixel(1,1).r,Is.LessThan(.05));
+                    material.SetInt("_Projection",2);Graphics.Blit(Texture2D.blackTexture,target,material);image.ReadPixels(new Rect(0,0,8,8),0,0);image.Apply();
+                    Assert.That(image.GetPixel(1,6).r,Is.LessThan(.05),"Immersive video must exclude the flat subtitle overlay");
+                }
             }finally{Shader.SetGlobalFloat("_VRPlayerEye",oldEye);RenderTexture.active=previous;RenderTexture.ReleaseTemporary(target);Object.DestroyImmediate(material);Object.DestroyImmediate(overlay);Object.DestroyImmediate(image);}
         }
     }

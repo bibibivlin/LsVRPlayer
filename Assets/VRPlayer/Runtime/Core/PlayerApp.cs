@@ -55,9 +55,12 @@ namespace VRPlayer
         private AssDocument assDocument;
         private readonly AssSubtitleRenderer assRenderer=new AssSubtitleRenderer();
         public bool AssSubtitlesSelected=>assDocument!=null||SubtitleFormat.IsAss(Current?.subtitle??"")||(Backend?.Snapshot.tracks??Array.Empty<MediaTrack>()).Any(t=>t.type==3&&t.codec=="text/x-ssa"&&Current?.subtitle=="track:"+t.id);
-        public string AssSubtitleNotice=>AssSubtitlesSelected?AssPresentation.Supported(Presenter.Settings.projection)?"ASS 使用脚本样式与位置，仅在画面内显示；可调整字幕延后。":"ASS 仅支持平面视频，当前投影已暂停显示。":"";
-        private void ClearSubtitleDocuments(){subtitleDocument=null;assDocument=null;assRenderer.SetDocument(null);Presenter?.SetAssOverlay(null);}
-        private void InvalidateAssFrame(){assRenderer.Invalidate();Presenter?.SetAssOverlay(null);}
+        private void ClearSubtitleDocuments()
+        {
+            subtitleDocument=null;assDocument=null;assRenderer.SetDocument(null);Presenter?.ClearSubtitleOverlay();
+            caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
+        }
+        private void InvalidateAssFrame(){assRenderer.Invalidate();if(AssSubtitlesSelected)Presenter?.ClearSubtitleOverlay();}
         private CaptionPresenter caption;
         private Transform captionRoot;
         private bool ended,wasPresent,tracksRestored;
@@ -117,7 +120,6 @@ namespace VRPlayer
         {
             if(Store==null||Backend==null)return;
             Backend.Tick();var state=Backend.Snapshot;TickFormatDetection(state);TickEmbyPlayback(state);
-            var activeAss=assDocument??(Current!=null&&state.generation==Generation&&Backend is AndroidMediaBackend androidBackend&&Current.subtitle=="track:"+androidBackend.EmbeddedAssTrack?androidBackend.EmbeddedAss:null);
             Presenter.UpdateVideo(Backend.Texture,Backend.RequiresGammaConversion,state.width,state.height,state.pixelRatio);
             if(Current!=null&&state.generation==Generation){
                 if(state.state!=previousState){previousState=state.state;if(state.state==3)SetStatus("媒体已准备好");else if(state.state==2)SetStatus("正在缓冲…");else if(state.state==4)SetStatus("播放完成");}
@@ -125,15 +127,11 @@ namespace VRPlayer
                 if(state.HasError&&lastError!=state.error){lastError=state.error;SetStatus("播放失败："+state.error+"。可点重试或选择其他文件。");_ = RetryWithStoragePermission(Current.uri,Generation);}
                 if(!state.HasError&&state.state==4&&!ended){ended=true;if(Store.Settings.sequential&&!Store.Settings.loop)Next(1,false);}
                 if(Time.unscaledTime>=saveAt){saveAt=Time.unscaledTime+5;SaveProgress();}
-                caption.SetText(AssSubtitlesSelected?"":subtitleDocument!=null?subtitleDocument.TextAt(state.position/1000d,Current.subtitleDelay):Current.subtitle.StartsWith("track:")?state.embeddedSubtitle:"",Store.Settings.subtitleSize,Store.Settings.subtitleStyle,Presenter.Settings.projection==Projection.Flat?Store.Settings.cinemaComfort.subtitleBrightness:1);
-            }else caption.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);
-            assRenderer.Tick(activeAss,activeAss!=null&&Current!=null&&state.generation==Generation&&Current.subtitleSelection!=SubtitleSelection.Off&&AssPresentation.Supported(Presenter.Settings.projection),Backend is AndroidMediaBackend clockBackend?clockBackend.PresentationPosition:state.position,Current?.subtitleDelay??0,Presenter.Settings.Aspect(state.width,state.height,state.pixelRatio));
-            Presenter.SetAssOverlay(assRenderer.Texture);
-            if(assRenderer.Error.Length>0)SetStatus(assRenderer.Error);
-            caption.Position(headCamera,Presenter.transform,Store.Settings);
+            }
+            string subtitleText=UpdateSubtitlePresentation(state);
             InputDevice head=InputDevices.GetDeviceAtXRNode(XRNode.Head);PresenceKnown=head.TryGetFeatureValue(CommonUsages.userPresence,out bool present);if(PresenceKnown){if(wasPresent&&!present)Pause();wasPresent=present;}
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
-            if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=caption.Text,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
+            if(Time.unscaledTime>diagnosticsAt){diagnosticsAt=Time.unscaledTime+2;try{File.WriteAllText(Path.Combine(Application.persistentDataPath,"playback-diagnostics.json"),JsonUtility.ToJson(new Diagnostic{snapshot=state,frames=Backend.RenderedFrames,projection=Presenter.Settings.projection.ToString(),stereo=Presenter.Settings.stereo.ToString(),unityFps=RenderQuality.Fps,eyeWidth=XRSettings.eyeTextureWidth,eyeHeight=XRSettings.eyeTextureHeight,renderScale=RenderQuality.EffectiveScale,msaa=QualitySettings.antiAliasing,status=Status,caption=subtitleText,subtitle=Current?.subtitle??"",subtitleCandidates=SubtitleCandidates.Select(x=>x.name).ToArray(),format=Detection,formatDescription=FormatDescription,analysis=LastFrameAnalysis,analysisAttempts=AnalysisAttempts,analysisValidFrames=AnalysisValidFrames,analysisStatus=AnalysisStatus,recognitionP95=RecognitionMainThreadP95,subtitleSelection=Current?.subtitleSelection.ToString()??"",directory=DirectoryUri,source=Source.ToString(),
                 cinemaHighlights=Store.Settings.cinemaComfort.highlights.ToString(),cinemaSubtitleBrightness=Store.Settings.cinemaComfort.subtitleBrightness,cinemaComfortActive=Presenter.Settings.projection==Projection.Flat,backgroundMode=Store.Settings.background.mode.ToString(),backgroundGray=Store.Settings.background.grayLevel,backgroundFeather=Store.Settings.background.featherDegrees,backgroundVisible=Presenter.BackgroundVisible,uiSurface=UI.Visible?"full":UI.Quick.Visible?"quick":"hidden",quickPopup=UI.Quick.Popup,quickVolumeVisible=UI.Quick.VolumeVisible,quickBrowserUri=UI.Quick.BrowserUri,quickBrowserCount=UI.Quick.BrowserCount,quickBrowserLoading=UI.Quick.BrowserLoading,hasFocus=HasFocus,userPresent=wasPresent,presenceKnown=PresenceKnown,volume=Store.Settings.volume,speed=Store.Settings.speed,panoramaZoom=Presenter.Settings.panoramaZoom,distance=Presenter.Settings.distance,screenWidth=Presenter.Settings.width,mainPanelDistance=Store.Settings.mainPanelDistance,mainPanelScale=Store.Settings.mainPanelScale,
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
                 timestampUtc=DateTime.UtcNow.ToString("O"),frame=Time.frameCount,fullVisible=UI.Visible,quickVisible=UI.Quick.Visible,loading=Loading,fullOffset=UI.FullOffset,fullCount=UI.FullCount,fullModal=UI.FullModal,fullQuery=UI.FullQuery,keyboardVisible=UI.KeyboardVisible,quickOffset=UI.Quick.BrowserOffset,
@@ -141,6 +139,31 @@ namespace VRPlayer
 #endif
             },true));}catch{} }
 #endif
+        }
+        private string UpdateSubtitlePresentation(MediaSnapshot state)
+        {
+            bool current = Current != null && state.generation == Generation && Current.subtitleSelection != SubtitleSelection.Off;
+            bool flat = Presenter.Settings.projection == Projection.Flat;
+            var android = Backend as AndroidMediaBackend;
+            var activeAss = current ? assDocument : null;
+            if (current && activeAss == null && android != null && Current.subtitle == "track:" + android.EmbeddedAssTrack)
+                activeAss = android.EmbeddedAss;
+            float aspect = Presenter.Settings.Aspect(state.width, state.height, state.pixelRatio);
+            assRenderer.Tick(activeAss, flat && activeAss != null, android?.PresentationPosition ?? state.position, Current?.subtitleDelay ?? 0, aspect);
+            if (assRenderer.Error.Length > 0) SetStatus(assRenderer.Error);
+
+            string text = "";
+            if (current && !AssSubtitlesSelected)
+            {
+                if (subtitleDocument != null) text = subtitleDocument.TextAt(state.position / 1000d, Current.subtitleDelay);
+                else if (Current.subtitle.StartsWith("track:")) text = state.embeddedSubtitle ?? "";
+            }
+
+            var settings = Store.Settings;
+            Presenter.UpdateSubtitles(text, assRenderer.Texture, settings.flatSubtitles, aspect);
+            caption.SetText(flat ? "" : text, settings.subtitleSize, settings.subtitleStyle);
+            if (!flat && text.Length > 0) caption.Position(headCamera, Presenter.transform, settings);
+            return text;
         }
         [Serializable] private sealed class Diagnostic {public string cinemaHighlights;public float cinemaSubtitleBrightness;public bool cinemaComfortActive;public string backgroundMode;public float backgroundGray,backgroundFeather;public bool backgroundVisible;public MediaSnapshot snapshot;public int frames;public string projection,stereo,status,caption,subtitle,subtitleSelection,directory,source,formatDescription;public FormatDetectionResult format;public FrameAnalysis analysis;public int analysisAttempts,analysisValidFrames;public string analysisStatus;public float recognitionP95;public string[] subtitleCandidates;public float unityFps,renderScale;public int eyeWidth,eyeHeight,msaa;public string uiSurface,quickPopup,quickBrowserUri;public bool quickVolumeVisible,quickBrowserLoading,hasFocus,userPresent,presenceKnown;public int quickBrowserCount;public float volume,speed,panoramaZoom,distance,screenWidth,mainPanelDistance,mainPanelScale;
 #if DEVELOPMENT_BUILD || UNITY_EDITOR
@@ -298,7 +321,7 @@ namespace VRPlayer
             OpenVideo(playlist[next],Current.directory,inheritFormat||InheritEmbyPartFormat(playlist[next].uri)?Presenter.Settings.Copy():null,true);
         }
         public void Retry(){if(Current==null)return;var record=Current;Open(new FileEntry{uri=record.uri,name=record.name,size=record.size,modified=record.modified},record.directory);}
-        public void Stop(){CancelEmbyPlaybackRequest();CancelStorageAccess();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;thumbnails?.SetGeneration(Generation);CancelFormatDetection();Backend?.Stop();Current=null;ClearSubtitleDocuments();CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();caption?.SetText("",Store.Settings.subtitleSize,Store.Settings.subtitleStyle);SetStatus("播放已停止");}
+        public void Stop(){CancelEmbyPlaybackRequest();CancelStorageAccess();SaveProgress();EndEmbyPlayback();embyMovieParts=null;embyMovieExtras=null;Generation++;thumbnails?.SetGeneration(Generation);CancelFormatDetection();Backend?.Stop();Current=null;ClearSubtitleDocuments();CancelSubtitleSelection();subtitleListing?.Cancel();seekTarget.Reset();SetStatus("播放已停止");}
         public bool CanNavigateAdjacent(int delta){if(Current==null||delta==0)return false;int index=playlist.FindIndex(x=>x.uri==Current.uri);return index>=0&&index+delta>=0&&index+delta<playlist.Count&&AllowEmbyAdjacent(playlist[index+delta].uri,false);}
         public void SetVolume(float value){value=Mathf.Clamp01(value);Store.Settings.volume=value;if(value>0)Store.Settings.lastAudibleVolume=value;Backend?.SetVolume(value);}
         public void ToggleMute(){SetVolume(Store.Settings.volume>0?0:Store.Settings.lastAudibleVolume);Store.Save();}

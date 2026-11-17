@@ -13,8 +13,9 @@ Shader "VRPlayer/VideoProjection"
         _FisheyeFov("Fisheye FOV",Float)=180
         _PanoramaZoom("Panorama zoom",Float)=1
         _PanoramaForward("Panorama forward",Vector)=(0,0,1,0)
-        _AssTex("ASS overlay",2D)="black"{}
-        _AssEnabled("ASS enabled",Float)=0
+        _SubtitleTex("Subtitle overlay",2D)="black"{}
+        _SubtitleMode("Subtitle mode",Int)=0
+        _SubtitleUV("Subtitle UV transform",Vector)=(1,1,0,0)
     }
     SubShader {
         // Draw after the skybox and before world-space menus, without occluding those menus.
@@ -30,9 +31,9 @@ Shader "VRPlayer/VideoProjection"
             #include "CinemaComfort.cginc"
             struct appdata {float4 vertex:POSITION;float2 uv:TEXCOORD0;UNITY_VERTEX_INPUT_INSTANCE_ID};
             struct v2f {float4 vertex:SV_POSITION;float2 uv:TEXCOORD0;float3 direction:TEXCOORD1;UNITY_VERTEX_OUTPUT_STEREO};
-            sampler2D _MainTex,_AssTex;int _Projection,_Stereo;float _AssEnabled;
+            sampler2D _MainTex,_SubtitleTex;int _Projection,_Stereo,_SubtitleMode;
             float _SwapEyes,_MonoEye,_GammaInput,_Brightness,_FisheyeFov,_VRPlayerEye;
-            float4 _ComfortHighlights;float _SubtitleBrightness;
+            float4 _ComfortHighlights,_SubtitleUV;float _SubtitleBrightness;
             float _PanoramaZoom;float3 _PanoramaForward;
             v2f vert(appdata v){v2f o;UNITY_SETUP_INSTANCE_ID(v);UNITY_INITIALIZE_OUTPUT(v2f,o);UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);o.vertex=UnityObjectToClipPos(v.vertex);o.uv=v.uv;o.direction=v.vertex.xyz;return o;}
             float2 cubeUV(float3 d,bool equiangular){
@@ -76,16 +77,19 @@ Shader "VRPlayer/VideoProjection"
                     rgb=CinemaCompressHighlights(rgb,_ComfortHighlights);
                     #endif
                 }
-                // Script coordinates cover the displayed video rectangle in both eyes.
-                // Sample before stereo packing: subtitle geometry never leaves the mesh.
-                if(_Projection==0&&_AssEnabled>.5){
-                    float4 ass=tex2D(_AssTex,i.uv);
-                    float3 assRgb=ass.a>0?ass.rgb/ass.a:0;
-                    #ifndef UNITY_COLORSPACE_GAMMA
-                    assRgb=GammaToLinearSpace(assRgb);
-                    #endif
-                    assRgb=CinemaSubtitleColor(assRgb,_SubtitleBrightness);
-                    rgb=rgb*(1-ass.a)+assRgb*ass.a;
+                // Both eyes share the displayed rectangle, independent of video stereo packing.
+                if(_Projection==0&&_SubtitleMode!=0){
+                    float2 subtitleUV=i.uv*_SubtitleUV.xy+_SubtitleUV.zw;
+                    if(all(subtitleUV>=0)&&all(subtitleUV<=1)){
+                        float4 subtitle=tex2D(_SubtitleTex,subtitleUV);
+                        float3 subtitleRgb=subtitle.a>0?subtitle.rgb/subtitle.a:0;
+                        #ifndef UNITY_COLORSPACE_GAMMA
+                        // libass supplies premultiplied sRGB. The text canvas uses project color space.
+                        if(_SubtitleMode==2)subtitleRgb=GammaToLinearSpace(subtitleRgb);
+                        #endif
+                        subtitleRgb=CinemaSubtitleColor(subtitleRgb,_SubtitleBrightness);
+                        rgb=rgb*(1-subtitle.a)+subtitleRgb*subtitle.a;
+                    }
                 }
                 return float4(rgb,1);
             }
