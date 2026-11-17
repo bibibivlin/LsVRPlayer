@@ -81,6 +81,20 @@ namespace VRPlayer
             => await SendAccount(account, UserPath(account) + "/Items/Resume?Limit=" + PageSize +
                 "&MediaTypes=Video&IncludeItemTypes=Movie,Episode,Video&Fields=" + Escape(Fields), "GET", null, token, ParseItems);
 
+        internal async Task<EmbyItem[]> GetMoviesByIds(EmbyAccount account, string[] ids, CancellationToken token)
+        {
+            var movies = new List<EmbyItem>();
+            for (int start = 0; start < ids.Length; start += PageSize)
+            {
+                token.ThrowIfCancellationRequested();
+                string batch = Escape(string.Join(",", ids.Skip(start).Take(PageSize)));
+                var result = await SendAccount(account, UserPath(account) + "/Items?Ids=" + batch +
+                    "&IncludeItemTypes=Movie&EnableUserData=true&Limit=" + PageSize, "GET", null, token, ParseItems);
+                movies.AddRange(result.Items.Where(item => item.Type == "Movie" && !item.IsExtra && !item.IsAdditionalPart));
+            }
+            return movies.ToArray();
+        }
+
         public async Task<EmbyItemsResult> GetLatest(EmbyAccount account, string parentId = "", CancellationToken token = default)
         {
             string path = UserPath(account) + "/Items/Latest?Limit=" + PageSize + "&IncludeItemTypes=Movie,Episode,Video&Fields=" + Escape(Fields);

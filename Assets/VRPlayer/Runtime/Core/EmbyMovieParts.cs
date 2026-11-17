@@ -69,7 +69,7 @@ namespace VRPlayer
             return latest ?? (progressCount == 1 ? onlyProgress : null);
         }
 
-        private static DateTimeOffset PlayedTime(string value)
+        internal static DateTimeOffset PlayedTime(string value)
             => DateTimeOffset.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var time)
                 ? time.ToUniversalTime() : DateTimeOffset.MinValue;
     }

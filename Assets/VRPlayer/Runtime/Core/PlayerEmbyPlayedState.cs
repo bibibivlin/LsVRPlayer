@@ -93,7 +93,14 @@ namespace VRPlayer
                     foreach (var entry in page.views.Concat(page.resume).Concat(page.latest).Concat(page.items).Concat(page.specialEpisodes).Concat(page.parts).Concat(page.extras).Concat(new[] { page.selected }).Where(entry => entry?.Id == itemId))
                         entry.UserData = data;
                     // The server clears resume position for both watched and unwatched actions.
-                    page.resume = page.resume.Where(entry => entry?.Id != itemId).ToArray();
+                    page.resume = page.resume.Where(entry =>
+                    {
+                        if (entry == null) return false;
+                        if (entry.Id != itemId && (!page.resumeParts.TryGetValue(entry.Id, out var part) || part.Target.Item.Id != itemId))
+                            return true;
+                        page.resumeParts.Remove(entry.Id);
+                        return false;
+                    }).ToArray();
                 }
             }
             foreach (var entry in (embyMovieParts?.AccountId == accountId ? embyMovieParts.Items : Array.Empty<EmbyItem>()).Where(entry => entry.Id == itemId)) entry.UserData = data;

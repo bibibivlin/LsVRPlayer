@@ -460,11 +460,15 @@ namespace VRPlayer
             var artwork=EmbyLibraryViews.Artwork(item,thumbnails?EmbyLibraryView.Thumb:EmbyLibraryView.Poster);
             Image(card.transform,artwork.ItemId,0,0,width,artHeight,artwork.Available,item,artwork.Tag,artwork.Type);
             bool episode=thumbnails&&item.Type=="Episode"&&!string.IsNullOrEmpty(item.SeriesName);
+            var resumePart=thumbnails&&app.EmbyState.resumeParts.TryGetValue(item.Id,out var part)?part:default;
             var name=UiFactory.Label(card.transform,episode?item.SeriesName:DisplayName(item),8,artHeight+4,width-16,42,24);name.alignment=TextAlignmentOptions.MidlineLeft;
             string meta=episode?$"S{item.ParentIndexNumber}:E{item.IndexNumber} · {item.Name}":ItemMeta(item);
+            if(resumePart.Target!=null)meta="CD"+resumePart.Number+" · "+TicksClock(resumePart.Target.PositionTicks);
             UiFactory.Label(card.transform,meta,8,artHeight+46,width-16,34,20).color=Muted;
-            float progress=Progress(item);if(progress>0){UiFactory.Box(card.transform,"Progress rail",0,artHeight-6,width,6,new Color(0,0,0,.6f));UiFactory.Box(card.transform,"Progress",0,artHeight-6,width*progress,6,Green);}
-            if(item.UserData?.Played==true){UiFactory.Box(card.transform,"Watched",width-52,8,44,28,Green);UiFactory.Label(card.transform,L.T("已看"),width-52,8,44,28,17,TextAlignmentOptions.Center);}
+            float progress=resumePart.Target==null?Progress(item):resumePart.Target.Item.RunTimeTicks>0
+                ?Mathf.Clamp01(resumePart.Target.PositionTicks/(float)resumePart.Target.Item.RunTimeTicks):0;
+            if(progress>0){UiFactory.Box(card.transform,"Progress rail",0,artHeight-6,width,6,new Color(0,0,0,.6f));UiFactory.Box(card.transform,"Progress",0,artHeight-6,width*progress,6,Green);}
+            if(resumePart.Target==null&&item.UserData?.Played==true){UiFactory.Box(card.transform,"Watched",width-52,8,44,28,Green);UiFactory.Label(card.transform,L.T("已看"),width-52,8,44,28,17,TextAlignmentOptions.Center);}
             if(thumbnails&&item.IsPlayable){
                 const float markSize=44;
                 var mark=UiFactory.IconButton(card.transform,"标记为已播放",QuickIcon.Check,width-markSize-10,artHeight-markSize-14,PlayedAction(item,true),tooltip:"标记为已播放",size:markSize);

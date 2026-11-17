@@ -150,6 +150,99 @@ namespace VRPlayer.Tests
             Assert.That(server.Writes, Is.Empty); Assert.That(app.EmbyState.playedError, Is.Not.Empty);
         }
 
+        [UnityTest] public IEnumerator MissingCd2AppearsOnHomeAndOpensTheMovieResumeAction()
+        {
+            PrepareCd2Resume();
+            app.Store.Save();
+            Set(app, "Store", new PlayerStore(Path.Combine(folder, "settings.json")));
+            yield return Wait(LoadHome());
+            Assert.That(app.EmbyState.resume.Select(item => item.Id), Is.EqualTo(new[] { "main", "episode" }));
+            app.OpenEmbyItem(app.EmbyState.resume[0]);
+            yield return WaitForEmbyPage(() => app.EmbyState.page == EmbyPage.Details && !app.EmbyState.loading);
+            Assert.That(app.EmbyState.selected.Id, Is.EqualTo("main"));
+            Assert.That(app.EmbyMovieResume.Item.Id, Is.EqualTo("cd2"));
+            Assert.That(app.EmbyMovieResume.PositionTicks, Is.EqualTo(320000000));
+
+            yield return Wait(app.SetEmbyPlayed(app.EmbyState.selected, true));
+            app.EmbyBack();
+            Assert.That(app.EmbyState.resume.Select(item => item.Id), Is.EqualTo(new[] { "episode" }));
+            Assert.That(app.Store.Find("emby://account/cd2").position, Is.Zero);
+            yield return Wait(LoadHome());
+            Assert.That(app.EmbyState.resume.Select(item => item.Id), Is.EqualTo(new[] { "episode" }));
+            Assert.That(server.HeaderAuthenticationOnly, Is.True);
+        }
+
+        [UnityTest] public IEnumerator ReturningToHomeRefreshesTheCachedListAfterPlayingACd()
+        {
+            PrepareCd2Resume();
+            var record = app.Store.Find("emby://account/cd2");
+            record.position = 0;
+            yield return Wait(LoadHome());
+            var home = app.EmbyState;
+            Assert.That(home.resume.Select(item => item.Id), Is.EqualTo(new[] { "episode" }));
+            app.OpenEmbyItem(server.Item("main"));
+            yield return WaitForEmbyPage(() => app.EmbyState.page == EmbyPage.Details && !app.EmbyState.loading);
+
+            record.position = 32000;
+            app.EmbyBack();
+            Assert.That(app.EmbyState, Is.SameAs(home));
+            yield return WaitForEmbyPage(() => home.resume.Any(item => item.Id == "main"));
+            Assert.That(home.resume.Select(item => item.Id), Is.EqualTo(new[] { "main", "episode" }));
+        }
+
+        [UnityTest] public IEnumerator ServerListedCdKeepsTheSameMovieFromAppearingTwice()
+        {
+            PrepareCd2Resume();
+            server.ResumeIds = new[] { "cd3", "episode" };
+            server.SetProgress("cd3", 23000, false, "2026-10-16T03:00:00Z");
+            yield return Wait(LoadHome());
+            Assert.That(app.EmbyState.resume.Select(item => item.Id), Is.EqualTo(server.ResumeIds));
+        }
+
+        [UnityTest] public IEnumerator CompletingTheLastCdDoesNotResurfaceAnEarlierCd()
+        {
+            PrepareCd2Resume();
+            server.SetProgress("cd3", 0, true, "2026-10-16T03:00:00Z");
+            yield return Wait(LoadHome());
+            Assert.That(app.EmbyState.resume.Select(item => item.Id), Is.EqualTo(new[] { "episode" }));
+        }
+
+        [UnityTest] public IEnumerator LeavingHomeCancelsThePendingCdLookup()
+        {
+            PrepareCd2Resume();
+            server.HoldId = "AdditionalParts";
+            var homeLoad = LoadHome();
+            yield return Wait(server.Held.Task);
+            Assert.That(app.EmbyState.loading, Is.False);
+            var home = app.EmbyState;
+            app.ShowEmbyAccounts();
+            server.Release.TrySetResult(true);
+            yield return Wait(homeLoad);
+            Assert.That(app.EmbyState.page, Is.EqualTo(EmbyPage.Accounts));
+            Assert.That(home.resume.Select(item => item.Id), Is.EqualTo(new[] { "episode" }));
+        }
+
+        private void PrepareCd2Resume()
+        {
+            server.ResumeIds = new[] { "episode" };
+            server.SetProgress("main", 0, true, "2026-10-16T01:00:00Z");
+            server.SetProgress("cd2", 32000, false, "2026-10-16T02:00:00Z");
+            server.SetProgress("cd3", 0, false, null);
+            foreach (var record in app.Store.Settings.history) record.lastPlayed = "2026-10-15T01:00:00Z";
+            app.Store.Find("emby://account/main").position = 0;
+            app.Store.Find("emby://account/cd3").position = 0;
+        }
+
+        private Task LoadHome() => (Task)typeof(PlayerApp).GetMethod("LoadEmbyHome", BindingFlags.Instance | BindingFlags.NonPublic)
+            .Invoke(app, null);
+
+        private static IEnumerator WaitForEmbyPage(Func<bool> ready)
+        {
+            float deadline = Time.realtimeSinceStartup + 10;
+            while (!ready() && Time.realtimeSinceStartup < deadline) yield return null;
+            Assert.That(ready(), Is.True, "Emby page did not update");
+        }
+
         // Loopback HTTP verifies the actual authenticated API methods, response parsing, ordering and cancellation.
         private sealed class Fixture : IDisposable
         {
@@ -159,6 +252,7 @@ namespace VRPlayer.Tests
             public readonly ConcurrentQueue<string> Requests = new ConcurrentQueue<string>(), Writes = new ConcurrentQueue<string>();
             public readonly TaskCompletionSource<bool> Held = new TaskCompletionSource<bool>(), Release = new TaskCompletionSource<bool>();
             public string FailId = "", HoldId = "";
+            public string[] ResumeIds = Array.Empty<string>();
             public bool HeaderAuthenticationOnly = true;
             public string Url { get; }
             public Fixture()
@@ -171,6 +265,14 @@ namespace VRPlayer.Tests
             }
             public EmbyItem Item(string id) => JsonUtility.FromJson<EmbyItem>(JsonUtility.ToJson(items[id]));
             public void SetInitiallyPlayed(string id) => items[id].UserData.Played = true;
+            public void SetProgress(string id, long milliseconds, bool played, string date)
+            {
+                var data = items[id].UserData;
+                data.PlaybackPositionTicks = milliseconds * 10000;
+                data.Played = played;
+                data.LastPlayedDate = date;
+            }
+
             private async Task Accept()
             {
                 try { while (true) { var client = await listener.AcceptTcpClientAsync(); clients.Add(client); _ = Handle(client); } }
@@ -195,10 +297,12 @@ namespace VRPlayer.Tests
                         while (length > 0) { var chars = new char[length]; int read = await reader.ReadAsync(chars, 0, length); if (read <= 0) break; length -= read; }
                         HeaderAuthenticationOnly &= authenticated && !target.Contains("fixture-header-token") && !target.Contains("api_key");
                         Requests.Enqueue(method + " " + target);
-                        string path = new Uri(Url + target).AbsolutePath, id = path.Split('/').Last(), json = "{}"; int status = 200;
+                        var uri = new Uri(Url + target);
+                        string path = uri.AbsolutePath, id = path.Split('/').Last(), json = "{}"; int status = 200;
+                        if (id == HoldId && (id == "AdditionalParts" || path.Contains("/PlayedItems/")))
+                        { Held.TrySetResult(true); await Release.Task; }
                         if (path.Contains("/PlayedItems/"))
                         {
-                            if (id == HoldId) { Held.TrySetResult(true); await Release.Task; }
                             if (id == FailId) status = 500;
                             else
                             {
@@ -208,6 +312,13 @@ namespace VRPlayer.Tests
                             }
                         }
                         else if (id == "AdditionalParts") json = JsonUtility.ToJson(new EmbyItemsResult { Items = new[] { Item("cd2"), Item("cd3"), Item("extra"), Item("episode") }, TotalRecordCount = 4 });
+                        else if (id == "Resume") json = JsonUtility.ToJson(new EmbyItemsResult { Items = ResumeIds.Select(Item).ToArray() });
+                        else if (id == "Items" && uri.Query.StartsWith("?Ids=", StringComparison.Ordinal))
+                        {
+                            var ids = Uri.UnescapeDataString(uri.Query.Split('&')[0].Substring(5)).Split(',');
+                            json = JsonUtility.ToJson(new EmbyItemsResult { Items = ids.Where(items.ContainsKey).Select(Item).ToArray() });
+                        }
+                        else if (id == "Views" || id == "Latest" || id == "SpecialFeatures" || id == "LocalTrailers") json = "[]";
                         else if (items.ContainsKey(id)) json = JsonUtility.ToJson(items[id]);
                         else if (!path.StartsWith("/Sessions/")) status = 404;
                         byte[] body = Encoding.UTF8.GetBytes(json), header = Encoding.ASCII.GetBytes("HTTP/1.1 " + status + " Result\r\nContent-Type: application/json\r\nContent-Length: " + body.Length + "\r\nConnection: close\r\n\r\n");
