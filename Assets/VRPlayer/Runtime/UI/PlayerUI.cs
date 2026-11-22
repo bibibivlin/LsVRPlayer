@@ -279,7 +279,12 @@ namespace VRPlayer
             }
             filter=UiFactory.Input(page,query,L.T("搜索当前目录"),0,80,652,64,ShowKeyboard);filter.onValueChanged.AddListener(value=>query=value);
             UiFactory.IconButton(page,"搜索",QuickIcon.Search,668,80,()=>{query=filter.text;Draw();});
-            var favorite=UiFactory.IconButton(page,"收藏",QuickIcon.Star,748,80,()=>{if(!string.IsNullOrEmpty(app.DirectoryUri))app.AddFavorite(Uri.UnescapeDataString(app.DirectoryUri.Split('/').LastOrDefault(x=>x.Length>0)??L.T("目录")),app.DirectoryUri);});favorite.name="Favorite directory";favorite.interactable=!string.IsNullOrEmpty(app.DirectoryUri);
+            string favoriteUri = app.DirectoryUri;
+            Button favorite = null;
+            favorite = UiFactory.IconButton(page, "收藏当前目录", QuickIcon.Star, 748, 80, () => ToggleDirectoryFavorite(favorite, favoriteUri));
+            favorite.name = "Favorite directory";
+            favorite.interactable = app.Source == FileSource.Directory && !string.IsNullOrEmpty(favoriteUri);
+            UpdateDirectoryFavoriteButton(favorite, favorite.interactable && app.Store.IsFavorite(favoriteUri));
             var order=UiFactory.Button(page,app.Source==FileSource.Recent?L.T("最近优先"):new[]{L.T("名称排序"),L.T("日期排序"),L.T("大小排序")}[sort],828,80,156,64,()=>{sort=(sort+1)%3;Draw();});order.name=app.Source==FileSource.Recent?L.T("最近播放优先"):order.name;order.interactable=app.Source!=FileSource.Recent;
             var mode=UiFactory.Button(page,app.Source==FileSource.Recent?L.T("播放历史"):subtitleBrowse?L.T("字幕文件"):L.T("视频文件"),1000,80,156,64,()=>{subtitleBrowse=!subtitleBrowse;Draw();});mode.interactable=app.Source!=FileSource.Recent;
             UiFactory.Label(page,L.T("名称"),18,160,852,42,24).color=UiTheme.Muted;UiFactory.Label(page,L.T("大小 / 操作"),922,160,210,42,23,TextAlignmentOptions.Right).color=UiTheme.Muted;
@@ -328,6 +333,25 @@ namespace VRPlayer
             if(!app.Loading&&fileRestorePending){fileList.SetOffset(fileOffset);fileRestorePending=false;}
             fileRowsReady=!app.Loading&&rows.Any(row=>row.open!=null||row.action!=null);
             if(!app.Loading&&!string.IsNullOrEmpty(app.LocateFileUri)&&locatedFile!=app.LocateFileUri){int index=rows.FindIndex(row=>row.key==app.LocateFileUri);if(index>=0){fileList.SetOffset(index*VirtualFileList.RowPitch);fileOffset=fileList.Offset;}locatedFile=app.LocateFileUri;}
+        }
+        private static void UpdateDirectoryFavoriteButton(Button button, bool favorited)
+        {
+            button.GetComponentInChildren<QuickIconGraphic>().Icon = favorited ? QuickIcon.StarFilled : QuickIcon.Star;
+            button.GetComponentInChildren<TextMeshProUGUI>(true).text = favorited ? "取消收藏" : "收藏当前目录";
+            UiFactory.SetAccent(button, favorited);
+        }
+        private void ToggleDirectoryFavorite(Button button, string uri)
+        {
+            if (button == null || !button.isActiveAndEnabled || !button.IsInteractable() || app.Source != FileSource.Directory || app.DirectoryUri != uri) return;
+            string name = Uri.UnescapeDataString(uri.Split('/').LastOrDefault(segment => segment.Length > 0) ?? L.T("目录"));
+            bool? favorited = app.Store.ToggleFavorite(name, uri);
+            if (!favorited.HasValue)
+            {
+                ShowTransport("无法保存收藏更改");
+                return;
+            }
+            UpdateDirectoryFavoriteButton(button, favorited.Value);
+            ShowTransport(favorited.Value ? "已收藏当前目录" : "已取消收藏");
         }
         private void RemoveFavorite(string uri){var item=app.Store.RemoveFavorite(uri,out int index);if(item==null)return;removedFavorite=item;removedIndex=index;undoUntil=Time.unscaledTime+5;app.ShowFavorites();app.SetStatus("已移除收藏，可在 5 秒内撤销");}
         private void UndoFavorite(){if(removedFavorite==null||Time.unscaledTime>=undoUntil)return;app.Store.RestoreFavorite(removedFavorite,removedIndex);removedFavorite=null;app.ShowFavorites();}

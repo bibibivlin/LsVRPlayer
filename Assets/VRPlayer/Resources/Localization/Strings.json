@@ -330,6 +330,16 @@
       "ja": "お気に入り"
     },
     {
+      "zh": "收藏当前目录",
+      "en": "Add folder to favorites",
+      "ja": "フォルダーをお気に入りに追加"
+    },
+    {
+      "zh": "取消收藏",
+      "en": "Remove from favorites",
+      "ja": "お気に入りから削除"
+    },
+    {
       "zh": "最近",
       "en": "Recent",
       "ja": "履歴"
@@ -528,6 +538,21 @@
       "zh": "没有匹配文件，可切换来源或清空搜索。",
       "en": "No matching files. Change source or clear the search.",
       "ja": "一致するファイルがありません。ソースを変更するか検索をクリアしてください。"
+    },
+    {
+      "zh": "已收藏当前目录",
+      "en": "Folder added to favorites",
+      "ja": "フォルダーをお気に入りに追加しました"
+    },
+    {
+      "zh": "已取消收藏",
+      "en": "Folder removed from favorites",
+      "ja": "フォルダーをお気に入りから削除しました"
+    },
+    {
+      "zh": "无法保存收藏更改",
+      "en": "Could not save favorite changes",
+      "ja": "お気に入りの変更を保存できませんでした"
     },
     {
       "zh": "已移除收藏，可在 5 秒内撤销",

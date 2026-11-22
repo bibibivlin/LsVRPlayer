@@ -98,6 +98,32 @@ namespace VRPlayer
         private static float Finite(float value,float fallback)=>float.IsNaN(value)||float.IsInfinity(value)?fallback:value;
         public static float NormalizeZoom(float value)=>Mathf.Clamp(Finite(value,1)>0?Finite(value,1):1,.5f,2);
         public static float NormalizeMainPanelDistance(float value)=>Mathf.Clamp(Finite(value,2)>0?Finite(value,2):2,1.2f,6);
+        private static string FavoriteKey(string uri)
+        {
+            // Directory links from shortcuts or Up can carry a trailing slash.
+            if (uri != null && (uri.StartsWith("file:", StringComparison.Ordinal) || uri.StartsWith("smb://", StringComparison.Ordinal)))
+                return uri.TrimEnd('/');
+            return uri;
+        }
+        public bool IsFavorite(string uri)
+        {
+            if (string.IsNullOrEmpty(uri)) return false;
+            string key = FavoriteKey(uri);
+            return Settings.favorites.Any(item => FavoriteKey(item?.uri) == key);
+        }
+        public bool? ToggleFavorite(string name, string uri)
+        {
+            if (string.IsNullOrEmpty(uri)) return null;
+            string key = FavoriteKey(uri);
+            var original = Settings.favorites;
+            var updated = new List<Favorite>(original);
+            bool favorited = updated.RemoveAll(item => FavoriteKey(item?.uri) == key) == 0;
+            if (favorited) updated.Add(new Favorite { name = name, uri = uri });
+            Settings.favorites = updated;
+            if (TrySave()) return favorited;
+            Settings.favorites = original;
+            return null;
+        }
         public Favorite RemoveFavorite(string uri,out int index)
         {
             index=Settings.favorites.FindIndex(f=>f.uri==uri);if(index<0)return null;
@@ -144,10 +170,23 @@ namespace VRPlayer
             if(!string.IsNullOrEmpty(directory))record.directory=directory;record.lastPlayed=DateTime.UtcNow.ToString("O");
             Settings.history.Remove(record);Settings.history.Insert(0,record);if(Settings.history.Count>200)Settings.history.RemoveRange(200,Settings.history.Count-200);return record;
         }
-        public void Save()
+        public void Save() => TrySave();
+        private bool TrySave()
         {
-            try{Directory.CreateDirectory(Path.GetDirectoryName(path));string temporary=path+".tmp";File.WriteAllText(temporary,JsonUtility.ToJson(Settings,true));if(File.Exists(path))File.Replace(temporary,path,null);else File.Move(temporary,path);}
-            catch(Exception ex){Debug.LogWarning("VRPlayer settings save failed: "+ex.GetType().Name);}
+            try
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path));
+                string temporary = path + ".tmp";
+                File.WriteAllText(temporary, JsonUtility.ToJson(Settings, true));
+                if (File.Exists(path)) File.Replace(temporary, path, null);
+                else File.Move(temporary, path);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning("VRPlayer settings save failed: " + ex.GetType().Name);
+                return false;
+            }
         }
     }
 }
