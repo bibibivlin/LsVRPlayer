@@ -371,7 +371,6 @@ namespace VRPlayer
             Store.Save();viewDistanceDirty=false;
             if(Source==FileSource.Recent)Notify();
         }
-        public void AddFavorite(string name,string uri){if(Store.Settings.favorites.All(x=>x.uri!=uri))Store.Settings.favorites.Add(new Favorite{name=name,uri=uri});Store.Save();Notify();}
         public void ShowFavorites(){StopDiscovery();Source=FileSource.Favorites;ClearDirectoryHistory();CancelListing();DirectoryUri="";Files=Store.Settings.favorites.Select(f=>new FileEntry{name=f.name,uri=f.uri,directory=true}).ToList();SetStatus("收藏目录");Notify();}
         private void UpdateRecentFiles(){Files=Store?.Settings.history.Select(h=>new FileEntry{name=h.name,uri=h.uri,size=h.size,modified=h.modified,formatName=h.formatName}).ToList()??new List<FileEntry>();}
         public void ShowRecent(){StopDiscovery();Source=FileSource.Recent;ClearDirectoryHistory();CancelListing();DirectoryUri="";SetStatus("最近播放 · 按最近播放顺序显示，选择影片恢复进度");Notify();}

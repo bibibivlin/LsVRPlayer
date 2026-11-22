@@ -49,7 +49,7 @@ namespace VRPlayer
             for(int i=1;i<=36;i++)mesh.AddTriangle(0,i,i==36?1:i+1);
         }
     }
-    public enum QuickIcon { Subtitle, Volume, Muted, Previous, Play, Pause, Next, Mode, Speed, Close, Back, Up, Refresh, Star, Clock, Local, Network, Folder, Film, Flat, VR180, Globe, Fisheye, Cubemap, Eac, Sbs, Ou, Eye, Swap, Expand, Contract, Check, Trash, Search, Stop, Home, Add, Forward, Backspace, Open, Edit, ViewPoster, ViewBanner, ViewDisc, ViewLogo, ViewThumb, ViewList, ViewTable }
+    public enum QuickIcon { Subtitle, Volume, Muted, Previous, Play, Pause, Next, Mode, Speed, Close, Back, Up, Refresh, Star, Clock, Local, Network, Folder, Film, Flat, VR180, Globe, Fisheye, Cubemap, Eac, Sbs, Ou, Eye, Swap, Expand, Contract, Check, Trash, Search, Stop, Home, Add, Forward, Backspace, Open, Edit, ViewPoster, ViewBanner, ViewDisc, ViewLogo, ViewThumb, ViewList, ViewTable, StarFilled }
     [RequireComponent(typeof(CanvasRenderer))]
     public sealed class QuickIconGraphic : MaskableGraphic
     {
@@ -67,6 +67,21 @@ namespace VRPlayer
         private void Ring(float x,float y,float radius,float start=0,float end=360)
         {
             for(int i=0;i<24;i++){float a=Mathf.Lerp(start,end,i/24f)*Mathf.Deg2Rad,b=Mathf.Lerp(start,end,(i+1)/24f)*Mathf.Deg2Rad;Line(x+Mathf.Cos(a)*radius,y+Mathf.Sin(a)*radius,x+Mathf.Cos(b)*radius,y+Mathf.Sin(b)*radius,2);}
+        }
+        private void DrawStar(bool filled)
+        {
+            Vector2 center = Point(16, 16);
+            for (int i = 0; i < 10; i++)
+            {
+                float angle = (90 + i * 36) * Mathf.Deg2Rad;
+                float nextAngle = (90 + (i + 1) * 36) * Mathf.Deg2Rad;
+                float radius = i % 2 == 0 ? 13 : 6;
+                float nextRadius = i % 2 == 0 ? 6 : 13;
+                float x = 16 + Mathf.Cos(angle) * radius, y = 16 + Mathf.Sin(angle) * radius;
+                float nextX = 16 + Mathf.Cos(nextAngle) * nextRadius, nextY = 16 + Mathf.Sin(nextAngle) * nextRadius;
+                if (filled) Triangle(center, Point(nextX, nextY), Point(x, y));
+                else Line(x, y, nextX, nextY, 1.8f);
+            }
         }
         protected override void OnPopulateMesh(VertexHelper vh)
         {
@@ -90,8 +105,8 @@ namespace VRPlayer
                 case QuickIcon.Back:Line(23,16,7,16);Line(7,16,15,24);Line(7,16,15,8);break;
                 case QuickIcon.Up:Line(16,5,16,27);Line(16,27,7,18);Line(16,27,25,18);break;
                 case QuickIcon.Refresh:Ring(16,16,11,45,340);Line(24,26,28,21);Line(28,21,21,21);break;
-                case QuickIcon.Star:
-                    for(int i=0;i<10;i++){float a=(90+i*36)*Mathf.Deg2Rad,b=(90+(i+1)*36)*Mathf.Deg2Rad;float ra=i%2==0?13:6,rb=i%2==0?6:13;Line(16+Mathf.Cos(a)*ra,16+Mathf.Sin(a)*ra,16+Mathf.Cos(b)*rb,16+Mathf.Sin(b)*rb,1.8f);}break;
+                case QuickIcon.Star:DrawStar(false);break;
+                case QuickIcon.StarFilled:DrawStar(true);break;
                 case QuickIcon.Clock:Ring(16,16,13);Line(16,16,16,25);Line(16,16,23,12);break;
                 case QuickIcon.Local:Line(4,5,28,5);Line(28,5,25,27);Line(25,27,7,27);Line(7,27,4,5);Line(5,13,27,13);Line(9,9,12,9,1.5f);break;
                 case QuickIcon.Network:Line(16,23,16,14);Line(6,14,26,14);Line(6,14,6,9);Line(26,14,26,9);Rectangle(11,23,21,30);Rectangle(1,1,11,9);Rectangle(21,1,31,9);break;

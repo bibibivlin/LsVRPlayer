@@ -20,6 +20,8 @@ namespace VRPlayer.Tests
         private PlayerApp app;private PlayerUI ui;private PlayerStore store;private TestBackend backend;private string path;
         private void Set(string name,object value)=>typeof(PlayerApp).GetProperty(name).SetValue(app,value);
         private VirtualFileList FullFileList=>(VirtualFileList)typeof(PlayerUI).GetField("fileList",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
+        private Button DirectoryFavoriteButton => ui.Canvas.GetComponentsInChildren<Button>().Single(button => button.name == "Favorite directory");
+        private TMPro.TextMeshProUGUI FeedbackLabel => (TMPro.TextMeshProUGUI)typeof(PlayerUI).GetField("transportLabel", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(ui);
         private void FileButton(string name)
         {
             var content=(RectTransform)typeof(PlayerUI).GetField("content",BindingFlags.Instance|BindingFlags.NonPublic).GetValue(ui);
@@ -212,6 +214,59 @@ namespace VRPlayer.Tests
                 Assert.That(app.DirectoryUri,Is.EqualTo(new Uri(folder).AbsoluteUri));Assert.That(ui.Visible);Assert.That(app.Source,Is.EqualTo(FileSource.Directory));
                 app.Home();ui.Back();Assert.That(ui.AnyVisible,Is.False);
             }finally{app.CancelListing();Directory.Delete(folder,true);}
+        }
+        [TestCase("file:///storage/emulated/0/VR%20Movies")]
+        [TestCase("smb://stable-id/VR%20Movies")]
+        public void DirectoryFavoriteShowsFeedbackAndPersistsBothStates(string uri)
+        {
+            Assert.That(DirectoryFavoriteButton.interactable, Is.False);
+            DirectorySnapshot(uri, 40);
+            FullFileList.SetOffset(640);
+            Button button = DirectoryFavoriteButton;
+            var icon = button.GetComponentInChildren<QuickIconGraphic>();
+            Assert.That(icon.Icon, Is.EqualTo(QuickIcon.Star));
+
+            button.onClick.Invoke();
+            Assert.That(icon.Icon, Is.EqualTo(QuickIcon.StarFilled));
+            Assert.That(button.GetComponentInChildren<TMPro.TextMeshProUGUI>(true).text, Is.EqualTo("取消收藏"));
+            Assert.That(FeedbackLabel.gameObject.activeInHierarchy, Is.True);
+            Assert.That(FeedbackLabel.text, Is.EqualTo(Localization.Message("已收藏当前目录")));
+            Assert.That(FullFileList.Offset, Is.EqualTo(640));
+            var saved = new PlayerStore(path).Settings.favorites.Single();
+            Assert.That(saved.uri, Is.EqualTo(uri));
+            Assert.That(saved.name, Is.EqualTo("VR Movies"));
+
+            DirectorySnapshot(uri + "/Another", 1);
+            Assert.That(DirectoryFavoriteButton.GetComponentInChildren<QuickIconGraphic>().Icon, Is.EqualTo(QuickIcon.Star));
+            DirectorySnapshot(uri + "/", 40);
+            button = DirectoryFavoriteButton;
+            icon = button.GetComponentInChildren<QuickIconGraphic>();
+            Assert.That(icon.Icon, Is.EqualTo(QuickIcon.StarFilled));
+
+            button.onClick.Invoke();
+            Assert.That(icon.Icon, Is.EqualTo(QuickIcon.Star));
+            Assert.That(button.GetComponentInChildren<TMPro.TextMeshProUGUI>(true).text, Is.EqualTo("收藏当前目录"));
+            Assert.That(FeedbackLabel.text, Is.EqualTo(Localization.Message("已取消收藏")));
+            Assert.That(new PlayerStore(path).Settings.favorites, Is.Empty);
+        }
+        [Test] public void FailedFavoriteSaveKeepsTheSavedStateAndShowsAnError()
+        {
+            const string uri = "file:///favorite";
+            DirectorySnapshot(uri, 1);
+            Button button = DirectoryFavoriteButton;
+            button.onClick.Invoke();
+            string blockedPath = path + ".tmp";
+            Directory.CreateDirectory(blockedPath);
+            try
+            {
+                LogAssert.Expect(LogType.Warning, new Regex("^VRPlayer settings save failed: "));
+                button.onClick.Invoke();
+                Assert.That(button.GetComponentInChildren<QuickIconGraphic>().Icon, Is.EqualTo(QuickIcon.StarFilled));
+                Assert.That(store.IsFavorite(uri), Is.True);
+                Assert.That(new PlayerStore(path).IsFavorite(uri), Is.True);
+                Assert.That(FeedbackLabel.text, Is.EqualTo(Localization.Message("无法保存收藏更改")));
+            }
+            finally { Directory.Delete(blockedPath); }
         }
         [Test] public async Task BackFromFavoriteShortcutRestoresFavoriteSearchSortSubtitleViewAndOffset()
         {
